@@ -1,0 +1,21 @@
+{
+  "appId": "com.personal.attendance",
+  "appName": "PersonalAttendance",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Filesystem": {
+      "iosScheme": "ionic"
+    },
+    "GoogleAuth": {
+      "scopes": ["profile", "email", "https://www.googleapis.com/auth/drive.file"],
+      "serverClientId": "1073948569418-ek2de2jttbcjlicqjkg84gftgnoalab9.apps.googleusercontent.com",
+      "androidClientId": "1073948569418-ek2de2jttbcjlicqjkg84gftgnoalab9.apps.googleusercontent.com",
+      "clientId": "1073948569418-ek2de2jttbcjlicqjkg84gftgnoalab9.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": false,
+      "grantOfflineAccess": true
+    }
+  }
+}

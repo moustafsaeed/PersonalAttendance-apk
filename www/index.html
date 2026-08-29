@@ -1,0 +1,3575 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>سجل الحضور الشخصي</title>
+  <script src="lib/tailwind.js"></script>
+  <link href="fonts.css" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;700&family=Almarai:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;700&family=Readex+Pro:wght@400;700&family=El+Messiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Markazi+Text:wght@400;700&family=Kufam:wght@400;700&family=Mada:wght@400;700&family=Lateef&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="fa.css">
+  <script src="lib/chart.js"></script>
+  <script src="lib/html2canvas.js"></script>
+  <script src="lib/jspdf.js"></script>
+  <script>
+    window.onerror = function (msg, url, line, col, error) {
+      console.error("App Error:", msg, url, line, col, error);
+      if (typeof trackError === 'function') {
+        trackError('window.onerror', msg, (url || '') + ':' + line + ':' + col);
+      }
+      return false;
+    };
+    window.onunhandledrejection = function (event) {
+      console.warn("Unhandled Promise Rejection:", event.reason);
+      if (typeof trackError === 'function') {
+        trackError('unhandledrejection', event.reason ? (event.reason.message || event.reason) : 'Unknown');
+      }
+    };
+  </script>
+  <script src="./assets/clean_app_source.js"></script>
+
+<style>
+    /* ══════════════════════════════════════════════
+       نظام التصميم الموحّد (Advanced Design System)
+       ══════════════════════════════════════════════ */
+    :root {
+      /* ── Radius & Shadows ── */
+      --radius-xs: 6px;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 26px;
+      --radius-full: 9999px;
+
+      --shadow-sm: 0 2px 10px rgba(0, 0, 0, .04);
+      --shadow-md: 0 6px 20px rgba(0, 0, 0, .08);
+      --shadow-lg: 0 12px 30px rgba(0, 0, 0, .12);
+      --shadow-xl: 0 20px 60px rgba(0, 0, 0, .28);
+
+      /* ── Transitions ── */
+      --trans: cubic-bezier(0.16, 1, 0.3, 1);
+      --spring: .45s cubic-bezier(.34, 1.56, .64, 1);
+
+      /* ── Semantic Colors (Status) ── */
+      --c-success: #10b981;
+      --c-success-bg: rgba(16, 185, 129, 0.12);
+      --c-danger: #ef4444;
+      --c-danger-bg: rgba(239, 68, 68, 0.12);
+      --c-warning: #f59e0b;
+      --c-warning-bg: rgba(245, 158, 11, 0.12);
+      --c-info: #3b82f6;
+      --c-info-bg: rgba(59, 130, 246, 0.12);
+
+      /* ── Default Accent (Blue) ── */
+      --c-blue: #3b82f6;
+      --c-blue-dk: #1d4ed8;
+      --c-blue-lt: rgba(59, 130, 246, 0.12);
+      --grad-primary: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 50%, #06b6d4 100%);
+      --shadow-accent: 0 8px 30px rgba(59, 130, 246, .25);
+      --shadow-accent-lg: 0 12px 30px rgba(59, 130, 246, .4);
+
+      /* ── Fonts ── */
+      --font-main: 'Cairo', system-ui, sans-serif;
+    }
+
+    /* Accent: Green */
+    [data-accent="green"],
+    body.theme-green {
+      --c-blue: #10b981;
+      --c-blue-dk: #059669;
+      --c-blue-lt: rgba(16, 185, 129, 0.12);
+      --grad-primary: linear-gradient(135deg, #047857 0%, #10b981 50%, #34d399 100%);
+      --shadow-accent: 0 8px 30px rgba(16, 185, 129, .25);
+      --shadow-accent-lg: 0 12px 30px rgba(16, 185, 129, .4);
+    }
+
+    /* Page & Surface - LIGHT */
+    :root,
+    html:not(.dark) {
+      --c-bg: #f8fafc;
+      --c-surface: #ffffff;
+      --c-surface-2: #f1f5f9;
+      --c-border: #e2e8f0;
+      --c-text: #0f172a;
+      --c-text-2: #475569;
+      --c-text-3: #94a3b8;
+      --c-input-bg: #ffffff;
+      --c-nav-bg: rgba(255, 255, 255, 0.8);
+
+      --stat-present-text: #059669;
+      --stat-absent-text: #dc2626;
+      --stat-late-text: #d97706;
+
+      --c-scrollbar: rgba(0, 0, 0, 0.15);
+      --c-surface3: #e2e8f0;
+      --c-border2: #cbd5e1;
+    }
+
+    /* Page & Surface - DARK */
+    html.dark,
+    .dark {
+      --c-bg: #0f172a;
+      --c-surface: #1e293b;
+      --c-surface-2: #334155;
+      --c-border: #334155;
+      --c-text: #f8fafc;
+      --c-text-2: #cbd5e1;
+      --c-text-3: #94a3b8;
+      --c-input-bg: #0f172a;
+      --c-nav-bg: rgba(15, 23, 42, 0.8);
+
+      --stat-present-text: #34d399;
+      --stat-absent-text: #f87171;
+      --stat-late-text: #fbbf24;
+
+      --c-scrollbar: rgba(255, 255, 255, 0.15);
+      --c-surface3: #475569;
+      --c-border2: #475569;
+
+      --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Shared Aliases */
+    :root {
+      --pri: var(--c-blue);
+      --pri-l: var(--c-blue);
+      --pri-d: var(--c-blue-dk);
+      --pri-bg: var(--c-blue-lt);
+      --bg: var(--c-bg);
+      --surface: var(--c-surface);
+      --text: var(--c-text);
+      --text2: var(--c-text-2);
+      --border: var(--c-border);
+      --border-color: var(--c-border);
+      --c-surface2: var(--c-surface-2);
+      --theme-primary: var(--c-blue);
+      --theme-primary-bg: var(--c-blue-lt);
+      --theme-grad-h: var(--grad-primary);
+      --stat-present-bg: var(--c-success-bg);
+      --stat-absent-bg: var(--c-danger-bg);
+      --stat-late-bg: var(--c-warning-bg);
+      --stat-custom-bg: var(--c-info-bg);
+      --stat-custom-text: var(--c-info);
+    }
+
+    html.dark body.theme-green {
+      --c-pri-text: #34d399;
+    }
+
+    /* ── Reset ──────────────────────────────── */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Touch UI Targets Optimization */
+    button,
+    input,
+    select,
+    textarea {
+      font-family: 'Cairo', sans-serif !important;
+    }
+
+    button,
+    input,
+    select {
+      min-height: 48px;
+      touch-action: manipulation;
+    }
+
+    button[class*="py-2"],
+    button[class*="p-1"],
+    .btn-act {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overflow-x-auto {
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+    }
+
+    /* ── Typography ───────────────────────────────── */
+    @keyframes fadeSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    @keyframes scaleIn {
+      from {
+        opacity: 0;
+        transform: scale(.9)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: translateY(6px) scale(.9)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    @keyframes ring-pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, .5)
+      }
+
+      50% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0)
+      }
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-8px)
+      }
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: 200% 0
+      }
+
+      100% {
+        background-position: -200% 0
+      }
+    }
+
+    /* Animation utility classes */
+    .anim-up {
+      animation: fadeSlideUp .4s ease-out both;
+    }
+
+    .anim-fade {
+      animation: fadeIn .3s ease-out both;
+    }
+
+    .anim-scale {
+      animation: scaleIn .35s cubic-bezier(.34, 1.56, .64, 1) both;
+    }
+
+    .anim-count {
+      animation: countUp .5s ease-out both;
+    }
+
+    .d1 {
+      animation-delay: .05s
+    }
+
+    .d2 {
+      animation-delay: .10s
+    }
+
+    .d3 {
+      animation-delay: .15s
+    }
+
+    .d4 {
+      animation-delay: .20s
+    }
+
+    .d5 {
+      animation-delay: .25s
+    }
+
+    html,
+    body {
+      overscroll-behavior: none;
+      height: 100dvh;
+    }
+
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+      font-weight: 500;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-tap-highlight-color: transparent;
+      background: var(--c-bg);
+      color: var(--c-text);
+      transition: background .3s, color .3s;
+      padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+      padding-top: env(safe-area-inset-top, 0px);
+      overflow-x: hidden;
+      overflow-y: auto !important;
+      min-height: 100dvh;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    .font-black {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+    }
+
+    .text-number {
+      font-feature-settings: "tnum";
+    }
+
+    /* Animated mesh background using accent color */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 130% 90% at 50% -15%, var(--c-blue-lt) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 60% at 80% 100%, var(--c-blue-lt) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header,
+    main,
+    nav {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--c-scrollbar);
+      border-radius: 99px;
+    }
+
+    /* ── Cards ─────────────────────────────────── */
+    .card {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      transition: transform .22s var(--trans), box-shadow .22s var(--trans);
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .glass-card {
+      background: var(--c-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--c-border);
+    }
+
+    /* ── Tables System (Phase 4: Unified Tables) ── */
+    .table-modern {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+      font-size: 0.875rem;
+    }
+
+    .table-modern th {
+      background: var(--background);
+      color: var(--text-secondary);
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    .table-modern td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    .table-modern tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table-modern tr:hover td {
+      background: rgba(0, 0, 0, 0.015);
+    }
+
+    /* ── Status Colors for Records (Premium Look) ── */
+    .table-modern tr.tr-present {
+      background: var(--stat-present-bg);
+      border-left: 4px solid var(--stat-present-text);
+    }
+
+    .table-modern tr.tr-absent {
+      background: var(--stat-absent-bg);
+      border-left: 4px solid var(--stat-absent-text);
+    }
+
+    .table-modern tr.tr-late {
+      background: var(--stat-late-bg);
+      border-left: 4px solid var(--stat-late-text);
+    }
+
+    .table-modern tr.tr-custom {
+      background: var(--stat-custom-bg);
+      border-left: 4px solid var(--stat-custom-text);
+    }
+
+    .table-modern tr.tr-holiday {
+      background: var(--c-info-bg);
+      border-left: 4px solid var(--c-info);
+    }
+
+    html.dark .table-modern tr {
+      border-left-width: 0;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    html.dark .table-modern tr.tr-present {
+      background: rgba(52, 211, 153, 0.08);
+      border-right: 4px solid var(--stat-present-text);
+      border-left: none;
+    }
+
+    html.dark .table-modern tr.tr-absent {
+      background: rgba(248, 113, 113, 0.08);
+      border-right: 4px solid var(--stat-absent-text);
+      border-left: none;
+    }
+
+    html.dark .table-modern tr.tr-late {
+      background: rgba(251, 191, 36, 0.08);
+      border-right: 4px solid var(--stat-late-text);
+      border-left: none;
+    }
+
+    html.dark .table-modern tr.tr-custom {
+      background: rgba(96, 165, 250, 0.08);
+      border-right: 4px solid var(--stat-custom-text);
+      border-left: none;
+    }
+
+    html.dark .table-modern tr.tr-holiday {
+      background: rgba(59, 130, 246, 0.08);
+      border-right: 4px solid var(--c-info);
+      border-left: none;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+      animation: fu .35s cubic-bezier(.25, .46, .45, .94);
+    }
+
+    @keyframes fu {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Pulse (check-in button) ─────────────── */
+    @keyframes pulse-r {
+      0% {
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, .55);
+      }
+
+      70% {
+        box-shadow: 0 0 0 18px rgba(37, 99, 235, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+      }
+    }
+
+    .pulse-a {
+      animation: pulse-r 2s infinite;
+    }
+
+    /* ── Settings Page (Redesign) ──────────────── */
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* ── Settings Page Navigation (Integrated Segmented Control) ────── */
+    .settings-nav-container {
+      padding: 16px 16px 8px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg) 60%, transparent);
+    }
+
+    .settings-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      background: var(--c-surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--c-border2);
+      border-radius: 24px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      overflow-x: auto;
+      scrollbar-width: none;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .settings-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .set-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      /* Stacked icon/text for better mobile fit */
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 8px 4px;
+      min-width: 0;
+      border-radius: 18px;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: transparent;
+      color: var(--c-text-3);
+      border: none;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .set-tab i {
+      font-size: 18px;
+      transition: transform 0.3s ease;
+    }
+
+    .set-tab:hover {
+      color: var(--c-text);
+      background: var(--c-surface2);
+    }
+
+    .set-tab.active {
+      background: var(--pri);
+      color: #ffffff;
+      box-shadow: 0 4px 12px var(--pri-lt);
+    }
+
+    .set-tab.active i {
+      transform: scale(1.1);
+      color: #ffffff;
+    }
+
+    .set-tab.active::after {
+      display: none;
+    }
+
+    /* Section Cards (Harakati) */
+    .settings-section {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .settings-section-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--c-text-3);
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      margin: 20px 0 10px;
+      padding: 0 4px;
+    }
+
+    /* Row Items (Harakati) */
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--c-border);
+      transition: background var(--trans);
+    }
+
+    .settings-row:hover {
+      background: rgba(128, 128, 128, .04);
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row-label {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .settings-row-label .label-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--c-text);
+      display: block;
+    }
+
+    .settings-row-label .label-desc {
+      font-size: 11px;
+      color: var(--c-text-3);
+      margin-top: 2px;
+    }
+
+    /* Toggle Switch */
+    .toggle-switch {
+      appearance: none;
+      width: 48px;
+      height: 28px;
+      background: var(--c-border);
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      flex-shrink: 0;
+      border: 1px solid transparent;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .toggle-switch:checked {
+      background: var(--c-blue);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .toggle-switch:checked::after {
+      transform: translateX(20px);
+    }
+
+    .toggle-switch:active::after {
+      width: 24px;
+    }
+
+    /* (duplicate .settings-row removed — using L657 definition) */
+
+    /* Chips */
+    .setting-chip {
+      padding: 6px 14px;
+      border-radius: 99px;
+      border: 1px solid var(--border-color);
+      background: var(--background);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .setting-chip.active {
+      background: var(--primary-blue);
+      color: white;
+      border-color: var(--primary-blue);
+    }
+
+    /* Settings Content Area */
+    .settings-content {
+      padding: 16px;
+    }
+
+    .settings-content>*+* {
+      margin-top: 24px;
+    }
+
+    .set-pane>*+* {
+      margin-top: 24px;
+    }
+
+    /* Danger Zone */
+    .danger-zone {
+      background: rgba(239, 68, 68, 0.04);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      border-radius: 1rem;
+      padding: 12px;
+    }
+
+    .danger-zone>*+* {
+      margin-top: 8px;
+    }
+
+    /* ══ BUTTONS ══════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 20px;
+      min-height: 48px;
+      border-radius: var(--radius-md);
+      font-family: 'Cairo', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all var(--trans);
+      white-space: nowrap;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .btn:active {
+      transform: scale(.97);
+    }
+
+    .btn:disabled,
+    .btn.disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      filter: grayscale(.5);
+      pointer-events: none;
+    }
+
+    /* Shine effect */
+    .btn::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(45deg, transparent, rgba(255, 255, 255, .15), transparent);
+      transform: rotate(45deg);
+      transition: all .6s var(--trans);
+      opacity: 0;
+    }
+
+    .btn:hover::after {
+      opacity: 1;
+      left: 100%;
+    }
+
+    /* Unified Variants */
+    .btn-primary {
+      background: var(--theme-grad-h);
+      color: #fff;
+      box-shadow: var(--shadow-accent);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: var(--shadow-accent-lg);
+      transform: translateY(-2px);
+    }
+
+    .btn-success {
+      background: var(--c-success);
+      color: #fff;
+      box-shadow: 0 8px 24px var(--c-success-bg);
+    }
+
+    .btn-success:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px var(--c-success-bg);
+    }
+
+    .btn-danger,
+    .btn-error {
+      background: var(--c-danger);
+      color: #fff;
+      box-shadow: 0 8px 24px var(--c-danger-bg);
+    }
+
+    .btn-danger:hover:not(:disabled),
+    .btn-error:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px var(--c-danger-bg);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--c-border);
+      color: var(--c-text);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border2);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--c-text);
+      border: 1.5px solid var(--c-border);
+    }
+
+    .btn-outline:hover:not(:disabled) {
+      background: var(--theme-primary-bg);
+      border-color: var(--theme-primary);
+      color: var(--theme-primary);
+    }
+
+    .btn-secondary {
+      background: var(--c-surface2);
+      color: var(--c-text);
+      border: 1.5px solid var(--c-border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--c-surface3);
+      border-color: var(--c-border2);
+    }
+
+    .btn-icon {
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border-radius: var(--radius-md);
+    }
+
+    .btn-full {
+      width: 100%;
+    }
+
+    /* Backward compat */
+    .btn-act {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 20px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all var(--trans);
+      border: none;
+    }
+
+    /* ══ CHIPS / BADGES ════════════════════════════════════════ */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .chip-blue {
+      background: rgba(59, 130, 246, .15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, .25);
+    }
+
+    .chip-green {
+      background: rgba(16, 185, 129, .15);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, .25);
+    }
+
+    .chip-amber {
+      background: rgba(245, 158, 11, .15);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    .chip-red {
+      background: rgba(239, 68, 68, .15);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, .25);
+    }
+
+    .chip-purple {
+      background: rgba(139, 92, 246, .15);
+      color: #c4b5fd;
+      border: 1px solid rgba(139, 92, 246, .25);
+    }
+
+    .chip-cyan {
+      background: rgba(6, 182, 212, .15);
+      color: #67e8f9;
+      border: 1px solid rgba(6, 182, 212, .25);
+    }
+
+    .chip-gray {
+      background: rgba(128, 128, 128, .1);
+      color: var(--c-text-2);
+      border: 1px solid var(--c-border2);
+    }
+
+    /* Light theme chip text overrides */
+    html:not(.dark) .chip-blue {
+      color: #1d4ed8;
+    }
+
+    html:not(.dark) .chip-green {
+      color: #047857;
+    }
+
+    html:not(.dark) .chip-amber {
+      color: #92400e;
+    }
+
+    html:not(.dark) .chip-red {
+      color: #991b1b;
+    }
+
+    html:not(.dark) .chip-purple {
+      color: #5b21b6;
+    }
+
+    html:not(.dark) .chip-cyan {
+      color: #0e7490;
+    }
+
+    /* Legacy setting-chip */
+    .setting-chip {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--c-border);
+      background: var(--c-bg);
+      color: var(--c-text-2);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .setting-chip.active {
+      background: var(--grad-primary);
+      color: white;
+      border-color: var(--c-blue);
+    }
+
+    /* ══ FORM CONTROLS / INPUTS ════════════════════════════════ */
+    /* Unified .inp — Matches Design System Settings Style */
+    .inp,
+    .form-control {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 16px;
+      border: 1px solid var(--c-input-border);
+      border-radius: var(--radius-md);
+      background: var(--c-input-bg);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--c-text);
+      transition: all var(--trans);
+      outline: none;
+    }
+
+    .inp::placeholder,
+    .form-control::placeholder {
+      color: var(--c-text-3);
+      font-weight: 500;
+    }
+
+    .inp:focus,
+    .form-control:focus {
+      border-color: var(--theme-primary);
+      background: var(--c-surface);
+      box-shadow: 0 0 0 4px var(--theme-primary-bg);
+    }
+
+    .inp:disabled,
+    .form-control:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    /* State variants */
+    .form-control.is-success {
+      border-color: var(--c-green);
+    }
+
+    .form-control.is-success:focus {
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, .15);
+    }
+
+    .form-control.is-error {
+      border-color: var(--c-red);
+    }
+
+    .form-control.is-error:focus {
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, .15);
+    }
+
+    /* Select RTL */
+    select.inp,
+    select.form-control {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%235a7099' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: left 12px center;
+      padding-left: 36px;
+    }
+
+    select.inp option,
+    select.form-control option {
+      background: var(--c-select-option);
+      color: var(--c-text);
+    }
+
+    textarea.inp,
+    textarea.form-control {
+      resize: vertical;
+      min-height: 72px;
+    }
+
+    /* Global raw inputs reset (for non .inp elements) */
+    input:not([class]),
+    select:not([class]),
+    textarea:not([class]) {
+      background: var(--c-surface);
+      color: var(--c-text);
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: .9rem;
+      outline: none;
+      transition: border .22s, background .35s, box-shadow .22s;
+      width: 100%;
+    }
+
+    input:not([class]):focus,
+    select:not([class]):focus,
+    textarea:not([class]):focus {
+      border-color: var(--c-blue);
+      box-shadow: 0 0 0 4px var(--c-blue-lt);
+    }
+
+    /* ── Layout Utilities ── */
+    .page-container>*+* {
+      margin-top: 16px;
+    }
+
+    .card-body {
+      padding: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 28px;
+    }
+
+    .danger-zone {
+      background: var(--c-danger-bg);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-top: 10px;
+    }
+
+    /* Progress bar */
+    .prog-bar-wrap {
+      height: 6px;
+      background: rgba(128, 128, 128, .15);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .prog-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--grad-primary);
+      transition: width .6s ease;
+    }
+
+    /* Neon line */
+    .neon-line {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--c-blue), var(--c-cyan), transparent);
+      border-radius: 99px;
+      opacity: .6;
+    }
+
+
+    /* (duplicate .form-group:last-child + .actions-row removed — using earlier definitions) */
+
+    /* ── Bottom nav ──────────────────────────── */
+    .nav-i {
+      transition: all .4s var(--trans);
+      position: relative;
+    }
+
+    .nav-i.on {
+      color: var(--pri);
+      transform: translateY(-2px);
+    }
+
+    .nav-i.on i {
+      text-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .nav-i.on .nd {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+
+    .nd {
+      position: absolute;
+      bottom: 8px;
+      transform: scaleX(0);
+      opacity: 0;
+      transition: all .4s cubic-bezier(.34, 1.56, .64, 1);
+      box-shadow: 0 0 15px var(--pri);
+    }
+
+    /* ── Calendar day cells ──────────────────── */
+    .cd {
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all .18s;
+      font-size: .85rem
+    }
+
+    .cd:hover {
+      background: var(--pri-bg);
+      transform: scale(1.08)
+    }
+
+    .cd.sel {
+      background: var(--pri);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, .35)
+    }
+
+    .cd.tod {
+      border: 2px solid var(--pri-l)
+    }
+
+    .cd.dis {
+      opacity: .22;
+      pointer-events: none
+    }
+
+    /* ── Toast (High Contrast) ───────────────── */
+    .toast-s {
+      transform: translateX(-50%) translateY(0) !important;
+      opacity: 1 !important;
+    }
+
+    .toast-dark {
+      background: rgba(15, 23, 42, 0.95) !important;
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    /* ── Table rows ──────────────────────────── */
+    .tr-r {
+      transition: background .15s
+    }
+
+    .tr-r:hover {
+      background: var(--pri-bg)
+    }
+
+    /* ── Work-day picker ─────────────────────── */
+    .wd-l {
+      transition: all .2s;
+      cursor: pointer
+    }
+
+    /* (raw input styles now handled by .inp / .form-control above) */
+
+    /* ── Scrollbar ───────────────────────────── */
+    ::-webkit-scrollbar {
+      width: 3px;
+      height: 3px
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--pri-l);
+      border-radius: 4px;
+      opacity: .5
+    }
+
+    /* ── Print ───────────────────────────────── */
+    @media print {
+      body * {
+        visibility: hidden
+      }
+
+      #pz,
+      #pz * {
+        visibility: visible
+      }
+
+      #pz {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 99999;
+        background: #fff
+      }
+    }
+
+    /* ── Notification banner ─────────────────── */
+    .notif {
+      animation: slideR .4s ease
+    }
+
+    @keyframes slideR {
+      from {
+        opacity: 0;
+        transform: translateX(20px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0)
+      }
+    }
+
+    /* ── Floating orbs (header deco) ─────────── */
+    .orb {
+      border-radius: 50%;
+      position: absolute;
+      filter: blur(40px);
+      opacity: .25;
+      animation: floatOrb 12s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatOrb {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(15px, -20px) scale(1.1);
+      }
+
+      100% {
+        transform: translate(-10px, 10px) scale(0.9);
+      }
+    }
+
+    /* ── Card Accent ── */
+    .card-accent {
+      border-top: 4px solid var(--pri);
+      border-radius: var(--radius-lg);
+    }
+
+    /* ── Harakati Dashboard components ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
+      border-radius: var(--radius-lg);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+      border: 1px solid var(--c-border);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--trans), box-shadow var(--trans);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .stat-num {
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .stat-lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-3);
+    }
+
+    .chart-card {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      border: 1px solid var(--c-border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ── Universal Modal Upgrades (Harakati) ── */
+    div.bg-black\/40 {
+      background: var(--c-shadow-modal) !important;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    div.bg-black\/80,
+    div.bg-black\/90 {
+      background: var(--c-shadow-modal) !important;
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+    }
+
+    div[id$="M"]>div.rounded-2xl[style*="background:var(--surface)"],
+    div[id$="M"]>div.rounded-t-3xl[style*="background:var(--surface)"] {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2)) !important;
+      border: 1px solid var(--c-border) !important;
+      border-bottom: none !important;
+      box-shadow: var(--shadow-xl) !important;
+      animation: fadeSlideUp 0.35s ease-out both !important;
+    }
+
+    /* (duplicate .settings-section-title removed — using L646 definition) */
+
+    .settings-card {
+      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--c-border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--c-border);
+      transition: background var(--trans);
+      cursor: pointer;
+    }
+
+    .settings-item:last-child {
+      border-bottom: none;
+    }
+
+    .settings-item:hover {
+      background: rgba(128, 128, 128, .04);
+    }
+
+    /* ── Global Glassmorphism & Modals ── */
+    .glass-surface {
+      background: rgba(var(--c-surface-rgb, 255, 255, 255), 0.82) !important;
+      backdrop-filter: blur(14px) saturate(180%);
+      -webkit-backdrop-filter: blur(14px) saturate(180%);
+      border: 1px solid var(--c-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    .dark .glass-surface {
+      background: rgba(26, 37, 64, 0.75) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    /* Animations */
+    .animate-modal-in {
+      animation: modalIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .page-fade-in {
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .settings-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .settings-item-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--c-text);
+    }
+
+    .settings-item-sub {
+      font-size: 11px;
+      color: var(--c-text-3);
+      margin-top: 2px;
+    }
+
+
+    /* ── Bottom Navigation (Harakati nav system) ── */
+    nav.glass {
+      background: rgba(var(--c-surface-rgb, 255, 255, 255), 0.98) !important;
+      backdrop-filter: blur(16px) saturate(200%);
+      -webkit-backdrop-filter: blur(16px) saturate(200%);
+      border-top: 1px solid var(--c-border);
+      padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.08);
+      border-radius: 28px 28px 0 0;
+    }
+
+    html.dark nav.glass {
+      background: rgba(15, 23, 42, 0.98) !important;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Nav button — Harakati style */
+    .nav-i {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      height: 100%;
+      color: var(--c-text-3);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color var(--trans);
+      gap: 3px;
+      padding-bottom: 2px;
+      position: relative;
+    }
+
+    .nav-i i {
+      font-size: 19px;
+      transition: transform var(--spring);
+      display: block;
+    }
+
+    .nav-i span {
+      font-family: 'Cairo', sans-serif;
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .nav-i.on {
+      color: var(--c-blue);
+    }
+
+    .nav-i.on i {
+      transform: translateY(-6px) scale(1.2);
+      text-shadow: 0 0 12px var(--c-blue-lt);
+    }
+
+    .nd {
+      display: none !important;
+    }
+
+    /* ── AI Intelligence Card (accent-aware) ── */
+    .ai-card {
+      background: linear-gradient(135deg, var(--c-blue-lt), rgba(59, 130, 246, .05));
+      border: 1px solid rgba(59, 130, 246, .2);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+      animation: aiPulse 2s infinite alternate ease-in-out;
+    }
+
+    .ai-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, var(--c-blue-lt) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    @keyframes aiPulse {
+      0% {
+        box-shadow: 0 0 10px var(--c-blue-lt);
+      }
+
+      100% {
+        box-shadow: 0 0 24px var(--c-blue-lt);
+      }
+    }
+
+    .ai-badge {
+      background: var(--grad-primary);
+      color: white;
+      font-size: 9px;
+      font-weight: 900;
+      padding: 2px 10px;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -400px 0
+      }
+
+      100% {
+        background-position: 400px 0
+      }
+    }
+
+    @keyframes premiumSlideDown {
+      0% {
+        transform: translateY(-100%);
+        opacity: 0;
+        filter: blur(10px);
+      }
+
+      100% {
+        transform: translateY(0);
+        opacity: 1;
+        filter: blur(0);
+      }
+    }
+
+    @keyframes premiumSlideUp {
+      0% {
+        transform: translateY(0);
+        opacity: 1;
+        filter: blur(0);
+      }
+
+      100% {
+        transform: translateY(-150%);
+        opacity: 0;
+        filter: blur(10px);
+      }
+    }
+
+    .animate-premiumIn {
+      animation: premiumSlideDown 1.2s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    }
+
+    .animate-premiumOut {
+      animation: premiumSlideUp 0.8s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    }
+
+    .solid-premium {
+      background: white !important;
+      border: 2px solid #ef4444 !important;
+      box-shadow: 0 10px 40px -5px rgba(220, 38, 38, 0.3) !important;
+    }
+
+    .red-glow-badge {
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+
+    .swipe-indicator {
+      width: 40px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      margin: 0 auto 6px;
+    }
+
+    .lock-overlay {
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    /* ── Overtime Compensation & Records Sub-Navigation Custom UI ── */
+    .records-nav-container {
+      padding: 0 0 16px;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: linear-gradient(to bottom, var(--c-bg, #f8fafc) 70%, transparent);
+    }
+
+    .records-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      background: var(--c-surface);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1.5px solid var(--c-border);
+      border-radius: 22px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .rec-tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 12px;
+      min-height: 44px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: transparent;
+      color: var(--c-text-3);
+      border: none;
+      white-space: nowrap;
+    }
+
+    .rec-tab i {
+      font-size: 15px;
+      transition: transform 0.3s ease;
+    }
+
+    .rec-tab:hover {
+      color: var(--c-text);
+      background: var(--c-surface2);
+    }
+
+    .rec-tab.active {
+      background: var(--theme-grad-h, var(--pri));
+      color: #ffffff !important;
+      box-shadow: 0 6px 18px var(--pri-lt);
+    }
+
+    .rec-tab.active i {
+      transform: scale(1.15);
+      color: #ffffff !important;
+    }
+
+    .btn-sub-tab {
+      background: transparent;
+      color: var(--c-text-3);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      border: none;
+    }
+
+    .btn-sub-tab.active {
+      background: var(--c-surface);
+      color: var(--pri) !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    /* ── Modern Status Badges & Distinguishable Colors ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s ease;
+    }
+
+    .status-badge i {
+      font-size: 10px;
+    }
+
+    /* 1. Present (حاضر / دوام مكتمل) - Emerald Green */
+    .status-badge-present {
+      background: rgba(16, 185, 129, 0.12);
+      color: #059669;
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+    html.dark .status-badge-present {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+
+    /* 2. Absent (غائب / بدون عذر) - Vivid Crimson / Rose */
+    .status-badge-absent {
+      background: rgba(244, 63, 94, 0.12);
+      color: #e11d48;
+      border-color: rgba(244, 63, 94, 0.25);
+    }
+    html.dark .status-badge-absent {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border-color: rgba(244, 63, 94, 0.35);
+    }
+
+    /* 3. Late Arrival (تأخير صباحي) - Amber Gold */
+    .status-badge-late {
+      background: rgba(245, 158, 11, 0.12);
+      color: #d97706;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    html.dark .status-badge-late {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    /* 4. Early Departure (خروج مبكر) - Deep Coral / Orange */
+    .status-badge-early {
+      background: rgba(234, 88, 12, 0.12);
+      color: #c2410c;
+      border-color: rgba(234, 88, 12, 0.3);
+    }
+    html.dark .status-badge-early {
+      background: rgba(234, 88, 12, 0.2);
+      color: #fb923c;
+      border-color: rgba(234, 88, 12, 0.4);
+    }
+
+    /* 5. Overtime (دوام إضافي) - Electric Blue / Indigo */
+    .status-badge-overtime {
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+    html.dark .status-badge-overtime {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    /* 6. Holiday / Vacation (إجازة رسمية / عطلة) - Cyan / Teal */
+    .status-badge-holiday {
+      background: rgba(13, 148, 136, 0.12);
+      color: #0d9488;
+      border-color: rgba(13, 148, 136, 0.25);
+    }
+    html.dark .status-badge-holiday {
+      background: rgba(13, 148, 136, 0.2);
+      color: #2dd4bf;
+      border-color: rgba(13, 148, 136, 0.35);
+    }
+
+    /* 7. Travel Mission (تكليف سفر / مهمة رسمية) - Royal Purple */
+    .status-badge-travel {
+      background: rgba(139, 92, 246, 0.12);
+      color: #7c3aed;
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+    html.dark .status-badge-travel {
+      background: rgba(139, 92, 246, 0.2);
+      color: #c084fc;
+      border-color: rgba(139, 92, 246, 0.4);
+    }
+
+    /* 8. Compensated (معوّض من الإضافي) - Emerald Mint */
+    .status-badge-compensated {
+      background: rgba(16, 185, 129, 0.14);
+      color: #059669;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    html.dark .status-badge-compensated {
+      background: rgba(16, 185, 129, 0.22);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    /* 9. Remote / Custom (عمل عن بعد / مخصص) - Sky Blue */
+    .status-badge-custom {
+      background: rgba(2, 132, 199, 0.12);
+      color: #0284c7;
+      border-color: rgba(2, 132, 199, 0.25);
+    }
+    html.dark .status-badge-custom {
+      background: rgba(2, 132, 199, 0.2);
+      color: #38bdf8;
+      border-color: rgba(2, 132, 199, 0.35);
+    }
+
+    /* Metric Chips */
+    .metric-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2.5px 7px;
+      border-radius: 8px;
+      font-size: 10.5px;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .metric-chip-late {
+      background: rgba(245, 158, 11, 0.12);
+      color: #d97706;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+    html.dark .metric-chip-late {
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.18);
+    }
+    .metric-chip-early {
+      background: rgba(234, 88, 12, 0.12);
+      color: #c2410c;
+      border: 1px solid rgba(234, 88, 12, 0.25);
+    }
+    html.dark .metric-chip-early {
+      color: #fb923c;
+      background: rgba(234, 88, 12, 0.18);
+    }
+    .metric-chip-overtime {
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+    html.dark .metric-chip-overtime {
+      color: #60a5fa;
+      background: rgba(59, 130, 246, 0.18);
+    }
+    .metric-chip-compensated {
+      background: rgba(16, 185, 129, 0.12);
+      color: #059669;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    html.dark .metric-chip-compensated {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.18);
+    }
+
+    /* Row Left Border Accents for Quick Visual Distinction */
+    .table-modern tbody tr {
+      transition: background 0.2s ease, transform 0.15s ease;
+      position: relative;
+    }
+    .table-modern tbody tr:hover {
+      background: rgba(128, 128, 128, 0.04);
+    }
+    .table-modern tbody tr.tr-present td:first-child {
+      border-right: 3.5px solid #10b981;
+    }
+    .table-modern tbody tr.tr-absent td:first-child {
+      border-right: 3.5px solid #f43f5e;
+    }
+    .table-modern tbody tr.tr-late td:first-child {
+      border-right: 3.5px solid #f59e0b;
+    }
+    .table-modern tbody tr.tr-travel td:first-child {
+      border-right: 3.5px solid #8b5cf6;
+    }
+    .table-modern tbody tr.tr-holiday td:first-child {
+      border-right: 3.5px solid #0d9488;
+    }
+    .table-modern tbody tr.tr-custom td:first-child {
+      border-right: 3.5px solid #3b82f6;
+    }
+
+    .comp-list-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px 16px;
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 10px;
+      background: var(--c-surface);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
+    }
+
+    .comp-list-item:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--c-border2);
+    }
+
+    .comp-list-item:last-child {
+      margin-bottom: 0;
+    }
+  </style>
+  
+</head>
+
+<body>
+  <div id="trialBanner"
+    class="hidden fixed left-0 right-0 z-[110] flex flex-col items-center pointer-events-none transition-all duration-300"
+    style="top: calc(env(safe-area-inset-top, 10px) + 12px);">
+    <div class="swipe-indicator opacity-20 bg-slate-400"></div>
+    <div id="trialBannerInner"
+      class="pointer-events-auto flex flex-col items-center solid-premium rounded-[24px] px-6 py-4 mx-4 w-[92%] max-w-sm cursor-pointer overflow-hidden transition-transform active:scale-95 shadow-xl"
+      onclick="window.openAboutM()" dir="rtl">
+
+      <div class="relative z-10 flex flex-col items-center gap-2">
+        <div class="flex items-center gap-2 mb-1">
+          <div class="w-2 h-2 rounded-full bg-red-600 animate-ping"></div>
+          <span class="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] font-sans">Trial Version</span>
+          <div class="w-2 h-2 rounded-full bg-red-600 animate-ping"></div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div
+            class="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white shadow-lg red-glow-badge shrink-0">
+            <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+          </div>
+          <div class="text-center">
+            <div class="text-[16px] font-black text-red-700 leading-tight mb-1">تنبيه: النسخة التجريبية مفعلة</div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200">
+              <span class="text-[14px] font-black text-red-600 text-number" id="trialCountdown">جارِ الحساب...</span>
+            </div>
+          </div>
+        </div>
+
+        <div onclick="window.openPurchaseModal()"
+          class="mt-3 text-[10px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-red-800 px-6 py-3 rounded-2xl transition-all active:scale-95 shadow-lg red-glow-badge">
+          <i class="fa-solid fa-gem text-white"></i>
+          شراء النسخة الكاملة الآن
+          <i class="fa-solid fa-chevron-left text-[8px] opacity-60"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+  <header class="px-5 pt-8 pb-10 relative overflow-hidden w-full max-w-2xl mx-auto"
+    style="background: var(--theme-grad-h); box-shadow: 0 10px 40px rgba(0,0,0,0.15)">
+    <!-- Decorative Orbs for background -->
+    <div class="orb w-40 h-40 -top-20 -right-20 bg-white/20"></div>
+    <div class="orb w-32 h-32 -bottom-10 -left-10 bg-white/10"></div>
+
+    <div class="relative flex justify-between items-center">
+      <div class="flex-1">
+        <h1 class="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
+          <i class="fa-solid fa-calendar-check text-xl opacity-90"></i>
+          سجل الحضور الشخصي
+        </h1>
+        <div class="flex items-center gap-2 text-white/90">
+          <div class="bg-white/20 rounded-lg px-2.5 py-1 text-[12px] font-black" id="hdrDay">الجمعة</div>
+          <p class="text-[13px] font-bold tracking-wide" id="hdrDate"></p>
+        </div>
+      </div>
+      <div class="flex flex-col items-end">
+        <div class="bg-white/20 backdrop-blur-md rounded-2xl px-4 py-2 text-center border border-white/10 shadow-lg">
+          <div class="text-xl font-black text-white text-number tracking-wider" id="hdrClock" dir="ltr"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="px-4 -mt-4 relative z-10 w-full max-w-2xl mx-auto pb-40">
+
+    <div id="pg-home" class="page active page-container">
+      <div id="notifArea" class="space-y-2"></div>
+      <div class="card p-0 overflow-hidden">
+        <div class="p-4" style="background: var(--c-surface2)">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black text-white shadow-sm"
+              style="background: var(--theme-grad-h)" id="homeAvatar">أ</div>
+            <div class="flex-1">
+              <div class="font-bold text-sm text-primary" id="homeGreeting">مرحباً</div>
+              <div class="text-[11px] font-bold mt-0.5" style="color:var(--text2)" id="homeSchedule"></div>
+            </div>
+            <div id="homeStatusBadge"></div>
+          </div>
+          <div id="homeTodayInfo" class="text-[11px] font-bold mt-3" style="color:var(--text2)"></div>
+        </div>
+
+        <div class="p-4 pt-3 flex flex-col gap-3 border-t" style="border-color: var(--c-border)">
+          <div id="homeTimer" class="hidden text-center py-3 rounded-xl transition-all duration-500"
+            style="background:var(--theme-primary-bg)">
+            <span class="text-xs font-bold" style="color:var(--theme-primary)"><i
+                class="fa-solid fa-stopwatch ml-1"></i></span>
+            <span class="text-2xl font-black mr-1 text-number tracking-wider" style="color:var(--theme-primary)"
+              id="timerDisplay">00:00:00</span>
+          </div>
+
+                    <!-- Holiday Work Banner -->
+          <div id="holidayWorkBanner" class="hidden mb-3 rounded-2xl overflow-hidden" style="border:1.5px solid var(--c-info);background:var(--c-info-bg)">
+            <div class="flex items-center justify-between px-4 py-3">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-calendar-xmark text-sm" style="color:var(--c-info)"></i>
+                <span class="text-[11px] font-black" style="color:var(--c-info)" id="holidayBannerLabel">يوم إجازة</span>
+              </div>
+              <button onclick="toggleHolidayWork()" id="btnWorkOnHoliday"
+                class="text-[10px] font-black px-3 py-1.5 rounded-xl transition-all duration-200 shadow-sm"
+                style="background:var(--c-info);color:white">
+                <i class="fa-solid fa-unlock ml-1"></i>تفعيل التسجيل
+              </button>
+            </div>
+            <div id="holidayWorkActiveMsg" class="hidden px-4 pb-3">
+              <div class="flex items-center gap-1.5 text-[10px] font-bold" style="color:var(--c-info)">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>مفعّل – دوام هذا اليوم سيُحسب كساعات إضافية</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mt-1">
+            <button onclick="doCheckIn()" id="btnCheckIn" class="btn btn-primary w-full shadow-md">
+              <i class="fa-solid fa-right-to-bracket text-lg"></i> تسجيل حضور
+            </button>
+            <button onclick="doCheckOut()" id="btnCheckOut" class="btn btn-error w-full disabled shadow-md" disabled>
+              <i class="fa-solid fa-right-from-bracket text-lg"></i> تسجيل انصراف
+            </button>
+          </div>
+
+          <div class="form-group mt-2">
+            <label class="form-label">ملاحظة (اختياري)</label>
+            <textarea id="noteInput" rows="2" class="form-control"
+              placeholder="أدخل ملاحظة للحضور أو الانصراف..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Smart Tip Card -->
+      <div id="aiHomeTip" class="hidden mb-3 ai-card transition-all duration-500 transform translate-y-2 opacity-0">
+        <div class="flex items-start gap-3 relative z-10">
+          <div
+            class="w-10 h-10 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-600 text-lg shadow-inner">
+            <i class="fa-solid fa-brain-circuit"></i>
+          </div>
+          <div class="flex-1">
+            <div class="flex justify-between items-center mb-1">
+              <span class="ai-badge"><i class="fa-solid fa-bolt"></i> ذكاء البيانات</span>
+              <button onclick="this.closest('#aiHomeTip').classList.add('hidden')"
+                class="text-slate-400 hover:text-slate-600 transition">
+                <i class="fa-solid fa-xmark text-[10px]"></i>
+              </button>
+            </div>
+            <div id="aiTipContent" class="text-xs font-bold leading-relaxed" style="color:var(--text)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-3">
+        <h2 class="font-bold text-sm mb-3" style="color:var(--pri)"><i class="fa-solid fa-calendar-week ml-1"></i> هذا
+          الأسبوع</h2>
+        <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold mb-1" style="color:var(--text2)"
+          id="weekDayLabels"></div>
+        <div class="grid grid-cols-7 gap-1" id="weekDays"></div>
+      </div>
+      <div class="stat-grid anim-up d3">
+        <div class="stat-card" onclick="goToRecords('present')">
+          <div class="stat-icon" style="background:var(--c-success-bg);color:var(--stat-present-text)">
+            <i class="fa-solid fa-check"></i>
+          </div>
+          <div class="stat-num" style="color:var(--stat-present-text)" id="hsPresent">0</div>
+          <div class="stat-lbl">أيام حضور</div>
+        </div>
+        <div class="stat-card" onclick="goToRecords('absent')">
+          <div class="stat-icon" style="background:var(--c-danger-bg);color:var(--stat-absent-text)">
+            <i class="fa-solid fa-xmark"></i>
+          </div>
+          <div class="stat-num" style="color:var(--stat-absent-text)" id="hsAbsent">0</div>
+          <div class="stat-lbl">أيام غياب</div>
+        </div>
+        <div class="stat-card" onclick="goToRecords('late')">
+          <div class="stat-icon" style="background:var(--c-warning-bg);color:var(--stat-late-text)">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+          <div class="stat-num" style="color:var(--stat-late-text)" id="hsLate">0</div>
+          <div class="stat-lbl">أيام تأخير</div>
+        </div>
+      </div>
+      <div style="height:120px" class="spacer"></div>
+    </div>
+
+    <div id="pg-records" class="page">
+      <!-- Records Sub-Navigation Tabs (سجل الحضور vs التعويضات والرصيد) -->
+      <div class="records-nav-container">
+        <div class="records-tabs">
+          <button onclick="switchRecordsView('attendance')" id="rt-attendance" class="rec-tab active">
+            <i class="fa-solid fa-clipboard-user"></i>
+            <span>سجل الحضور والغياب</span>
+          </button>
+          <button onclick="switchRecordsView('compensation')" id="rt-compensation" class="rec-tab">
+            <i class="fa-solid fa-scale-balanced"></i>
+            <span>التعويضات والرصيد</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- View 1: Attendance Records View -->
+      <div id="rv-attendance" class="rec-view">
+        <div class="card p-4 sm:p-5 mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
+          <div class="flex flex-col gap-4">
+            <!-- Search Bar (Centered Full-Width Top) -->
+            <div class="relative w-full max-w-xl mx-auto">
+              <label class="text-xs font-bold block mb-1.5 text-center" style="color:var(--text2)">
+                <i class="fa-solid fa-magnifying-glass ml-1 opacity-70"></i>البحث في السجلات
+              </label>
+              <div class="relative">
+                <input type="text" id="recSearch" class="form-control text-sm pr-10 text-center rounded-xl transition-all shadow-xs focus:ring-2 focus:ring-[var(--theme-primary-bg)]" placeholder="ابحث باليوم، التاريخ، أو الملاحظات..." oninput="renderRecords()">
+                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-sm" style="color:var(--text2)"></i>
+              </div>
+            </div>
+
+            <!-- Controls Row: Period + Status (Balanced Centered Grid) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap items-center justify-center gap-3 w-full max-w-xl mx-auto">
+              <!-- Period Filter -->
+              <div class="flex-1 min-w-[140px]">
+                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
+                  <i class="fa-solid fa-calendar-days ml-1 opacity-70"></i>الفترة
+                </label>
+                <select id="periodFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="togglePeriodFilter()">
+                  <option value="current">الشهر الحالي</option>
+                  <option value="prev">الشهر السابق</option>
+                  <option value="specific">شهر محدد</option>
+                  <option value="custom">مخصص (تاريخ)</option>
+                </select>
+              </div>
+
+              <!-- Specific Month Input -->
+              <div id="filterSpecific" class="hidden flex-1 min-w-[140px] relative">
+                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
+                  <i class="fa-solid fa-calendar-check ml-1 opacity-70"></i>اختر الشهر
+                </label>
+                <div class="relative">
+                  <input type="text" id="monthIn" readonly class="form-control text-sm cursor-pointer text-center rounded-xl" onclick="openCal()">
+                  <i class="fa-solid fa-calendar-days absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-xs" style="color:var(--text2)"></i>
+                </div>
+              </div>
+
+              <!-- Custom Date Range -->
+              <div id="filterCustom" class="hidden flex gap-2 items-center justify-center flex-wrap w-full">
+                <div class="flex-1 min-w-[120px]">
+                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">من</label>
+                  <input type="date" lang="en-GB" id="dateStart" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
+                </div>
+                <div class="flex-1 min-w-[120px]">
+                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">إلى</label>
+                  <input type="date" lang="en-GB" id="dateEnd" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
+                </div>
+              </div>
+
+              <!-- Status Filter -->
+              <div class="flex-1 min-w-[140px]">
+                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
+                  <i class="fa-solid fa-filter ml-1 opacity-70"></i>الحالة
+                </label>
+                <select id="statusFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="renderRecords()">
+                  <option value="">جميع الحالات</option>
+                  <option value="present">حاضر / مخصص</option>
+                  <option value="absent">غائب</option>
+                  <option value="late">متأخر</option>
+                  <option value="overtime">إضافي</option>
+                  <option value="holiday">إجازة رسمية</option>
+                  <option value="travel">تكليف سفر</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Action Buttons (Centered for Page Balance) -->
+            <div class="w-full max-w-xl mx-auto grid grid-cols-2 md:flex md:flex-row justify-center gap-2 sm:gap-3 pt-3 border-t"
+              style="border-color:var(--c-border)">
+              <button onclick="openTravelM()"
+                class="col-span-2 md:col-span-1 btn btn-primary shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plane-departure ml-2 text-base"></i>تكليف سفر
+              </button>
+              <button onclick="exeExpExcel()" id="btnExcelExp"
+                class="col-span-1 border border-transparent btn btn-success shadow-sm text-white px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-excel ml-1.5 text-base"></i>تصدير Excel
+              </button>
+              <button onclick="prepareExportPDF()"
+                class="col-span-1 btn btn-outline shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-pdf ml-1.5 text-base"></i>تصدير PDF
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="monthSum" class="card p-4 mb-3 hidden">
+          <div id="monthSumC" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="table-modern" style="min-width:680px">
+              <thead>
+                <tr>
+                  <th>التاريخ</th>
+                  <th id="thDay">اليوم</th>
+                  <th>الحضور</th>
+                  <th>الانصراف</th>
+                  <th>الحالة</th>
+                  <th>تأخير/مبكر</th>
+                  <th id="thExtra">إضافي</th>
+                  <th>نوع الغياب</th>
+                  <th>ملاحظة</th>
+                  <th style="text-align: center;"></th>
+                </tr>
+              </thead>
+              <tbody id="recBody"></tbody>
+            </table>
+          </div>
+          <div id="noRec" class="text-center py-10 hidden" style="color:var(--text2)"><i
+              class="fa-solid fa-clipboard-list text-3xl mb-2"></i>
+            <p class="text-sm">لا توجد سجلات</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- View 2: Clear & Detailed Compensations View (قسم التعويضات المفصل والشامل) -->
+      <div id="rv-compensation" class="rec-view hidden">
+        <!-- Master Balance Dashboard Card -->
+        <div class="card p-4 sm:p-5 mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
+          <div class="flex items-center justify-between mb-4 border-b pb-3" style="border-color: var(--c-border);">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-sm" style="background: var(--c-blue-lt); color: var(--pri);">
+                <i class="fa-solid fa-scale-balanced"></i>
+              </div>
+              <div>
+                <h2 class="font-black text-base" style="color: var(--pri);">لوحة رصيد وتعويضات الساعات الإضافية</h2>
+                <p class="text-[11px] opacity-60 font-bold">إدارة مفصلة ودقيقة لساعات الإضافي المكتسبة، الخصومات، والتعويضات</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic 3-Metrics Balance Overview Grid -->
+          <div id="otBalanceCardMaster" class="mb-4">
+            <!-- Rendered by renderCompensation() -->
+          </div>
+
+          <!-- Quick Action Buttons Row -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button onclick="openOTLeaveM()" class="btn btn-primary w-full py-3 shadow-md text-xs font-black flex items-center justify-center gap-2 rounded-xl">
+              <i class="fa-solid fa-calendar-plus text-sm"></i>
+              <span>أخذ إجازة / خصم من رصيد الإضافي</span>
+            </button>
+            <button onclick="openTravelM()" class="btn btn-outline w-full py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-xl">
+              <i class="fa-solid fa-plane-departure text-sm"></i>
+              <span>تسجيل تكليف سفر</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Categorized Details & Sub-Tabs -->
+        <div class="card p-0 overflow-hidden mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
+          <!-- Sub-tabs bar -->
+          <div class="flex gap-1 p-2 border-b overflow-x-auto" style="border-color: var(--c-border); background: var(--c-surface2);">
+            <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+              <i class="fa-solid fa-star text-amber-500 text-xs"></i>
+              <span>أيام الإضافي المكتسبة</span>
+            </button>
+            <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+              <i class="fa-solid fa-clock-rotate-left text-amber-600 text-xs"></i>
+              <span>التأخيرات الصباحية</span>
+            </button>
+            <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+              <i class="fa-solid fa-person-walking-arrow-right text-red-500 text-xs"></i>
+              <span>الخروج المبكر</span>
+            </button>
+            <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+              <i class="fa-solid fa-list-check text-blue-500 text-xs"></i>
+              <span>سجل العمليات والخصم</span>
+            </button>
+          </div>
+
+          <!-- Dynamic List Container -->
+          <div id="compListContainer" class="p-3 sm:p-4 space-y-3 max-h-[600px] overflow-y-auto">
+            <!-- Rendered by renderCompensationList() -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="pg-stats" class="page">
+      <div class="card p-4 mb-3">
+        <h2 class="font-bold text-sm mb-3" style="color:var(--pri)"><i class="fa-solid fa-chart-pie ml-1"></i> إحصاءات
+          الشهر</h2>
+        <div id="statsSumCards" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl" style="background:var(--bg)"><canvas id="pieChart" height="200"></canvas></div>
+          <div class="p-3 rounded-xl" style="background:var(--bg)"><canvas id="barChart" height="200"></canvas></div>
+        </div>
+      </div>
+      <div class="card p-4 mb-3">
+        <h2 class="font-bold text-sm mb-3" style="color:var(--pri)"><i class="fa-solid fa-chart-line ml-1"></i> اتجاه
+          السنة</h2>
+        <div class="p-3 rounded-xl" style="background:var(--bg)"><canvas id="trendChart" height="160"></canvas></div>
+      </div>
+      <div class="card p-4">
+        <h2 class="font-bold text-sm mb-3" style="color:var(--pri)"><i class="fa-solid fa-trophy ml-1"></i> أرقام شخصية
+        </h2>
+        <div id="personalRecords" class="space-y-2"></div>
+      </div>
+      <div style="height:200px" class="spacer"></div>
+    </div>
+
+    <div id="pg-settings" class="page max-w-3xl mx-auto pb-24 w-full">
+      <div class="settings-nav-container" style="position: static; background: transparent; padding-top: 24px;">
+        <div class="settings-tabs">
+          <button onclick="switchSetTab('account')" id="st-account" class="set-tab active"><i
+              class="fa-solid fa-user"></i> الحساب</button>
+          <button onclick="switchSetTab('schedule')" id="st-schedule" class="set-tab"><i class="fa-solid fa-clock"></i>
+            الدوام</button>
+          <button onclick="switchSetTab('data')" id="st-data" class="set-tab"><i class="fa-solid fa-table-list"></i>
+            البيانات</button>
+          <button onclick="switchSetTab('compensation');renderCompensation();" id="st-compensation" class="set-tab"><i
+              class="fa-solid fa-scale-balanced"></i>
+            التعويضات</button>
+          <button onclick="switchSetTab('backup')" id="st-backup" class="set-tab"><i class="fa-solid fa-cloud"></i>
+            النسخ</button>
+          <button onclick="switchSetTab('system')" id="st-system" class="set-tab"><i
+              class="fa-solid fa-shield-halved"></i> النظام</button>
+        </div>
+      </div>
+
+      <div id="settings-content-wrapper" class="settings-content">
+
+        <!-- Tab 1: Account -->
+        <div id="sp-account" class="set-pane">
+          <div>
+            <h3 class="settings-section-title">المعلومات الشخصية</h3>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-user-pen ml-1" style="color:var(--primary-blue)"></i>
+                    اسمك</span>
+                </div>
+                <input type="text" id="setName" placeholder="اكتب اسمك..." class="form-control"
+                  style="max-width: 200px; text-align: left;" onchange="saveName()">
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="settings-section-title">المظهر والخطوط</h3>
+            <div class="settings-section">
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-font ml-1" style="color:var(--primary-blue)"></i> خط
+                    الملاحظات</span>
+                  <span class="label-desc">نوع خط التقارير والواجهة</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select id="noteFontIn" class="form-control" style="max-width: 140px; padding: 0.5rem 0.75rem;"
+                    onchange="saveNoteFont()">
+                    <option value="Cairo">Cairo (الافتراضي)</option>
+                    <option value="Amiri">Amiri</option>
+                    <option value="Tajawal">Tajawal</option>
+                  </select>
+                  <button onclick="document.getElementById('fontUploader').click()" class="btn btn-outline"
+                    style="padding: 0.5rem; min-height: 38px;"><i class="fa-solid fa-plus text-xs"></i></button>
+                  <input type="file" id="fontUploader" class="hidden" accept=".ttf,.otf,.woff2"
+                    onchange="handleFontUpload(this)">
+                </div>
+              </div>
+              <div id="customFontsStatus" class="p-3 text-[10px] font-bold hidden"
+                style="color:var(--text-secondary); background:var(--background)"></div>
+              <div style="padding: 16px; background: var(--background);">
+                <span class="label-title" style="margin-bottom: 12px; display: block;"><i
+                    class="fa-solid fa-palette ml-1" style="color:var(--primary-blue)"></i> لون الواجهة الأساسي</span>
+                <div class="grid grid-cols-2 gap-3">
+                  <button onclick="setThemeColor('blue')" class="btn btn-outline"
+                    style="color: var(--primary-blue); border-color: rgba(37,99,235,0.3);"><i
+                      class="fa-solid fa-tint"></i> أزرق عصري</button>
+                  <button onclick="setThemeColor('green')" class="btn btn-outline"
+                    style="color: var(--primary-green); border-color: rgba(5,150,105,0.3);"><i
+                      class="fa-solid fa-leaf"></i> أخضر كلاسيكي</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Schedule -->
+        <div id="sp-schedule" class="set-pane hidden">
+          <div>
+            <h3 class="settings-section-title">الدوام الأساسي</h3>
+            <div class="settings-section" style="padding: 16px;">
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="form-group">
+                  <label class="label-desc">بداية الدوام</label>
+                  <input type="time" lang="en-GB" id="baseStartIn" class="form-control" onchange="saveBaseSchedule()">
+                </div>
+                <div class="form-group">
+                  <label class="label-desc">نهاية الدوام</label>
+                  <input type="time" lang="en-GB" id="baseEndIn" class="form-control" onchange="saveBaseSchedule()">
+                </div>
+                <div class="form-group col-span-2">
+                  <label class="label-desc">بداية الإضافي (افتراضي)</label>
+                  <input type="time" lang="en-GB" id="baseOvertimeStartIn" class="form-control"
+                    onchange="saveBaseSchedule()">
+                  <p class="text-[9px] mt-1 opacity-60">* اترك فارغاً ليبدأ الحساب فور انتهاء الدوام</p>
+                </div>
+              </div>
+              <div style="padding-top: 16px; border-top: 1px solid var(--border-color);">
+                <label class="label-desc" style="margin-bottom: 8px; display: block;">أيام الدوام في الأسبوع</label>
+                <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold mb-2" id="wdPicker"></div>
+                <p class="label-desc">* المظلل يعتبر إجازة أسبوعية</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="settings-section-title">استثناءات وجداول</h3>
+            <div class="settings-section">
+              <div style="padding: 16px;">
+                <h4 class="label-title" style="margin-bottom: 12px;"><i class="fa-solid fa-clock-rotate-left ml-1"
+                    style="color:var(--text-secondary)"></i> أوقات مخصصة لأيام محددة</h4>
+                <div id="daySchedsList" class="space-y-2"></div>
+              </div>
+              <div style="padding: 16px; border-top: 1px solid var(--border-color);">
+                <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                  <h4 class="label-title"><i class="fa-solid fa-calendar-days ml-1"
+                      style="color:var(--text-secondary)"></i> جداول شهرية</h4>
+                  <button onclick="openSchedModal()" class="btn btn-outline"
+                    style="padding: 0.25rem 0.75rem; min-height: 32px;"><i
+                      class="fa-solid fa-plus text-xs"></i></button>
+                </div>
+                <div id="schedList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+              </div>
+              <div style="padding: 16px; border-top: 1px solid var(--border-color); background: var(--background);">
+                <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                  <h4 class="label-title"><i class="fa-solid fa-umbrella-beach ml-1"
+                      style="color:var(--text-secondary)"></i> إجازات رسمية</h4>
+                  <button onclick="openHolModal()" class="btn btn-outline"
+                    style="padding: 0.25rem 0.75rem; min-height: 32px; color: var(--primary-green); border-color: rgba(5,150,105,0.3);"><i
+                      class="fa-solid fa-plus text-xs"></i></button>
+                </div>
+                <div id="holList" class="space-y-2 max-h-40 overflow-y-auto"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Data (PDF + Types) -->
+        <div id="sp-data" class="set-pane hidden">
+          <div>
+            <h3 class="settings-section-title">إدارة الترويسات في التقارير</h3>
+            <div class="settings-section" style="padding:16px;">
+              <div id="reportHeadersList" class="flex flex-col gap-2 mb-3"></div>
+              <button onclick="openHeaderModal()" class="btn btn-outline w-full text-xs" style="padding:0.75rem;"><i class="fa-solid fa-plus ml-2"></i>إضافة ترويسة جديدة</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="settings-section-title">إدارة التذييلات في التقارير</h3>
+            <div class="settings-section" style="padding:16px;">
+              <div id="reportFootersList" class="flex flex-col gap-2 mb-3"></div>
+              <button onclick="openFooterModal()" class="btn btn-outline w-full text-xs" style="padding:0.75rem;"><i class="fa-solid fa-plus ml-2"></i>إضافة تذييل جديد</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="settings-section-title">التصنيفات المخصصة</h3>
+            <div class="settings-section">
+              <div style="padding: 16px;">
+                <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                  <h4 class="label-title"><i class="fa-solid fa-tags ml-1" style="color:var(--warning)"></i> أنواع
+                    الغياب</h4>
+                  <button onclick="openAbsModal()" class="btn btn-outline"
+                    style="padding: 0.25rem 0.75rem; min-height: 32px; color: var(--warning); border-color: rgba(245,158,11,0.3);"><i
+                      class="fa-solid fa-plus text-xs ml-1"></i> إضافة</button>
+                </div>
+                <div id="absList" class="flex flex-wrap gap-2"></div>
+              </div>
+              <div style="padding: 16px; border-top: 1px solid var(--border-color); background: var(--background);">
+                <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                  <h4 class="label-title"><i class="fa-solid fa-list-check ml-1" style="color:var(--primary-blue)"></i>
+                    حالات الحضور</h4>
+                  <button onclick="openStatusModal()" class="btn btn-outline"
+                    style="padding: 0.25rem 0.75rem; min-height: 32px; color: var(--primary-blue);"><i
+                      class="fa-solid fa-plus text-xs ml-1"></i> إضافة</button>
+                </div>
+                <div id="statusList" class="flex flex-wrap gap-2"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="settings-section-title">أعمدة التصدير PDF</h3>
+            <div class="settings-section" style="padding: 16px;">
+              <div class="flex flex-wrap gap-2" id="pdfColumnsChips">
+                <label class="setting-chip"><input type="checkbox" id="ec_date" class="hidden"
+                    onchange="syncChips();saveExportCols()">التاريخ</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_day" class="hidden"
+                    onchange="syncChips();saveExportCols()">يوم الأسبوع</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_checkIn" class="hidden"
+                    onchange="syncChips();saveExportCols()">الحضور</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_checkOut" class="hidden"
+                    onchange="syncChips();saveExportCols()">الانصراف</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_status" class="hidden"
+                    onchange="syncChips();saveExportCols()">الحالة</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_late" class="hidden"
+                    onchange="syncChips();saveExportCols()">تأخير صباحي</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_early" class="hidden"
+                    onchange="syncChips();saveExportCols()">خروج مبكر</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_overtime" class="hidden"
+                    onchange="syncChips();saveExportCols()">دوام إضافي</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_absenceType" class="hidden"
+                    onchange="syncChips();saveExportCols()">نوع الغياب</label>
+                <label class="setting-chip"><input type="checkbox" id="ec_note" class="hidden"
+                    onchange="syncChips();saveExportCols()">الملاحظة</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Overtime Compensation -->
+        <div id="sp-compensation" class="set-pane hidden">
+          <div>
+            <h3 class="settings-section-title">⏱️ رصيد تعويض ساعات الإضافي</h3>
+            <div class="settings-section" style="padding: 16px;">
+              <!-- Overtime Balance Card -->
+              <div id="otBalanceCard" class="ot-balance-card"
+                style="padding: 16px; border-radius: var(--radius-md); background: linear-gradient(145deg, var(--c-surface-2) 0%, rgba(59,130,246,0.05) 100%); border: 1px solid var(--c-border); margin-bottom: 16px;">
+                <!-- Content generated dynamically -->
+              </div>
+
+              <div class="flex gap-2">
+                <button onclick="openOTLeaveM()" class="btn btn-primary w-full"
+                  style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <i class="fa-solid fa-calendar-plus"></i> أخذ إجازة من الإضافي
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="settings-section-title">⚖️ طلبات تعويض الساعات</h3>
+            <div class="settings-section">
+              <!-- Sub-tabs within compensation -->
+              <div class="flex gap-1"
+                style="padding: 8px; border-bottom: 1px solid var(--c-border); background: var(--c-surface);">
+                <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active"
+                  style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">⭐ أيام الإضافي</button>
+                <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab"
+                  style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">التأخيرات</button>
+                <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab"
+                  style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">الخروج المبكر</button>
+                <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab"
+                  style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">سجل العمليات</button>
+              </div>
+
+              <!-- List containers -->
+              <div id="compListContainer" style="padding: 12px; max-height: 400px; overflow-y: auto;">
+                <!-- Lists generated dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Backup & Sync -->
+        <div id="sp-backup" class="set-pane hidden">
+          <div>
+            <h3 class="settings-section-title">المزامنة التلقائية</h3>
+            <div class="settings-section">
+              <div id="googleAccountArea" class="empty:hidden"></div>
+              <label class="settings-row" for="autoBackupCB">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-hard-drive ml-1"
+                      style="color:var(--primary-green)"></i> نسخ تلقائي (محلي)</span>
+                  <span class="label-desc">حفظ نسخة داخل مجلد التطبيق</span>
+                </div>
+                <input type="checkbox" id="autoBackupCB" class="toggle-switch" onchange="toggleAutoBackup()">
+              </label>
+              <label class="settings-row" for="cloudAutoSyncCB">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-brands fa-google-drive ml-1"
+                      style="color:var(--primary-blue)"></i> مزامنة سحابية (Drive)</span>
+                  <span class="label-desc">حفظ بأمان في حسابك</span>
+                </div>
+                <input type="checkbox" id="cloudAutoSyncCB" class="toggle-switch" onchange="toggleCloudAutoSync()">
+              </label>
+              <div style="padding: 16px; background: var(--background);">
+                <h4 class="label-desc" style="margin-bottom: 12px; text-transform: uppercase; font-weight: 800;">جدول
+                  التنفيذ</h4>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                  <div class="form-group">
+                    <label class="label-desc">التكرار</label>
+                    <select id="backupIntervalIn" onchange="updateBackupFieldsVisibility();saveBackupSettings()"
+                      class="form-control" style="padding: 0.5rem 0.75rem;">
+                      <option value="daily">يومياً</option>
+                      <option value="weekly">أسبوعياً</option>
+                      <option value="monthly">شهرياً</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="label-desc">الوقت (24h)</label>
+                    <input type="time" id="backupTimeIn" onchange="saveBackupSettings()" class="form-control"
+                      style="padding: 0.5rem 0.75rem;" dir="ltr">
+                  </div>
+                </div>
+                <div id="backupWeeklyWrap" class="hidden mb-3">
+                  <div class="form-group">
+                    <label class="label-desc">يوم التنفيذ</label>
+                    <select id="backupDayIn" onchange="saveBackupSettings()" class="form-control"
+                      style="padding: 0.5rem 0.75rem;">
+                      <option value="0">الأحد</option>
+                      <option value="1">الاثنين</option>
+                      <option value="2">الثلاثاء</option>
+                      <option value="3">الأربعاء</option>
+                      <option value="4">الخميس</option>
+                      <option value="5">الجمعة</option>
+                      <option value="6">السبت</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="backupMonthlyWrap" class="hidden mb-3">
+                  <div class="form-group">
+                    <label class="label-desc">يوم الشهر (1-28)</label>
+                    <input type="number" id="backupDateIn" min="1" max="28" onchange="saveBackupSettings()"
+                      class="form-control" style="padding: 0.5rem 0.75rem; max-width: 120px;">
+                  </div>
+                </div>
+                <p class="label-desc">* سيتم النسخ عند أقرب ضغطة تشغيل بعد الموعد</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="settings-section-title">العمليات اليدوية</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button onclick="backupData('all')" class="btn btn-primary w-full"><i
+                  class="fa-solid fa-download ml-1"></i> تحميل نسخة كاملة لجهازي</button>
+              <button onclick="syncToGoogleDrive()" class="btn btn-secondary w-full"><i
+                  class="fa-brands fa-google-drive ml-1"></i> رفع نسخة فورية لـ Drive</button>
+              <div class="grid grid-cols-2 gap-2" style="margin-top: 8px;">
+                <button onclick="backupData('settings')" class="btn btn-outline w-full"
+                  style="font-size: 0.7rem;">إعدادات فقط</button>
+                <button onclick="backupData('records')" class="btn btn-outline w-full" style="font-size: 0.7rem;">سجلات
+                  فقط</button>
+              </div>
+              <div
+                style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="browseCloudBackups()" class="btn w-full"
+                  style="background: var(--text-primary); color: var(--background);"><i
+                    class="fa-solid fa-cloud-arrow-down ml-1"></i> استعادة من السحابة</button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button onclick="document.getElementById('restF').click()" class="btn btn-outline w-full"
+                    style="font-size: 0.7rem;"><i class="fa-solid fa-upload ml-1"></i> ملف محلي</button>
+                  <button onclick="restoreAutoBackup()" class="btn btn-outline w-full" style="font-size: 0.7rem;"><i
+                      class="fa-solid fa-clock-rotate-left ml-1"></i> التلقائية</button>
+                  <input type="file" id="restF" class="hidden" accept=".json" onchange="restoreData(this)">
+                </div>
+              </div>
+              <button onclick="shareBackup()" class="btn btn-outline w-full"
+                style="color: #7c3aed; border-color: rgba(124,58,237,0.3); margin-top: 4px;"><i
+                  class="fa-solid fa-share-nodes ml-1"></i> إرسال نسخة مشاركة</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: System -->
+        <div id="sp-system" class="set-pane hidden">
+          <div>
+            <h3 class="settings-section-title">الأمان والتنبيهات</h3>
+            <div class="settings-section">
+              <label class="settings-row" for="themeToggleCB">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-circle-half-stroke ml-1" style="color: #3b82f6;"></i>
+                    الوضع الليلي</span>
+                  <span class="label-desc">تبديل بين المظهر الفاتح والداكن</span>
+                </div>
+                <input type="checkbox" id="themeToggleCB" class="toggle-switch" onchange="toggleTheme()">
+              </label>
+
+              <label class="settings-row" for="biometricLockCB" style="border-top: 1px solid var(--border-color)">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-fingerprint ml-1" style="color: #7c3aed;"></i> قفل
+                    بالبصمة الحيوية</span>
+                  <span class="label-desc">طلب البصمة لفتح التطبيق</span>
+                </div>
+                <input type="checkbox" id="biometricLockCB" class="toggle-switch" onchange="toggleBiometricLock()">
+              </label>
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-bell ml-1" style="color: var(--warning);"></i> إشعار
+                    قبل الدوام (دقائق)</span>
+                  <span class="label-desc">ضع 0 لإلغاء الإشعارات</span>
+                </div>
+                <input type="number" id="alertOffsetIn" class="form-control text-number"
+                  style="max-width: 80px; text-align: center; padding: 0.5rem;" min="0" onchange="saveAlertSettings()">
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="settings-section-title" style="color: var(--error);"><i
+                class="fa-solid fa-triangle-exclamation ml-1"></i> منطقة الخطر</h3>
+            <div class="danger-zone">
+              <button onclick="clearRecs()" class="btn btn-outline w-full"
+                style="color: var(--warning); border-color: rgba(245,158,11,0.3);">تفريغ كافة السجلات الحالية</button>
+              <button onclick="resetSettings()" class="btn btn-outline w-full"
+                style="color: var(--primary-blue); border-color: rgba(37,99,235,0.2);">إعادة الافتراضيات
+                للإعدادات</button>
+              <button onclick="clearAll()" class="btn btn-error w-full"><i class="fa-solid fa-trash ml-1"></i> مسح
+                التطبيق كاملاً (فورمات)</button>
+            </div>
+          </div>
+
+          <div style="padding: 24px 0 8px; text-align: center;">
+            <button onclick="openAboutM()"
+              style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); background: none; border: none; cursor: pointer;">
+              <i class="fa-solid fa-circle-info ml-1"></i> حول التطبيق وبيانات المطور
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <nav id="bottom-nav" class="glass fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl z-50">
+    <div class="nav-inner mx-auto grid grid-cols-4 h-full" style="height: var(--nav-h, 72px); align-items: flex-end;">
+      <button class="nav-i on w-full" onclick="go('home')"><i class="fa-solid fa-house"></i><span>الرئيسية</span>
+        <div class="nd"></div>
+      </button>
+      <button class="nav-i w-full" onclick="go('records')"><i class="fa-solid fa-table-list"></i><span>السجلات</span>
+        <div class="nd"></div>
+      </button>
+      <button class="nav-i w-full" onclick="go('stats')"><i class="fa-solid fa-chart-pie"></i><span>إحصاءات</span>
+        <div class="nd"></div>
+      </button>
+      <button class="nav-i w-full" onclick="go('settings')"><i class="fa-solid fa-gear"></i><span>إعدادات</span>
+        <div class="nd"></div>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Modals -->
+  <div id="daySchedM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center"
+    onclick="closeDaySchedM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 mx-4 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)" id="dsTitle">تخصيص وقت يوم</h3>
+        <button onclick="closeDaySchedM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="hidden" id="dsDayIdx">
+      <div class="grid grid-cols-3 gap-2">
+        <div><label class="text-[11px] font-bold block mb-1" style="color:var(--text2)">البداية</label><input
+            type="time" lang="en-GB" id="dsStart" class="form-control text-sm"></div>
+        <div><label class="text-[11px] font-bold block mb-1" style="color:var(--text2)">النهاية</label><input
+            type="time" lang="en-GB" id="dsEnd" class="form-control text-sm"></div>
+        <div><label class="text-[11px] font-bold block mb-1" style="color:var(--text2)">الإضافي</label><input
+            type="time" lang="en-GB" id="dsOT" class="form-control text-sm"></div>
+      </div>
+      <!-- (Misplaced #noRec removed — belongs in pg-records L1960) -->
+      <div class="flex gap-3 mt-4">
+        <button onclick="saveDaySched()" class="btn btn-primary flex-1">حفظ</button>
+        <button onclick="clearDaySched()" class="btn btn-error py-2 px-4 shadow-sm w-auto">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3"
+    onclick="closeExportM()">
+    <div id="exportMBox"
+      class="glass-surface rounded-3xl w-full shadow-2xl mx-auto transition-all duration-300 animate-modal-in"
+      style="max-width:360px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="flex items-center justify-between p-4 pb-3 border-b" style="border-color:var(--border)">
+        <h3 class="font-bold text-sm" style="color:var(--pri)"><i class="fa-solid fa-file-export ml-1"></i> تصدير
+          التقرير</h3>
+        <button onclick="closeExportM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- File Name Input -->
+      <div class="form-group px-4 pt-4">
+        <label class="text-[11px] font-bold" style="color:var(--text2)"><i
+            class="fa-solid fa-file ml-1 text-[10px]"></i>اسم ملف PDF</label>
+        <input type="text" id="expFileName" class="form-control" placeholder="تقرير_الحضور">
+      </div>
+      <!-- Hidden title field (used internally by PDF builder) -->
+      <input type="hidden" id="expReportTitle" value="">
+      <!-- Action buttons -->
+      <!-- Action buttons (v2: Simplified and Enhanced) -->
+      <div id="expActionBtns" class="grid grid-cols-2 gap-3 px-4 pt-3 pb-4">
+        <button onclick="exeExpShare()" id="btnShare"
+          class="btn btn-outline flex-col text-[11px] font-black gap-2 py-4 trans hover:bg-slate-50"
+          style="color:var(--pri); border: 2px solid var(--pri); opacity: 0.9;">
+          <i class="fa-solid fa-share-nodes text-xl"></i>مشاركة التقرير
+        </button>
+        <button onclick="exeExpDownload()" id="btnExport"
+          class="btn btn-primary flex-col text-[11px] font-black gap-2 py-4 shadow-xl trans hover:brightness-110">
+          <i class="fa-solid fa-file-pdf text-xl"></i>حفظ وتصدير PDF
+        </button>
+      </div>
+      <!-- Success Area -->
+      <div id="expSuccessArea" class="hidden px-5 pb-5 text-center transition-all duration-300">
+        <div class="text-5xl text-emerald-500 mb-3"><i class="fa-solid fa-circle-check"></i></div>
+        <h3 class="font-black text-emerald-600 mb-2">تم التصدير والنسخ بنجاح!</h3>
+        <p class="text-[10px] font-bold text-slate-500 mb-1">مسار الحفظ:</p>
+        <p class="text-xs font-bold text-slate-700 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200"
+          id="expSuccessPath" dir="ltr" style="word-break:break-all;"></p>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="exeExpShare()" class="btn btn-primary flex-col text-xs py-2.5"><i
+              class="fa-solid fa-share-nodes text-sm"></i> مشاركة الملف</button>
+          <button onclick="alert('ملفاتك المحفوظة موجودة داخل مدير الملفات في المسار المحدد باللون الرمادي أعلاه.')"
+            class="btn btn-outline flex-col text-xs py-2.5"><i class="fa-solid fa-folder-open text-sm"></i> أين أجد
+            الملف؟</button>
+        </div>
+      </div>
+      <!-- Inline Preview Area -->
+      <div id="expPreviewArea" class="hidden px-4 pb-4">
+        <div class="border-t pt-3 mb-2 flex items-center justify-between" style="border-color:var(--border)">
+          <span class="text-[11px] font-bold" style="color:var(--text2)"><i class="fa-solid fa-file-image ml-1"></i>
+            معاينة التقرير</span>
+          <div class="flex gap-1">
+            <button onclick="zoomPreview(-1)" class="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+              style="background:var(--bg);color:var(--text2)"><i class="fa-solid fa-minus"></i></button>
+            <button onclick="zoomPreview(1)" class="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+              style="background:var(--bg);color:var(--text2)"><i class="fa-solid fa-plus"></i></button>
+            <button onclick="zoomPreview(0)" class="w-7 h-7 rounded-lg flex items-center justify-center text-xs"
+              style="background:var(--bg);color:var(--text2)"><i class="fa-solid fa-arrows-to-dot"></i></button>
+          </div>
+        </div>
+        <!-- Loading spinner -->
+        <div id="expPreviewLoading" class="text-center py-8">
+          <div class="inline-block w-8 h-8 border-4 rounded-full animate-spin"
+            style="border-color:var(--pri);border-top-color:transparent"></div>
+          <p class="text-xs mt-2 font-bold" style="color:var(--text2)">جارٍ إنشاء التقرير...</p>
+        </div>
+        <!-- Preview image -->
+        <div id="expPreviewImgWrap" class="hidden overflow-hidden rounded-xl border relative"
+          style="border-color:var(--border);max-height:55vh;background:#f8fafc;touch-action:none">
+          <img id="expPreviewImg" src="" alt="معاينة التقرير"
+            style="width:100%;display:block;transform-origin:0 0;transition:transform 0.1s ease-out;cursor:grab">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="calM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-end sm:items-center justify-center"
+    onclick="closeCal()">
+    <div class="glass-surface rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm shadow-2xl p-6 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4"><button onclick="calP()"
+          class="w-9 h-9 rounded-full flex items-center justify-center" style="background:var(--bg)"><i
+            class="fa-solid fa-chevron-right text-sm"></i></button><span id="calT" class="font-bold"></span><button
+          onclick="calN()" class="w-9 h-9 rounded-full flex items-center justify-center" style="background:var(--bg)"><i
+            class="fa-solid fa-chevron-left text-sm"></i></button></div>
+      <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold mb-2" style="color:var(--text2)" id="calHL">
+      </div>
+      <div class="grid grid-cols-7 gap-1 justify-items-center" id="calG"></div>
+    </div>
+  </div>
+
+  <div id="editM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-end sm:items-center justify-center"
+    onclick="closeEdit()">
+    <div class="glass-surface rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl p-6 animate-modal-in"
+      style="border-top: 1px solid var(--border)" onclick="event.stopPropagation()">
+      <h3 class="font-bold mb-4" style="color:var(--pri)">تعديل السجل</h3>
+      <input type="hidden" id="eId">
+      <div class="space-y-3">
+        <div><label class="text-[11px] font-bold block mb-1">الحضور</label><input type="time" lang="en-GB" id="eCI"
+            class="form-control text-sm"></div>
+        <div><label class="text-[11px] font-bold block mb-1">الانصراف</label><input type="time" lang="en-GB" id="eCO"
+            class="form-control text-sm"></div>
+        <div><label class="text-[11px] font-bold block mb-1">الحالة</label><select id="eSt" class="form-control text-sm"
+            onchange="toggleEAT();toggleCustomField()">
+            <option value="present">حاضر</option>
+            <option value="absent">غائب</option>
+            <option value="custom">مخصص</option>
+          </select></div>
+        <div id="eCustomW" class="hidden"><label class="text-[11px] font-bold block mb-1">الحالة المخصصة</label><select
+            id="eCustom" class="form-control text-sm"></select></div>
+        <div id="eATW" class="hidden"><label class="text-[11px] font-bold block mb-1">نوع الغياب</label><select id="eAT"
+            class="form-control text-sm"></select></div>
+        <div><label class="text-[11px] font-bold block mb-1">ملاحظة</label><input type="text" id="eNote"
+            class="form-control h-10 text-sm font-bold note-font" style="font-size: 15px;" placeholder="اكتب ملاحظة...">
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="saveEdit()" class="btn btn-primary flex-1">حفظ</button>
+        <button onclick="delRec()" class="btn btn-error px-5"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="schedM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center"
+    onclick="closeSchedM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 mx-4 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة جدول</h3>
+        <button onclick="closeSchedM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-3">
+        <div><label class="text-[11px] font-bold block mb-1">الشهر</label><input type="month" lang="en-GB" id="sMonth"
+            class="form-control text-sm"></div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="text-[11px] font-bold block mb-1">البداية</label><input type="time" lang="en-GB"
+              id="sStart" class="form-control text-sm"></div>
+          <div><label class="text-[11px] font-bold block mb-1">النهاية</label><input type="time" lang="en-GB" id="sEnd"
+              class="form-control text-sm"></div>
+          <div><label class="text-[11px] font-bold block mb-1">الإضافي</label><input type="time" lang="en-GB" id="sOT"
+              class="form-control text-sm"></div>
+        </div>
+        <div><label class="text-[11px] font-bold block mb-1">التسمية</label><input type="text" id="sLabel"
+            class="form-control text-sm" placeholder="مثال: دوام شتوي"></div>
+      </div>
+      <button onclick="addSched()" class="btn btn-primary w-full mt-4">إضافة</button>
+    </div>
+  </div>
+
+  <div id="holM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center"
+    onclick="closeHolM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 mx-4 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة إجازة رسمية</h3>
+        <button onclick="closeHolM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-3">
+        <div><label class="text-[11px] font-bold block mb-1">التاريخ</label><input type="date" lang="en-GB" id="hDate"
+            class="form-control text-sm"></div>
+        <div><label class="text-[11px] font-bold block mb-1">التسمية</label><input type="text" id="hLabel"
+            class="form-control text-sm" placeholder="مثال: عيد الفطر"></div>
+      </div>
+      <button onclick="addHol()" class="btn btn-primary w-full mt-4">إضافة</button>
+    </div>
+  </div>
+
+  <div id="absM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center"
+    onclick="closeAbsM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 mx-4 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة نوع غياب</h3>
+        <button onclick="closeAbsM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="text" id="absIn" class="form-control text-sm mb-3" placeholder="نوع الغياب"><button
+        onclick="addAbsType()" class="btn btn-primary w-full">إضافة</button>
+    </div>
+  </div>
+
+  <div id="statusM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center"
+    onclick="closeStatusM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 mx-4 animate-modal-in"
+      onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة حالة مخصصة</h3>
+        <button onclick="closeStatusM()"
+          class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="text" id="statusIn" class="form-control text-sm mb-3" placeholder="اسم الحالة"><button
+        onclick="addCustomStatus()" class="btn btn-primary w-full">إضافة</button>
+    </div>
+  </div>
+
+  <div id="headerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeHeaderModal()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل ترويسة</h3>
+        <button onclick="closeHeaderModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="overflow-y-auto flex-1 space-y-3 pr-2">
+        <input type="hidden" id="headerIdIn">
+        <div><label class="text-[11px] font-bold block mb-1">الاسم الوصفي</label><input type="text" id="headerNameIn" class="form-control text-sm" placeholder="مثال: ترويسة الإدارة"></div>
+        <div>
+          <label class="text-[11px] font-bold block mb-1">إرفاق صورة للترويسة</label>
+          <input type="file" id="headerImgIn" accept="image/*" class="form-control text-sm mb-2" onchange="uploadHeaderFooterImg(this, 'headerContentIn')">
+        </div>
+        <div><label class="text-[11px] font-bold block mb-1">محتوى الترويسة (يدعم HTML)</label><textarea id="headerContentIn" class="form-control text-sm" rows="5" placeholder="أدخل كود HTML للترويسة..."></textarea></div>
+      </div>
+      <button onclick="saveReportHeader()" class="btn btn-primary w-full mt-4">حفظ</button>
+    </div>
+  </div>
+
+  <div id="footerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeFooterModal()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل تذييل</h3>
+        <button onclick="closeFooterModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="overflow-y-auto flex-1 space-y-3 pr-2">
+        <input type="hidden" id="footerIdIn">
+        <div><label class="text-[11px] font-bold block mb-1">الاسم الوصفي</label><input type="text" id="footerNameIn" class="form-control text-sm" placeholder="مثال: تذييل التوقيعات"></div>
+        <div>
+          <label class="text-[11px] font-bold block mb-1">إرفاق صورة للتذييل</label>
+          <input type="file" id="footerImgIn" accept="image/*" class="form-control text-sm mb-2" onchange="uploadHeaderFooterImg(this, 'footerContentIn')">
+        </div>
+        <div><label class="text-[11px] font-bold block mb-1">محتوى التذييل (يدعم HTML)</label><textarea id="footerContentIn" class="form-control text-sm" rows="5" placeholder="أدخل كود HTML للتذييل..."></textarea></div>
+      </div>
+      <button onclick="saveReportFooter()" class="btn btn-primary w-full mt-4">حفظ</button>
+    </div>
+  </div>
+
+
+
+
+
+  <div id="travelM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3 sm:p-4"
+    onclick="closeTravelM()">
+    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[92vh] overflow-hidden"
+      style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-3 border-b pb-3" style="border-color: var(--c-border);">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-sm shadow-sm" style="background: var(--c-blue-lt); color: var(--pri);">
+            <i class="fa-solid fa-plane-departure"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-base" style="color:var(--pri)">إدارة تكاليف السفر والمهام الرسمية</h3>
+            <p class="text-[10px] opacity-60 font-bold">تسجيل ومتابعة جميع مهام وتكاليف السفر السابقة والنشطة</p>
+          </div>
+        </div>
+        <button onclick="closeTravelM()"
+          class="w-8 h-8 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100 cursor-pointer"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Segmented Navigation Sub-Tabs -->
+      <div class="flex gap-1 p-1.5 rounded-2xl border mb-3 shrink-0" style="background: var(--c-surface2); border-color: var(--c-border);">
+        <button id="travelTabBtn-new" onclick="switchTravelTab('new')" class="btn-sub-tab active flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-plus-circle text-blue-500"></i>
+          <span>تكليف جديد</span>
+        </button>
+        <button id="travelTabBtn-history" onclick="switchTravelTab('history')" class="btn-sub-tab flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-clock-rotate-left text-purple-500"></i>
+          <span>سجل التكاليف</span>
+        </button>
+        <button id="travelTabBtn-stats" onclick="switchTravelTab('stats')" class="btn-sub-tab flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i class="fa-solid fa-chart-pie text-emerald-500"></i>
+          <span>الملخص</span>
+        </button>
+      </div>
+
+      <!-- Scrollable Tab Content Container -->
+      <div class="overflow-y-auto flex-1 pr-1 pb-1">
+        <!-- Tab 1: New Travel Assignment Form -->
+        <div id="travelPane-new" class="travel-pane space-y-3.5">
+          <!-- Date Range Pickers -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] font-bold block mb-1 opacity-70">📅 من تاريخ (البداية)</label>
+              <input type="date" lang="en-GB" id="travelStart" class="form-control text-sm text-center font-bold" oninput="calcTravelDays()">
+            </div>
+            <div>
+              <label class="text-[11px] font-bold block mb-1 opacity-70">📅 إلى تاريخ (الانتهاء)</label>
+              <input type="date" lang="en-GB" id="travelEnd" class="form-control text-sm text-center font-bold" oninput="calcTravelDays()">
+            </div>
+          </div>
+
+          <!-- Quick Duration Selection Buttons -->
+          <div>
+            <label class="text-[10px] font-bold block mb-1 opacity-60">خيارات مدد سريعة:</label>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="setQuickTravelDays(1)" class="btn btn-outline text-[11px] px-2.5 py-1 rounded-xl" style="min-height:28px">يوم واحد (اليوم)</button>
+              <button type="button" onclick="setQuickTravelDays(2)" class="btn btn-outline text-[11px] px-2.5 py-1 rounded-xl" style="min-height:28px">يومان</button>
+              <button type="button" onclick="setQuickTravelDays(3)" class="btn btn-outline text-[11px] px-2.5 py-1 rounded-xl" style="min-height:28px">3 أيام</button>
+              <button type="button" onclick="setQuickTravelDays(5)" class="btn btn-outline text-[11px] px-2.5 py-1 rounded-xl" style="min-height:28px">5 أيام عمل</button>
+              <button type="button" onclick="setQuickTravelDays(7)" class="btn btn-outline text-[11px] px-2.5 py-1 rounded-xl" style="min-height:28px">أسبوع (7 أيام)</button>
+            </div>
+          </div>
+
+          <!-- Destination / Title -->
+          <div>
+            <label class="text-[11px] font-bold block mb-1 opacity-70">📍 وجهة السفر / جهة التكليف</label>
+            <input type="text" id="travelDestination" class="form-control text-sm font-bold font-['Amiri']"
+              placeholder="مثال: فرع الرياض، الهيئة العامة، مهمة تدريبية...">
+          </div>
+
+          <!-- Mission Details & Notes -->
+          <div>
+            <label class="text-[11px] font-bold block mb-1 opacity-70">📝 ملاحظات وتفاصيل التكليف (اختياري)</label>
+            <textarea id="travelNote" rows="2" class="form-control text-sm font-['Amiri']"
+              placeholder="اكتب تفاصيل التكليف أو أسماء المكلفين أو رقم أمر المهمة..."></textarea>
+          </div>
+
+          <!-- Dynamic Info & Days Count Card -->
+          <div id="travelDaysInfo" class="rounded-2xl p-3.5 text-xs font-bold space-y-1.5"
+            style="background: var(--c-blue-lt); color: var(--pri); border: 1px solid rgba(59,130,246,0.2);">
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><i class="fa-solid fa-calendar-check"></i> مدة التكليف:</span>
+              <span class="text-sm font-black"><span id="travelDaysCount">1</span> يوم عمل</span>
+            </div>
+            <div class="text-[10px] opacity-75 leading-relaxed pt-1 border-t" style="border-color: rgba(59,130,246,0.2)">
+              سيتم تسجيل جميع الأيام الواقعة في هذه الفترة تلقائياً بحالة <strong>«تكليف سفر»</strong> في سجلاتك.
+            </div>
+          </div>
+
+          <button onclick="saveTravelAssignment()" class="btn btn-primary w-full py-3 text-sm font-black shadow-xl rounded-xl flex items-center justify-center gap-2">
+            <span>تأكيد وحفظ التكليف</span>
+            <i class="fa-solid fa-check text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Tab 2: Previous Travel Assignments List -->
+        <div id="travelPane-history" class="travel-pane hidden space-y-3">
+          <!-- Search box in assignments -->
+          <div class="relative">
+            <input type="text" id="travelHistorySearch" class="form-control text-xs pr-8 rounded-xl" placeholder="بحث في وجهات وملاحظات التكاليف..." oninput="renderTravelAssignmentsList()">
+            <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 opacity-50 text-xs"></i>
+          </div>
+
+          <!-- Dynamic List Container -->
+          <div id="travelListContainer" class="space-y-2.5 max-h-[400px] overflow-y-auto">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Tab 3: Summary & Statistics -->
+        <div id="travelPane-stats" class="travel-pane hidden space-y-3">
+          <div id="travelStatsContainer">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="otLeaveM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-4"
+    onclick="closeOTLeaveM()">
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 animate-modal-in"
+      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black text-lg" style="color:var(--pri)"><i class="fa-solid fa-clock-rotate-left ml-2"></i>خصم من رصيد الإضافي</h3>
+        <button onclick="closeOTLeaveM()"
+          class="w-8 h-8 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-3.5">
+        <div>
+          <label class="text-[11px] font-bold block mb-1.5 opacity-60">📅 تاريخ الخصم / الإجازة</label>
+          <input type="date" lang="en-GB" id="otLeaveDate" class="form-control" oninput="updateOTLeaveCalc()">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold block mb-1.5 opacity-60">⏱️ عدد الساعات والدقائق المراد خصمها</label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-[10px] opacity-70 mb-1">الساعات</div>
+              <input type="number" id="otLeaveHours" min="0" max="99" value="1" class="form-control text-center font-bold" oninput="updateOTLeaveCalc()" placeholder="ساعات">
+            </div>
+            <div>
+              <div class="text-[10px] opacity-70 mb-1">الدقائق</div>
+              <input type="number" id="otLeaveMins" min="0" max="59" step="5" value="0" class="form-control text-center font-bold" oninput="updateOTLeaveCalc()" placeholder="دقائق">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold block mb-1 opacity-60">خيارات سريعة:</label>
+          <div class="flex flex-wrap gap-1">
+            <button type="button" onclick="setOTLeaveQuick(1, 0)" class="btn btn-outline text-xs px-2.5 py-1 rounded-lg" style="min-height:28px">1 ساعة</button>
+            <button type="button" onclick="setOTLeaveQuick(2, 0)" class="btn btn-outline text-xs px-2.5 py-1 rounded-lg" style="min-height:28px">2 ساعة</button>
+            <button type="button" onclick="setOTLeaveQuick(3, 0)" class="btn btn-outline text-xs px-2.5 py-1 rounded-lg" style="min-height:28px">3 ساعات</button>
+            <button type="button" onclick="setOTLeaveQuick(4, 0)" class="btn btn-outline text-xs px-2.5 py-1 rounded-lg" style="min-height:28px">4 ساعات</button>
+            <button type="button" onclick="setOTLeaveQuick(8, 0)" class="btn btn-outline text-xs px-2.5 py-1 rounded-lg" style="min-height:28px">8 ساعات</button>
+          </div>
+        </div>
+
+        <div id="otLeaveInfo" class="rounded-2xl p-3 text-xs font-bold space-y-1"
+          style="background:var(--c-blue-lt);color:var(--pri)">
+          <div class="flex justify-between">
+            <span>الرصيد المتاح حالياً:</span>
+            <span id="otLeaveCurrentBal" class="font-black">0</span>
+          </div>
+          <div class="flex justify-between">
+            <span>سيتم خصم:</span>
+            <span id="otLeaveCost" class="font-black text-amber-600">0</span>
+          </div>
+          <div class="flex justify-between border-t pt-1" style="border-color: rgba(59,130,246,0.2)">
+            <span>المتبقي بعد الخصم:</span>
+            <span id="otLeaveRemaining" class="font-black text-emerald-600">0</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold block mb-1.5 opacity-60">الملاحظة</label>
+          <input type="text" id="otLeaveNote" class="form-control font-['Amiri']" placeholder="اكتب سبب الخصم/التعويض هنا...">
+        </div>
+      </div>
+      <button onclick="saveOTLeave()" class="btn btn-primary w-full mt-4 shadow-xl">تأكيد خصم الرصيد <i
+          class="fa-solid fa-check mr-2"></i></button>
+    </div>
+  </div>
+
+  <div id="chooseCompSourceM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-4"
+    onclick="closeCompModal()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 animate-modal-in"
+      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black text-base flex items-center gap-2" style="color:var(--pri)">
+          <i class="fa-solid fa-scale-balanced"></i>
+          <span id="compModalTitle">تأكيد تعويض التأخير</span>
+        </h3>
+        <button onclick="closeCompModal()"
+          class="w-8 h-8 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100"
+          style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Target Item Card -->
+      <div class="p-3 rounded-2xl mb-4 text-xs" style="background: var(--c-surface-2); border: 1px solid var(--c-border);">
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold opacity-70">يوم الحركة:</span>
+          <span id="compTargetDate" class="font-black"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="font-bold opacity-70">المدة المراد تعويضها:</span>
+          <span id="compTargetDuration" class="font-black text-amber-600"></span>
+        </div>
+      </div>
+
+      <!-- Overtime Source Selector -->
+      <div class="space-y-3">
+        <div>
+          <label class="text-[11px] font-bold block mb-1.5 opacity-70">⭐ اختر يوم الإضافي للخصم منه:</label>
+          <div id="compSourceList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <!-- Populated dynamically with overtime day cards -->
+          </div>
+        </div>
+
+        <div id="compSelectedDaySummary" class="p-3 rounded-2xl text-xs space-y-1 hidden"
+          style="background: var(--c-blue-lt); color: var(--pri); border: 1px solid rgba(59,130,246,0.2);">
+          <div class="flex justify-between">
+            <span>الرصيد المتاح في هذا اليوم:</span>
+            <span id="compSourceAvail" class="font-bold"></span>
+          </div>
+          <div class="flex justify-between border-t pt-1" style="border-color: rgba(59,130,246,0.2)">
+            <span>المتبقي في هذا اليوم بعد التعويض:</span>
+            <span id="compSourceRemaining" class="font-black text-emerald-600"></span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold block mb-1.5 opacity-60">ملاحظة (اختياري)</label>
+          <input type="text" id="compCustomNote" class="form-control font-['Amiri']" placeholder="اكتب ملاحظة للتعويض...">
+        </div>
+      </div>
+
+      <button id="btnConfirmComp" onclick="confirmCompensation()" class="btn btn-primary w-full mt-5 shadow-xl">
+        تأكيد التعويض والربط <i class="fa-solid fa-check mr-2"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- expM removed: orphan modal with no open trigger — exportM handles PDF export -->
+
+  <div id="aboutM" class="fixed inset-0 bg-black/70 z-[110] hidden flex items-center justify-center px-4"
+    onclick="closeAboutM()">
+    <div class="w-full max-w-sm relative rounded-3xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()"
+      style="background: var(--c-surface); border: 1px solid var(--c-border);">
+      <div style="padding: 2.5rem 2rem; height: 100%;">
+
+        <div class="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center text-white text-3xl shadow-lg mb-4"
+          style="background: var(--theme-grad-h);">
+          <i class="fa-solid fa-fingerprint"></i>
+        </div>
+        <h2 class="text-xl font-black mb-1 text-center" style="color: var(--c-text);">سجل الحضور الشخصي</h2>
+        <p class="text-[10px] font-black text-center mb-6 tracking-widest uppercase" style="color: var(--c-text2);">
+          Version 1.1 Official</p>
+
+        <div class="space-y-4 text-sm font-bold text-center py-6 mb-6"
+          style="border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border); color: var(--c-text);">
+          <p>جميع الحقوق محفوظة &copy; 2026</p>
+          <p class="text-[11px]" style="color: var(--c-text2);">تم التطوير ليكون رفيقك التقني في تنظيم أوقات
+            العمل باحترافية وسهولة.</p>
+        </div>
+
+        <div class="text-[10px] font-black uppercase tracking-widest text-center mb-2" style="color: var(--c-text2);">
+          Powered by</div>
+        <img src="assets/logo.png" alt="Developer Logo" onclick="openLogoViewer()"
+          class="w-16 h-16 rounded-full mx-auto shadow-xl cursor-pointer hover:scale-110 transition-transform duration-300"
+          style="object-fit: cover; border: 2px solid var(--c-border); background: var(--c-bg);">
+        <div class="text-xs font-black italic mt-2 text-center" style="color: var(--c-text);">AbU AghyAd</div>
+
+      </div>
+      <button onclick="closeAboutM()"
+        class="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full transition-opacity"
+        style="background: var(--c-bg2); color: var(--c-text2);">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Aesthetic Deep Logo Viewer Modal -->
+  <div id="logoViewerM"
+    class="fixed inset-0 bg-black/95 z-[200] hidden flex-col items-center justify-center px-4 transition-all duration-700 opacity-0"
+    onclick="closeLogoViewer()">
+    <div class="relative flex flex-col items-center justify-center max-w-sm w-full animate-in zoom-in-90 duration-700"
+      onclick="event.stopPropagation()">
+      <div class="absolute inset-0 blur-[100px] w-64 h-64 rounded-full mx-auto -z-10 animate-pulse"
+        style="background: var(--theme-primary); opacity: 0.3;">
+      </div>
+
+      <img src="assets/logo.png" alt="High Res Logo" id="logoViewerImg"
+        class="w-56 h-56 rounded-full ring-4 ring-white/10 mb-8 object-cover transform hover:scale-105 hover:rotate-3 transition-all duration-700 ease-out"
+        style="box-shadow: 0 0 80px rgba(var(--theme-primary-rgb, 124,58,237), 0.5);">
+
+      <div class="relative overflow-hidden w-full text-center py-4">
+        <h1
+          class="text-4xl sm:text-5xl font-black italic tracking-[0.2em] bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+          style="font-family: 'Inter', sans-serif; background-image: linear-gradient(to right, white, var(--theme-primary));">
+          AbU AghyAd
+        </h1>
+        <p class="mt-4 text-xs font-bold uppercase tracking-[0.4em] text-white/50"></p>
+      </div>
+
+      <button onclick="closeLogoViewer()"
+        class="mt-12 w-14 h-14 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all border border-white/10">
+        <i class="fa-solid fa-angle-down text-xl"></i>
+      </button>
+    </div>
+  </div>
+
+  <div id="welcM" class="fixed inset-0 modal-overlay z-[100] hidden items-center justify-center">
+    <div
+      class="glass-surface rounded-[2.5rem] p-10 w-full max-w-md mx-4 text-center shadow-2xl relative overflow-hidden animate-modal-in"
+      style="border: 1px solid rgba(255,255,255,0.1)">
+      <!-- Top Decorative Accent -->
+      <div class="absolute top-0 left-0 w-full h-2.5" style="background: var(--theme-grad-h);"></div>
+
+      <div class="text-5xl mb-6 mx-auto w-24 h-24 flex justify-center items-center rounded-3xl shadow-inner border"
+        style="background: var(--theme-primary-bg); color: var(--theme-primary); border-color: rgba(128,128,128,0.2);">
+        <i class="fa-solid fa-fingerprint"></i>
+      </div>
+
+      <h2 class="text-3xl font-black mb-3 text-slate-800 dark:text-white">مرحباً بك</h2>
+      <p class="text-[15px] mb-8 font-bold text-slate-500 dark:text-slate-400 leading-relaxed px-4">
+        في رفيقك التقني لتنظيم أوقات الدوام بدقة واحترافية. دعنا نبدأ بتخصيص حسابك.
+      </p>
+
+      <div class="relative mb-6">
+        <input type="text" id="wName" class="form-control text-lg py-4 px-6 text-center w-full font-black rounded-2xl"
+          placeholder="ما هو اسمك الأول؟">
+      </div>
+
+      <button onclick="finishSetup()"
+        class="btn btn-primary w-full text-lg py-4 flex items-center justify-center gap-3 group mt-2 shadow-2xl">
+        ابدأ الآن
+        <i class="fa-solid fa-arrow-left transition-transform group-hover:-translate-x-1"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Trial Expired Modal (Unclosable) -->
+  <div id="trialExpiredM"
+    class="fixed inset-0 bg-black/90 z-[200] hidden flex-col items-center justify-center p-6 text-center">
+    <div class="bg-white max-w-sm w-full rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+      <div class="absolute top-0 left-0 w-full h-2 bg-red-600"></div>
+      <div
+        class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h2 class="text-2xl font-black text-slate-800 mb-2">انتهت الفترة التجريبية</h2>
+      <p class="text-sm font-bold text-slate-500 mb-6">لقد انتهت فترة الـ 7 أيام لتجربة التطبيق. لاستمرار الاستخدام،
+        يرجى تفعيل نسختك الموثقة والأمنة.</p>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+        <p class="text-[11px] font-bold text-slate-500 mb-2">أرسل هذا المعرّف الفريد للمطور للحصول على التفعيل المشفّر:
+        </p>
+        <div class="flex items-center gap-2">
+          <input type="text" id="trialDeviceIdDisplay"
+            class="w-full text-center font-mono font-bold text-slate-800 bg-transparent outline-none text-sm" readonly
+            value="جاري التحميل...">
+          <button onclick="copyTrialDeviceId()" class="text-blue-600 hover:text-blue-800"><i
+              class="fa-solid fa-copy"></i></button>
+        </div>
+      </div>
+
+      <div class="text-left space-y-2 relative" dir="rtl">
+        <label class="text-[11px] font-bold text-slate-700 block text-right">مفتاح التفعيل المعمّى (أقوى تشفير):</label>
+        <input type="text" id="trialActivationInput" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX"
+          class="w-full text-center font-mono font-bold tracking-widest px-2 py-3 border-2 border-slate-300 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all outline-none uppercase text-green-700 bg-slate-50 text-[10px]">
+      </div>
+
+      <button onclick="verifyActivation()"
+        class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl mt-6 shadow-lg shadow-green-200 transition-transform active:scale-95 text-base">
+        تفعيل التطبيق <i class="fa-solid fa-unlock-keyhole ml-1"></i>
+      </button>
+    </div>
+  </div>
+
+  <div id="purchaseM"
+    class="fixed inset-0 bg-black/80 backdrop-blur-md z-[201] hidden flex-col items-center justify-center p-6 text-center">
+    <div class="bg-white max-w-sm w-full rounded-3xl p-8 shadow-2xl relative animate-modal-in">
+      <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-green-600"></div>
+      <button onclick="document.getElementById('purchaseM').classList.add('hidden')"
+        class="absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div
+        class="w-16 h-16 bg-slate-50 text-primary rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 border border-slate-100">
+        <i class="fa-solid fa-cart-shopping"></i>
+      </div>
+
+      <h2 class="text-xl font-black text-slate-800 mb-2">شراء النسخة الكاملة</h2>
+      <p class="text-xs font-bold text-slate-500 mb-6">احصل على ترخيص لمدى الحياة بربط التطبيق بهويّة جهازك الفريدة.</p>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
+        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">رمز تعريف الجهاز (ارسله للمطور)
+        </p>
+        <div class="flex items-center gap-3">
+          <input type="text" id="purchaseDeviceId" readonly
+            class="w-full text-center font-mono font-black text-blue-700 bg-transparent outline-none text-sm"
+            value="DEVICE-ID-HERE">
+          <button onclick="copyPurchaseId()"
+            class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center active:scale-90 transition-all">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <button onclick="window.sendLicenseRequest()"
+          class="w-full py-4 bg-green-600 text-white font-black rounded-2xl shadow-lg shadow-green-200 flex items-center justify-center gap-2 active:scale-95 transition-all">
+          طلب الترخيص عبر واتساب <i class="fa-brands fa-whatsapp text-lg"></i>
+        </button>
+        <button
+          onclick="document.getElementById('purchaseM').classList.add('hidden'); document.getElementById('trialExpiredM').classList.remove('hidden'); document.getElementById('trialExpiredM').style.display='flex';"
+          class="w-full py-3 text-slate-400 font-bold text-xs">
+          لدي مفتاح تفعيل بالفعل
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="biometricLock"
+    class="fixed inset-0 z-[1000] lock-overlay hidden flex-col items-center justify-center p-8 text-center text-white">
+    <div class="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center mb-6 animate-pulse">
+      <i class="fa-solid fa-fingerprint text-5xl text-purple-400"></i>
+    </div>
+    <h2 class="text-2xl font-black mb-2">التطبيق مغلق</h2>
+    <p class="text-sm opacity-60 mb-8 font-bold">يرجى التحقق من بصمة الإصبع أو رمز الجهاز للمتابعة</p>
+    <button onclick="authBiometric()"
+      class="btn-act px-10 py-4 bg-purple-600 rounded-2xl font-black text-lg shadow-2xl shadow-purple-500/20">فتح القفل
+      <i class="fa-solid fa-unlock ml-2"></i></button>
+  </div>
+
+  <div id="toast"
+    class="fixed bottom-24 left-0 right-0 mx-auto w-max text-center px-5 py-3 rounded-xl text-sm font-bold shadow-xl z-[150] opacity-0 translate-y-4 transition-all duration-300 pointer-events-none whitespace-nowrap">
+  </div>
+
+  <div id="pz" class="hidden"></div>
+</body>
+
+</html>

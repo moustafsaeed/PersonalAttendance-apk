@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>System & Theme - Starter Template</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/index.css">
+
+    <script src="../js/core/theme.js"></script>
+</head>
+<body>
+
+    <header class="px-5 pt-8 pb-6 relative w-full max-w-2xl mx-auto flex items-center justify-between" style="background: var(--c-surface); border-bottom: 1px solid var(--c-border)">
+        <a href="settings.html" class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100" style="background: var(--c-surface-2); color: var(--c-text)">
+            <i class="fa-solid fa-arrow-right"></i>
+        </a>
+        <h1 class="text-xl font-black">النظام والمظهر</h1>
+        <div class="w-10"></div>
+    </header>
+
+    <main class="px-4 py-6 w-full max-w-2xl mx-auto">
+        <h3 class="settings-section-title">المظهر</h3>
+        <div class="settings-section">
+            <label class="settings-row" for="themeToggleCB">
+                <div class="settings-row-label">
+                    <span class="label-title"><i class="fa-solid fa-circle-half-stroke ml-1" style="color: var(--pri)"></i> الوضع الليلي</span>
+                    <span class="label-desc">تبديل بين المظهر الفاتح والداكن</span>
+                </div>
+                <input type="checkbox" id="themeToggleCB" class="toggle-switch" onchange="ThemeManager.toggleMode()">
+            </label>
+        </div>
+
+        <h3 class="settings-section-title">لون الواجهة الأساسي</h3>
+        <div class="settings-section p-4">
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="ThemeManager.setAccent('blue')" class="btn btn-outline" style="color: #3b82f6; border-color: rgba(59,130,246,0.3);">
+                    <i class="fa-solid fa-tint ml-1"></i> أزرق عصري
+                </button>
+                <button onclick="ThemeManager.setAccent('green')" class="btn btn-outline" style="color: #10b981; border-color: rgba(16,185,129,0.3);">
+                    <i class="fa-solid fa-leaf ml-1"></i> أخضر كلاسيكي
+                </button>
+            </div>
+        </div>
+        
+        <script>
+            // Initialize toggle based on current state
+            document.addEventListener('DOMContentLoaded', () => {
+                const cb = document.getElementById('themeToggleCB');
+                if(ThemeManager.prefs.mode === 'dark') {
+                    cb.checked = true;
+                }
+            });
+        </script>
+    </main>
+
+</body>
+</html>

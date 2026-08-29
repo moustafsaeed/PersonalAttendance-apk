@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Backup & Sync - Starter Template</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/index.css">
+
+    <script src="../js/core/theme.js"></script>
+</head>
+<body>
+
+    <header class="px-5 pt-8 pb-6 relative w-full max-w-2xl mx-auto flex items-center justify-between" style="background: var(--c-surface); border-bottom: 1px solid var(--c-border)">
+        <a href="settings.html" class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100" style="background: var(--c-surface-2); color: var(--c-text)">
+            <i class="fa-solid fa-arrow-right"></i>
+        </a>
+        <h1 class="text-xl font-black">النسخ الاحتياطي</h1>
+        <div class="w-10"></div>
+    </header>
+
+    <main class="px-4 py-6 w-full max-w-2xl mx-auto">
+        
+        <h3 class="settings-section-title">التلقائي والمزامنة</h3>
+        <div class="settings-section">
+            <label class="settings-row">
+                <div class="settings-row-label">
+                    <span class="label-title"><i class="fa-solid fa-hard-drive ml-1" style="color:var(--c-success)"></i> نسخ تلقائي (محلي)</span>
+                    <span class="label-desc">حفظ نسخة داخل مجلد التطبيق</span>
+                </div>
+                <input type="checkbox" class="toggle-switch" onchange="console.log('TODO: Implement local autobackup')">
+            </label>
+            <label class="settings-row">
+                <div class="settings-row-label">
+                    <span class="label-title"><i class="fa-brands fa-google-drive ml-1" style="color:var(--pri)"></i> مزامنة سحابية (Drive)</span>
+                    <span class="label-desc">حفظ بأمان في حسابك السحابي</span>
+                </div>
+                <input type="checkbox" class="toggle-switch" onchange="console.log('TODO: Implement cloud sync')">
+            </label>
+        </div>
+
+        <h3 class="settings-section-title">العمليات اليدوية</h3>
+        <div class="settings-section p-4 space-y-3">
+            <button class="btn btn-primary w-full" onclick="console.log('TODO: Implement manual download')">
+                <i class="fa-solid fa-download ml-1"></i> تحميل نسخة كاملة لجهازي
+            </button>
+            <button class="btn btn-secondary w-full" onclick="console.log('TODO: Implement immediate cloud upload')">
+                <i class="fa-brands fa-google-drive ml-1"></i> رفع نسخة فورية للسحابة
+            </button>
+            
+            <div class="border-t pt-4 mt-4" style="border-color: var(--c-border)">
+                <button class="btn w-full mb-3" style="background: var(--c-text); color: var(--c-bg);" onclick="console.log('TODO: Implement cloud restore')">
+                    <i class="fa-solid fa-cloud-arrow-down ml-1"></i> استعادة من السحابة
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="btn btn-outline w-full" style="font-size: 0.8rem;" onclick="document.getElementById('restF').click()">
+                        <i class="fa-solid fa-upload ml-1"></i> ملف محلي
+                    </button>
+                    <button class="btn btn-outline w-full" style="font-size: 0.8rem;" onclick="console.log('TODO: Restore autobackup')">
+                        <i class="fa-solid fa-clock-rotate-left ml-1"></i> التلقائية
+                    </button>
+                    <input type="file" id="restF" class="hidden" accept=".json" onchange="console.log('TODO: Parse JSON backup')">
+                </div>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

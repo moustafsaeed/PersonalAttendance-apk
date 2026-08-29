@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#3b82f6">
+    <title>Starter Template</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Core CSS -->
+    <link rel="stylesheet" href="css/index.css">
+
+    <!-- Core JS -->
+    <script src="js/core/theme.js"></script>
+    <script src="js/core/license.js"></script>
+
+    <!-- Tailwind utility via CDN just for layout spacing in template if needed (optional) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        // SPA Navigation logic
+        function go(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-i').forEach(n => n.classList.remove('on'));
+            
+            const targetPage = document.getElementById(`pg-${pageId}`);
+            if(targetPage) targetPage.classList.add('active');
+
+            const navBtn = document.querySelector(`[onclick="go('${pageId}')"]`);
+            if(navBtn) navBtn.classList.add('on');
+        }
+
+        // Settings Tabs Switcher
+        function switchSetTab(tabId) {
+            // Remove active from all tabs
+            document.querySelectorAll('.set-tab').forEach(t => t.classList.remove('active'));
+            // Remove active from all panes
+            document.querySelectorAll('.set-pane').forEach(p => p.classList.remove('active'));
+            
+            // Add active to selected
+            document.getElementById(`st-${tabId}`).classList.add('active');
+            document.getElementById(`sp-${tabId}`).classList.add('active');
+        }
+
+        // UI Helpers
+        function copyTrialDeviceId() {
+            const input = document.getElementById('trialDeviceIdDisplay');
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value);
+            alert("تم نسخ رمز الجهاز بنجاح");
+        }
+
+        function verifyActivation() {
+            const key = document.getElementById('trialActivationInput').value;
+            if (LicenseManager.verifyKey(key)) {
+                alert("تم التفعيل بنجاح!");
+                document.getElementById('trialExpiredM').classList.add('hidden');
+            } else {
+                alert("مفتاح التفعيل غير صحيح أو لا يطابق هذا الجهاز.");
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Trial Banner (Shows automatically if in trial via license.js) -->
+    <div id="trialBanner" class="hidden fixed left-0 right-0 z-[110] flex flex-col items-center transition-all duration-300" style="top: calc(env(safe-area-inset-top, 10px) + 12px);">
+        <div class="swipe-indicator opacity-20 bg-slate-400"></div>
+        <div id="trialBannerInner" class="flex flex-col items-center solid-premium rounded-[24px] px-6 py-4 mx-4 w-[92%] max-w-sm cursor-pointer overflow-hidden transition-transform active:scale-95 shadow-xl" dir="rtl">
+            <div class="relative z-10 flex flex-col items-center gap-2">
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-2 h-2 rounded-full bg-red-600 animate-ping"></div>
+                    <span class="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] font-sans">Trial Version</span>
+                    <div class="w-2 h-2 rounded-full bg-red-600 animate-ping"></div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white shadow-lg red-glow-badge shrink-0">
+                        <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-[16px] font-black text-red-700 leading-tight mb-1">تنبيه: النسخة التجريبية مفعلة</div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200">
+                            <span class="text-[14px] font-black text-red-600 text-number" id="trialCountdown">جارِ الحساب...</span>
+                        </div>
+                    </div>
+                </div>
+                <div onclick="LicenseManager.sendLicenseRequest()" class="mt-3 text-[10px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-red-800 px-6 py-3 rounded-2xl transition-all active:scale-95 shadow-lg red-glow-badge">
+                    <i class="fa-solid fa-gem text-white"></i>
+                    شراء النسخة الكاملة الآن
+                    <i class="fa-solid fa-chevron-left text-[8px] opacity-60"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trial Expired Modal (Unclosable, enforced by license.js) -->
+    <div id="trialExpiredM" class="fixed inset-0 bg-black/90 z-[200] hidden flex-col items-center justify-center p-6 text-center">
+        <div class="bg-white max-w-sm w-full rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-red-600"></div>
+            <div class="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h2 class="text-2xl font-black text-slate-800 mb-2">انتهت الفترة التجريبية</h2>
+            <p class="text-sm font-bold text-slate-500 mb-6">لقد انتهت فترة التجربة للتطبيق. لاستمرار الاستخدام، يرجى تفعيل نسختك.</p>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+                <p class="text-[11px] font-bold text-slate-500 mb-2">أرسل هذا المعرّف للحصول على التفعيل:</p>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="trialDeviceIdDisplay" class="w-full text-center font-mono font-bold text-slate-800 bg-transparent outline-none text-sm" readonly>
+                    <button onclick="copyTrialDeviceId()" class="text-blue-600 hover:text-blue-800"><i class="fa-solid fa-copy"></i></button>
+                </div>
+            </div>
+            <div class="text-left space-y-2 relative" dir="rtl">
+                <label class="text-[11px] font-bold text-slate-700 block text-right">مفتاح التفعيل:</label>
+                <input type="text" id="trialActivationInput" placeholder="ACT-XXXXXXXX" class="w-full text-center font-mono font-bold tracking-widest px-2 py-3 border-2 border-slate-300 rounded-xl focus:border-green-500 transition-all outline-none uppercase text-green-700 bg-slate-50 text-sm">
+            </div>
+            <button onclick="verifyActivation()" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl mt-6 shadow-lg shadow-green-200 transition-transform active:scale-95 text-base">
+                تفعيل التطبيق <i class="fa-solid fa-unlock-keyhole ml-1"></i>
+            </button>
+            <button onclick="LicenseManager.sendLicenseRequest()" class="w-full mt-3 py-3 text-sm text-blue-600 font-bold border border-blue-200 rounded-xl hover:bg-blue-50">
+                طلب مفتاح التفعيل عبر واتساب <i class="fa-brands fa-whatsapp ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- Header -->
+    <header class="px-5 pt-8 pb-10 relative overflow-hidden w-full max-w-2xl mx-auto" style="background: var(--theme-grad-h); box-shadow: 0 10px 40px rgba(0,0,0,0.15)">
+        <div class="relative flex justify-between items-center text-white">
+            <h1 class="text-2xl font-black tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-rocket text-xl"></i>
+                Starter App
+            </h1>
+            <div class="text-sm font-bold">
+                v1.0
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="px-4 -mt-4 relative z-10 w-full max-w-2xl mx-auto pb-40">
+        
+        <!-- Dashboard Page -->
+        <div id="pg-home" class="page active">
+            <div class="card">
+                <h2 class="font-bold text-lg mb-2">مرحباً بك في القالب الأساسي</h2>
+                <p class="text-sm text-gray-500 mb-4" style="color: var(--text2)">
+                    تم تفعيل نافذة الترخيص والإعدادات كما طلبت، بنفس الهيكلية (SPA) للتطبيق الأصلي.
+                </p>
+            </div>
+        </div>
+
+        <!-- Explore Page (Placeholder) -->
+        <div id="pg-explore" class="page">
+            <div class="card text-center py-10">
+                <i class="fa-solid fa-compass text-5xl mb-4 text-gray-300"></i>
+                <h2 class="font-bold text-lg mb-2">الاستكشاف</h2>
+                <p class="text-sm" style="color: var(--text2)">مكان مخصص لإضافة محتوى تطبيقك</p>
+            </div>
+        </div>
+
+        <!-- Notifications Page (Placeholder) -->
+        <div id="pg-notifications" class="page">
+            <div class="card text-center py-10">
+                <i class="fa-solid fa-bell text-5xl mb-4 text-gray-300"></i>
+                <h2 class="font-bold text-lg mb-2">الإشعارات</h2>
+                <p class="text-sm" style="color: var(--text2)">مكان مخصص لإشعارات المستخدم</p>
+            </div>
+        </div>
+
+        <!-- Settings Page (Exact layout from original app) -->
+        <div id="pg-settings" class="page max-w-3xl mx-auto w-full">
+            <div class="settings-nav-container" style="position: static; background: transparent; padding-top: 10px;">
+                <div class="settings-tabs">
+                    <button onclick="switchSetTab('account')" id="st-account" class="set-tab active"><i class="fa-solid fa-user"></i> الحساب</button>
+                    <button onclick="switchSetTab('data')" id="st-data" class="set-tab"><i class="fa-solid fa-table-list"></i> البيانات</button>
+                    <button onclick="switchSetTab('backup')" id="st-backup" class="set-tab"><i class="fa-solid fa-cloud"></i> النسخ</button>
+                    <button onclick="switchSetTab('system')" id="st-system" class="set-tab"><i class="fa-solid fa-shield-halved"></i> النظام</button>
+                </div>
+            </div>
+
+            <div id="settings-content-wrapper" class="settings-content">
+                
+                <!-- Tab 1: Account -->
+                <div id="sp-account" class="set-pane active">
+                    <div>
+                        <h3 class="settings-section-title">المعلومات الشخصية</h3>
+                        <div class="settings-section">
+                            <div class="settings-row">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-solid fa-user-pen ml-1" style="color:var(--primary-blue)"></i> اسمك</span>
+                                </div>
+                                <input type="text" placeholder="اكتب اسمك..." class="form-control" style="max-width: 200px; text-align: left;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Data (Placeholders) -->
+                <div id="sp-data" class="set-pane">
+                    <div>
+                        <h3 class="settings-section-title">إعدادات البيانات</h3>
+                        <div class="settings-section p-4">
+                            <p class="text-sm text-center font-bold opacity-60">أضف خيارات الجداول والتصنيفات الخاصة بك هنا.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Backup -->
+                <div id="sp-backup" class="set-pane">
+                    <div>
+                        <h3 class="settings-section-title">المزامنة التلقائية</h3>
+                        <div class="settings-section">
+                            <div id="googleAccountArea" class="empty:hidden"></div>
+                            <label class="settings-row" for="autoBackupCB">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-solid fa-hard-drive ml-1" style="color:var(--c-success)"></i> نسخ تلقائي (محلي)</span>
+                                    <span class="label-desc">حفظ نسخة داخل مجلد التطبيق</span>
+                                </div>
+                                <input type="checkbox" id="autoBackupCB" class="toggle-switch" onchange="toggleAutoBackup()">
+                            </label>
+                            <label class="settings-row" for="cloudAutoSyncCB">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-brands fa-google-drive ml-1" style="color:var(--pri)"></i> مزامنة سحابية (Drive)</span>
+                                    <span class="label-desc">حفظ بأمان في حسابك</span>
+                                </div>
+                                <input type="checkbox" id="cloudAutoSyncCB" class="toggle-switch" onchange="toggleCloudAutoSync()">
+                            </label>
+                            <div style="padding: 16px; background: var(--bg);">
+                                <h4 class="label-desc" style="margin-bottom: 12px; text-transform: uppercase; font-weight: 800;">جدول التنفيذ</h4>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                    <div class="form-group">
+                                        <label class="label-desc">التكرار</label>
+                                        <select id="backupIntervalIn" onchange="updateBackupFieldsVisibility();saveBackupSettings()" class="form-control" style="padding: 0.5rem 0.75rem;">
+                                            <option value="daily">يومياً</option>
+                                            <option value="weekly">أسبوعياً</option>
+                                            <option value="monthly">شهرياً</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="label-desc">الوقت (24h)</label>
+                                        <input type="time" id="backupTimeIn" onchange="saveBackupSettings()" class="form-control" style="padding: 0.5rem 0.75rem;" dir="ltr">
+                                    </div>
+                                </div>
+                                <div id="backupWeeklyWrap" class="hidden mb-3">
+                                    <div class="form-group">
+                                        <label class="label-desc">يوم التنفيذ</label>
+                                        <select id="backupDayIn" onchange="saveBackupSettings()" class="form-control" style="padding: 0.5rem 0.75rem;">
+                                            <option value="0">الأحد</option>
+                                            <option value="1">الاثنين</option>
+                                            <option value="2">الثلاثاء</option>
+                                            <option value="3">الأربعاء</option>
+                                            <option value="4">الخميس</option>
+                                            <option value="5">الجمعة</option>
+                                            <option value="6">السبت</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="backupMonthlyWrap" class="hidden mb-3">
+                                    <div class="form-group">
+                                        <label class="label-desc">يوم الشهر (1-28)</label>
+                                        <input type="number" id="backupDateIn" min="1" max="28" onchange="saveBackupSettings()" class="form-control" style="padding: 0.5rem 0.75rem; max-width: 120px;">
+                                    </div>
+                                </div>
+                                <p class="label-desc">* سيتم النسخ عند أقرب ضغطة تشغيل بعد الموعد</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="settings-section-title">العمليات اليدوية</h3>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button onclick="backupData('all')" class="btn btn-primary w-full"><i class="fa-solid fa-download ml-1"></i> تحميل نسخة كاملة لجهازي</button>
+                            <button onclick="syncToGoogleDrive()" class="btn btn-secondary w-full"><i class="fa-brands fa-google-drive ml-1"></i> رفع نسخة فورية لـ Drive</button>
+                            <div class="grid grid-cols-2 gap-2" style="margin-top: 8px;">
+                                <button onclick="backupData('settings')" class="btn btn-outline w-full" style="font-size: 0.7rem;">إعدادات فقط</button>
+                                <button onclick="backupData('records')" class="btn btn-outline w-full" style="font-size: 0.7rem;">سجلات فقط</button>
+                            </div>
+                            <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                                <button onclick="browseCloudBackups()" class="btn w-full" style="background: var(--text); color: var(--bg);"><i class="fa-solid fa-cloud-arrow-down ml-1"></i> استعادة من السحابة</button>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="document.getElementById('restF').click()" class="btn btn-outline w-full" style="font-size: 0.7rem;"><i class="fa-solid fa-upload ml-1"></i> ملف محلي</button>
+                                    <button onclick="restoreAutoBackup()" class="btn btn-outline w-full" style="font-size: 0.7rem;"><i class="fa-solid fa-clock-rotate-left ml-1"></i> التلقائية</button>
+                                    <input type="file" id="restF" class="hidden" accept=".json" onchange="restoreData(this)">
+                                </div>
+                            </div>
+                            <button onclick="shareBackup()" class="btn btn-outline w-full" style="color: #7c3aed; border-color: rgba(124,58,237,0.3); margin-top: 4px;"><i class="fa-solid fa-share-nodes ml-1"></i> إرسال نسخة مشاركة</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: System -->
+                <div id="sp-system" class="set-pane">
+                    <div>
+                        <h3 class="settings-section-title">الأمان والتنبيهات</h3>
+                        <div class="settings-section">
+                            <label class="settings-row" for="themeToggleCB">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-solid fa-circle-half-stroke ml-1" style="color: #3b82f6;"></i> الوضع الليلي</span>
+                                    <span class="label-desc">تبديل بين المظهر الفاتح والداكن</span>
+                                </div>
+                                <input type="checkbox" id="themeToggleCB" class="toggle-switch" onchange="ThemeManager.toggleMode()">
+                            </label>
+
+                            <label class="settings-row" for="biometricLockCB" style="border-top: 1px solid var(--border-color)">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-solid fa-fingerprint ml-1" style="color: #7c3aed;"></i> قفل بالبصمة الحيوية</span>
+                                    <span class="label-desc">طلب البصمة لفتح التطبيق</span>
+                                </div>
+                                <input type="checkbox" id="biometricLockCB" class="toggle-switch" onchange="toggleBiometricLock()">
+                            </label>
+                            <div class="settings-row">
+                                <div class="settings-row-label">
+                                    <span class="label-title"><i class="fa-solid fa-bell ml-1" style="color: var(--c-warning);"></i> إشعار قبل الدوام (دقائق)</span>
+                                    <span class="label-desc">ضع 0 لإلغاء الإشعارات</span>
+                                </div>
+                                <input type="number" id="alertOffsetIn" class="form-control text-number" style="max-width: 80px; text-align: center; padding: 0.5rem;" min="0" onchange="saveAlertSettings()">
+                            </div>
+                            <div class="p-4" style="border-top: 1px solid var(--border-color); background: var(--bg);">
+                                <span class="label-title" style="margin-bottom: 12px; display: block;"><i class="fa-solid fa-palette ml-1" style="color:var(--pri)"></i> لون الواجهة الأساسي</span>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button onclick="ThemeManager.setAccent('blue')" class="btn btn-outline" style="color: #3b82f6; border-color: rgba(59,130,246,0.3);"><i class="fa-solid fa-tint ml-1"></i> أزرق عصري</button>
+                                    <button onclick="ThemeManager.setAccent('green')" class="btn btn-outline" style="color: #10b981; border-color: rgba(16,185,129,0.3);"><i class="fa-solid fa-leaf ml-1"></i> أخضر كلاسيكي</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 class="settings-section-title" style="color: var(--c-danger);"><i class="fa-solid fa-triangle-exclamation ml-1"></i> منطقة الخطر</h3>
+                        <div class="danger-zone">
+                            <button onclick="clearRecs()" class="btn btn-outline w-full" style="color: var(--c-warning); border-color: rgba(245,158,11,0.3);">مسح كافة السجلات الحالية</button>
+                            <button onclick="resetSettings()" class="btn btn-outline w-full" style="color: var(--pri); border-color: rgba(37,99,235,0.2);">إعادة الافتراضيات للإعدادات</button>
+                            <button onclick="clearAll()" class="btn btn-danger w-full"><i class="fa-solid fa-trash ml-1"></i> مسح التطبيق كاملاً (فورمات)</button>
+                        </div>
+
+                        <div style="padding: 24px 0 8px; text-align: center;">
+                            <button onclick="openAboutM()" style="font-size: 0.7rem; font-weight: 700; color: var(--text2); background: none; border: none; cursor: pointer;">
+                                <i class="fa-solid fa-circle-info ml-1"></i> حول التطبيق وبيانات المطور
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav" class="glass fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl z-50">
+        <div class="mx-auto grid grid-cols-4 h-full" style="height: 72px; align-items: flex-end;">
+            <button class="nav-i on w-full" onclick="go('home')">
+                <i class="fa-solid fa-house"></i><span>الرئيسية</span>
+            </button>
+            <button class="nav-i w-full" onclick="go('explore')">
+                <i class="fa-solid fa-compass"></i><span>استكشاف</span>
+            </button>
+            <button class="nav-i w-full" onclick="go('notifications')">
+                <i class="fa-solid fa-bell"></i><span>إشعارات</span>
+            </button>
+            <button class="nav-i w-full" onclick="go('settings')">
+                <i class="fa-solid fa-gear"></i><span>إعدادات</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Set Initial Toggle State -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const cb = document.getElementById('themeToggleCB');
+            if(cb && ThemeManager.prefs.mode === 'dark') {
+                cb.checked = true;
+            }
+        });
+
+        // Placeholders for System & Backup Functions
+        function openAboutM() {
+            const m = document.getElementById('aboutM');
+            if(m) {
+                m.classList.remove('hidden');
+                m.style.display = 'flex';
+            }
+        }
+        function closeAboutM() {
+            document.getElementById('aboutM').classList.add('hidden');
+        }
+        function openLogoViewer() {
+            const m = document.getElementById('logoViewerM');
+            if(m) {
+                m.classList.remove('hidden');
+                m.style.display = 'flex';
+                setTimeout(() => m.classList.remove('opacity-0'), 10);
+            }
+        }
+        function closeLogoViewer() {
+            const m = document.getElementById('logoViewerM');
+            if(m) {
+                m.classList.add('opacity-0');
+                setTimeout(() => { m.classList.add('hidden'); m.style.display = 'none'; }, 700);
+            }
+        }
+        function toggleBiometricLock() { console.log('Biometric Lock toggled'); }
+        function saveAlertSettings() { console.log('Alert settings saved'); }
+        function clearRecs() { alert('سيتم مسح السجلات!'); }
+        function resetSettings() { alert('سيتم إعادة الافتراضيات!'); }
+        function clearAll() { alert('سيتم مسح التطبيق بالكامل!'); }
+        function backupData(type) { console.log('Backing up: ' + type); }
+        function syncToGoogleDrive() { console.log('Syncing to Drive...'); }
+        function browseCloudBackups() { console.log('Browsing cloud backups...'); }
+        function restoreAutoBackup() { console.log('Restoring auto backup...'); }
+        function shareBackup() { console.log('Sharing backup...'); }
+        function restoreData(input) { console.log('Restoring data from file...'); }
+        function toggleAutoBackup() { console.log('Auto backup toggled'); }
+        function toggleCloudAutoSync() { console.log('Cloud sync toggled'); }
+        function saveBackupSettings() { console.log('Backup settings saved'); }
+        function updateBackupFieldsVisibility() {
+            const val = document.getElementById('backupIntervalIn').value;
+            const wWrap = document.getElementById('backupWeeklyWrap');
+            const mWrap = document.getElementById('backupMonthlyWrap');
+            if(wWrap) wWrap.classList.toggle('hidden', val !== 'weekly');
+            if(mWrap) mWrap.classList.toggle('hidden', val !== 'monthly');
+        }
+    </script>
+
+    <!-- Modals -->
+    <div id="aboutM" class="fixed inset-0 bg-black/70 z-[110] hidden flex-col items-center justify-center px-4" onclick="closeAboutM()">
+        <div class="w-full max-w-sm relative rounded-3xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()" style="background: var(--c-surface); border: 1px solid var(--c-border);">
+            <div style="padding: 2.5rem 2rem; height: 100%;">
+                <div class="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center text-white text-3xl shadow-lg mb-4" style="background: var(--theme-grad-h);">
+                    <i class="fa-solid fa-rocket"></i>
+                </div>
+                <h2 class="text-xl font-black mb-1 text-center" style="color: var(--c-text);">القالب الأساسي</h2>
+                <p class="text-[10px] font-black text-center mb-6 tracking-widest uppercase" style="color: var(--c-text2);">Version 1.0</p>
+                <div class="space-y-4 text-sm font-bold text-center py-6 mb-6" style="border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border); color: var(--c-text);">
+                    <p>جميع الحقوق محفوظة &copy; 2026</p>
+                    <p class="text-[11px]" style="color: var(--c-text2);">قالب جاهز للبناء والتطوير السريع.</p>
+                </div>
+                <div class="text-[10px] font-black uppercase tracking-widest text-center mb-2" style="color: var(--c-text2);">Powered by</div>
+                <img src="assets/logo.png" alt="Developer Logo" onclick="openLogoViewer()" class="w-16 h-16 rounded-full mx-auto shadow-xl cursor-pointer hover:scale-110 transition-transform duration-300" style="object-fit: cover; border: 2px solid var(--c-border); background: var(--c-bg);">
+                <div class="text-xs font-black italic mt-2 text-center" style="color: var(--c-text);">AbU AghyAd</div>
+            </div>
+            <button onclick="closeAboutM()" class="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full transition-opacity" style="background: var(--c-bg); color: var(--c-text2);">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="logoViewerM" class="fixed inset-0 bg-black/95 z-[200] hidden flex-col items-center justify-center px-4 transition-all duration-700 opacity-0" onclick="closeLogoViewer()">
+        <div class="relative flex flex-col items-center justify-center max-w-sm w-full duration-700" onclick="event.stopPropagation()">
+            <div class="absolute inset-0 blur-[100px] w-64 h-64 rounded-full mx-auto -z-10 animate-pulse" style="background: var(--theme-primary); opacity: 0.3;"></div>
+            <img src="assets/logo.png" alt="High Res Logo" id="logoViewerImg" class="w-56 h-56 rounded-full ring-4 ring-white/10 mb-8 object-cover transform hover:scale-105 hover:rotate-3 transition-all duration-700 ease-out" style="box-shadow: 0 0 80px rgba(var(--theme-primary-rgb, 124,58,237), 0.5);">
+            <div class="relative overflow-hidden w-full text-center py-4">
+                <h1 class="text-4xl sm:text-5xl font-black italic tracking-[0.2em] bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" style="font-family: 'Inter', sans-serif; background-image: linear-gradient(to right, white, var(--theme-primary));">
+                    AbU AghyAd
+                </h1>
+                <p class="mt-4 text-xs font-bold uppercase tracking-[0.4em] text-white/50"></p>
+            </div>
+            <button onclick="closeLogoViewer()" class="mt-12 w-14 h-14 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all border border-white/10">
+                <i class="fa-solid fa-angle-down text-xl"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div id="biometricLock" class="fixed inset-0 z-[1000] hidden flex-col items-center justify-center p-8 text-center text-white" style="background: rgba(0,0,0,0.9);">
+        <div class="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center mb-6 animate-pulse">
+            <i class="fa-solid fa-fingerprint text-5xl" style="color: var(--pri);"></i>
+        </div>
+        <h2 class="text-2xl font-black mb-2">التطبيق مغلق</h2>
+        <p class="text-sm opacity-60 mb-8 font-bold">يرجى التحقق من بصمة الإصبع أو رمز الجهاز للمتابعة</p>
+        <button onclick="document.getElementById('biometricLock').style.display='none'" class="btn btn-primary px-10 py-4 rounded-2xl font-black text-lg shadow-2xl">فتح القفل <i class="fa-solid fa-unlock ml-2"></i></button>
+    </div>
+</body>
+</html>

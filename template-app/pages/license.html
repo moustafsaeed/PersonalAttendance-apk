@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>License - Starter Template</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/index.css">
+
+    <script src="../js/core/theme.js"></script>
+    <script src="../js/core/license.js"></script>
+</head>
+<body>
+
+    <header class="px-5 pt-8 pb-6 relative w-full max-w-2xl mx-auto flex items-center justify-between" style="background: var(--c-surface); border-bottom: 1px solid var(--c-border)">
+        <a href="settings.html" class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100" style="background: var(--c-surface-2); color: var(--c-text)">
+            <i class="fa-solid fa-arrow-right"></i>
+        </a>
+        <h1 class="text-xl font-black">الترخيص والتفعيل</h1>
+        <div class="w-10"></div>
+    </header>
+
+    <main class="px-4 py-6 w-full max-w-2xl mx-auto">
+        
+        <!-- Status Indicator -->
+        <div class="card text-center mb-6" id="statusCard">
+            <div id="statusIcon" class="text-5xl mb-3"></div>
+            <h2 id="statusTitle" class="text-2xl font-black mb-2">جاري التحقق...</h2>
+            <p id="statusDesc" class="text-sm font-bold opacity-70 mb-4">يتم الآن فحص حالة الترخيص الخاصة بك.</p>
+        </div>
+
+        <div class="settings-section p-4 mb-6">
+            <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">رمز تعريف الجهاز (ارسله للمطور)</h4>
+            <div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                <input type="text" id="deviceIdInput" readonly class="w-full text-center font-mono font-black text-blue-700 dark:text-blue-400 bg-transparent outline-none text-sm">
+                <button onclick="copyDeviceId()" class="w-10 h-10 shrink-0 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center active:scale-90 transition-all">
+                    <i class="fa-solid fa-copy"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Purchase Action -->
+        <div id="actionRequest" class="space-y-3 hidden">
+            <button onclick="LicenseManager.sendLicenseRequest()" class="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all text-lg">
+                طلب الترخيص عبر واتساب <i class="fa-brands fa-whatsapp text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Activation Input -->
+        <div id="actionActivate" class="card mt-6 hidden">
+            <h3 class="font-bold mb-3 text-sm">لدي مفتاح تفعيل</h3>
+            <input type="text" id="activationKeyInput" placeholder="أدخل مفتاح التفعيل هنا (ACT-...)" class="form-control mb-3 text-center font-mono tracking-widest text-sm" dir="ltr">
+            <button onclick="submitActivation()" class="btn btn-primary w-full">تفعيل التطبيق <i class="fa-solid fa-unlock ml-2"></i></button>
+        </div>
+
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('deviceIdInput').value = LicenseManager.getDeviceId();
+            updateUI();
+        });
+
+        function updateUI() {
+            const statusCard = document.getElementById('statusCard');
+            const icon = document.getElementById('statusIcon');
+            const title = document.getElementById('statusTitle');
+            const desc = document.getElementById('statusDesc');
+            
+            const reqBtn = document.getElementById('actionRequest');
+            const actBox = document.getElementById('actionActivate');
+
+            if (LicenseManager.isActivated()) {
+                statusCard.style.background = 'rgba(16, 185, 129, 0.1)';
+                statusCard.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                icon.innerHTML = '<i class="fa-solid fa-shield-check text-green-500"></i>';
+                title.textContent = 'النسخة مفعلة';
+                title.className = 'text-2xl font-black mb-2 text-green-600 dark:text-green-400';
+                desc.textContent = 'هذه النسخة أصلية ومرخصة لجهازك مدى الحياة.';
+                
+                reqBtn.classList.add('hidden');
+                actBox.classList.add('hidden');
+            } else {
+                const daysLeft = LicenseManager.getDaysRemaining();
+                if (daysLeft > 0) {
+                    statusCard.style.background = 'rgba(245, 158, 11, 0.1)';
+                    statusCard.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+                    icon.innerHTML = '<i class="fa-solid fa-clock text-amber-500"></i>';
+                    title.textContent = `فترة تجريبية (${daysLeft} أيام)`;
+                    title.className = 'text-2xl font-black mb-2 text-amber-600 dark:text-amber-400';
+                    desc.textContent = 'الرجاء تفعيل النسخة قبل انتهاء الفترة التجريبية لضمان عدم توقف التطبيق.';
+                    
+                    reqBtn.classList.remove('hidden');
+                    actBox.classList.remove('hidden');
+                } else {
+                    statusCard.style.background = 'rgba(239, 68, 68, 0.1)';
+                    statusCard.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    icon.innerHTML = '<i class="fa-solid fa-lock text-red-500"></i>';
+                    title.textContent = 'انتهت الفترة التجريبية';
+                    title.className = 'text-2xl font-black mb-2 text-red-600 dark:text-red-400';
+                    desc.textContent = 'لقد توقف التطبيق. يجب تفعيل النسخة للوصول لبياناتك.';
+                    
+                    reqBtn.classList.remove('hidden');
+                    actBox.classList.remove('hidden');
+                }
+            }
+        }
+
+        function copyDeviceId() {
+            const input = document.getElementById('deviceIdInput');
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value);
+            alert("تم نسخ رمز الجهاز بنجاح");
+        }
+
+        function submitActivation() {
+            const key = document.getElementById('activationKeyInput').value;
+            if (LicenseManager.verifyKey(key)) {
+                alert("تم التفعيل بنجاح! شكراً لاستخدامك النسخة الكاملة.");
+                updateUI();
+            } else {
+                alert("مفتاح التفعيل غير صحيح أو لا يطابق هذا الجهاز.");
+            }
+        }
+    </script>
+</body>
+</html>

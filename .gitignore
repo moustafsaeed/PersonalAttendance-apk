@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+android/app/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/build/
+Personal_Attendance_Standalone.html
+
+# APK files (binaries)
+*.apk
+*.idsig
+*.aab
+
+# Keystore files (SECURITY - never commit)
+*.jks
+*.keystore
+
+# Local configuration (machine-specific)
+android/local.properties
+
+# Signing credentials (SECURITY - never commit)
+android/keystore.properties
+
+# Gradle wrapper jar
+!android/gradle/wrapper/gradle-wrapper.jar
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Images and media (ignore loose root media)
+/*.jpg
+/*.jpeg
+/*.png
+/*.gif
+/*.bmp
+/*.webp
+!www/assets/
+!www/no_records_illustration_1776373328013.png
+!android/app/src/main/res/
+
+# Unused legacy source files
+android/app/src/main/java/com/abdo/
+android/app/src/main/java/com/waterbill/
+android/app/src/main/java/com/myfingertip/
