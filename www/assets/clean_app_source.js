@@ -96,8 +96,8 @@ window.getStatusBadgeHTML = function(status, rawLate = 0, isLateComp = false) {
   }
   
   if (isPresent(status)) {
-    if (rawLate > 0 && !isLateComp) {
-      return `<span class="status-badge status-badge-late"><i class="fa-solid fa-clock-rotate-left"></i><span>متأخر</span></span>`;
+    if (status && status !== 'present' && settings && settings.customStatuses && settings.customStatuses.includes(status)) {
+      return `<span class="status-badge status-badge-custom"><i class="fa-solid fa-tag"></i><span>${esc(status)}</span></span>`;
     }
     return `<span class="status-badge status-badge-present"><i class="fa-solid fa-circle-check"></i><span>حاضر</span></span>`;
   }
@@ -495,7 +495,7 @@ async function generateAutoAbsentRecords(recs, year, month) {
         date: dStr,
         status: 'absent',
         absenceType: '',
-        note: 'تم التوليد التلقائي لعدم وجود بصمة',
+        note: '',
         auto: true,
         checkIn: '',
         checkOut: ''
@@ -1171,7 +1171,27 @@ async function renderRecords(){
         )
       ) : `<span class="opacity-30 font-bold">-</span>`;
 
-    let extraHTML = extra > 0 ? `<span class="metric-chip metric-chip-overtime"><i class="fa-solid fa-star text-[9px] text-amber-500"></i> +${formatMin(extra)}</span>` : `<span class="opacity-30 font-bold">-</span>`;
+    let extraHTML = `<span class="opacity-30 font-bold">-</span>`;
+    if (extra > 0) {
+      let dayComps = (settings.compensations || []).filter(c => c.sourceDate === r.date || (Array.isArray(c.sourceDetails) && c.sourceDetails.some(sd => sd.date === r.date)));
+      let usedFromDay = 0;
+      dayComps.forEach(c => {
+        if (c.sourceDate === r.date) usedFromDay += (c.minutes || 0);
+        else if (Array.isArray(c.sourceDetails)) {
+          let sd = c.sourceDetails.find(s => s.date === r.date);
+          if (sd) usedFromDay += (sd.minutes || 0);
+        }
+      });
+      let remFromDay = Math.max(0, extra - usedFromDay);
+
+      if (usedFromDay >= extra) {
+        extraHTML = `<span class="metric-chip bg-slate-800 text-slate-300 border border-slate-700/80" title="تم خصم رصيد هذا اليوم بالكامل"><i class="fa-solid fa-scissors text-amber-400"></i> +${formatMin(extra)} (مخصوم)</span>`;
+      } else if (usedFromDay > 0) {
+        extraHTML = `<span class="metric-chip bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30" title="تم الخصم منه جزئياً"><i class="fa-solid fa-scissors"></i> +${formatMin(extra)} (متبقي ${formatMin(remFromDay)})</span>`;
+      } else {
+        extraHTML = `<span class="metric-chip metric-chip-overtime"><i class="fa-solid fa-star text-[9px] text-amber-500"></i> +${formatMin(extra)}</span>`;
+      }
+    }
 
     return `<tr class="${rowClass}">
       <td class="font-bold text-xs opacity-90">${r.date}</td>
@@ -1843,8 +1863,20 @@ async function calcOvertimeBalance() {
     
     if (ex > 0) {
       totalExtra += ex;
-      let dayCompensations = usedCompensations.filter(c => c.sourceDate === r.date);
-      let usedFromDay = dayCompensations.reduce((s, c) => s + (c.minutes || 0), 0);
+      let dayCompensations = [];
+      let usedFromDay = 0;
+      usedCompensations.forEach(c => {
+        if (c.sourceDate === r.date) {
+          usedFromDay += (c.minutes || 0);
+          dayCompensations.push(c);
+        } else if (Array.isArray(c.sourceDetails)) {
+          let sd = c.sourceDetails.find(s => s.date === r.date);
+          if (sd) {
+            usedFromDay += (sd.minutes || 0);
+            dayCompensations.push({ ...c, minutes: sd.minutes, sourceDate: r.date });
+          }
+        }
+      });
       let remaining = Math.max(0, ex - usedFromDay);
       
       extraDays.push({
@@ -1903,8 +1935,7 @@ window.calcOvertimeBalance = calcOvertimeBalance;
 window.switchCompSubTab = function(tab) {
   currentCompSubTab = tab;
   document.querySelectorAll('.btn-sub-tab').forEach(btn => btn.classList.remove('active'));
-  let activeBtn = document.getElementById('compTabBtn-' + tab);
-  if(activeBtn) activeBtn.classList.add('active');
+  document.querySelectorAll(`[id="compTabBtn-${tab}"]`).forEach(btn => btn.classList.add('active'));
   
   renderCompensationList();
 };
@@ -2064,19 +2095,54 @@ window.openOTLeaveM = async function() {
   let todayISO = new Date().toISOString().split('T')[0];
   let dInput = document.getElementById('otLeaveDate');
   if (dInput) dInput.value = todayISO;
+  let daysInput = document.getElementById('otLeaveDays');
+  if (daysInput) daysInput.value = '1';
   let hInput = document.getElementById('otLeaveHours');
-  if (hInput) hInput.value = '1';
+  if (hInput) hInput.value = '8';
   let mInput = document.getElementById('otLeaveMins');
   if (mInput) mInput.value = '0';
   let nInput = document.getElementById('otLeaveNote');
   if (nInput) nInput.value = '';
   
   await updateOTLeaveCalc();
-  document.getElementById('otLeaveM').classList.remove('hidden');
+  let modal = document.getElementById('otLeaveM');
+  if (modal) modal.classList.remove('hidden');
 };
 
 window.closeOTLeaveM = function() {
-  document.getElementById('otLeaveM').classList.add('hidden');
+  let modal = document.getElementById('otLeaveM');
+  if (modal) modal.classList.add('hidden');
+};
+
+window.onOTLeaveDaysChange = function() {
+  let days = parseFloat(document.getElementById('otLeaveDays')?.value) || 0;
+  let totalHours = Math.round(days * 8 * 100) / 100;
+  let h = Math.floor(totalHours);
+  let m = Math.round((totalHours - h) * 60);
+  
+  let hInput = document.getElementById('otLeaveHours');
+  let mInput = document.getElementById('otLeaveMins');
+  if (hInput) hInput.value = h;
+  if (mInput) mInput.value = m;
+  updateOTLeaveCalc();
+};
+
+window.onOTLeaveHoursChange = function() {
+  let h = parseInt(document.getElementById('otLeaveHours')?.value) || 0;
+  let m = parseInt(document.getElementById('otLeaveMins')?.value) || 0;
+  let totalMin = Math.max(0, h * 60 + m);
+  let days = (totalMin / 480).toFixed(1);
+  if (days.endsWith('.0')) days = days.substring(0, days.length - 2);
+  
+  let daysInput = document.getElementById('otLeaveDays');
+  if (daysInput) daysInput.value = days;
+  updateOTLeaveCalc();
+};
+
+window.setOTLeaveQuickDays = function(d) {
+  let daysInput = document.getElementById('otLeaveDays');
+  if (daysInput) daysInput.value = d;
+  onOTLeaveDaysChange();
 };
 
 window.setOTLeaveQuick = function(h, m) {
@@ -2084,7 +2150,7 @@ window.setOTLeaveQuick = function(h, m) {
   let mInput = document.getElementById('otLeaveMins');
   if (hInput) hInput.value = h;
   if (mInput) mInput.value = m || 0;
-  updateOTLeaveCalc();
+  onOTLeaveHoursChange();
 };
 
 window.updateOTLeaveCalc = async function() {
@@ -2106,6 +2172,136 @@ window.updateOTLeaveCalc = async function() {
     remSpan.textContent = formatMin(remaining);
     remSpan.style.color = remaining < 0 ? 'var(--c-danger, #ef4444)' : 'var(--c-success, #10b981)';
   }
+
+  // Sort ALL overtime days from OLDEST to NEWEST
+  let sortedAsc = [...(bal.extraDays || [])].sort((a,b) => slashToISO(a.date).localeCompare(slashToISO(b.date)));
+  
+  // Render Full Statement List of Overtime Days (كشف كامل بالأيام)
+  let stmtEl = document.getElementById('otLeaveStatementList');
+  let countEl = document.getElementById('otLeaveStatementCount');
+  if (countEl) countEl.textContent = `(${sortedAsc.length} يوم مسجل)`;
+  
+  if (stmtEl) {
+    if (!sortedAsc.length) {
+      stmtEl.innerHTML = `
+        <div class="p-4 text-center rounded-2xl text-xs opacity-60 bg-black/5 dark:bg-white/5">
+          <i class="fa-solid fa-folder-open text-xl mb-1 block"></i>
+          لا توجد أيام إضافي مسجلة في السجلات حالياً.
+        </div>
+      `;
+    } else {
+      stmtEl.innerHTML = sortedAsc.map(item => {
+        let isDepleted = item.remainingMinutes <= 0;
+        if (isDepleted) {
+          // Darker / faded style for depleted overtime days
+          return `
+            <div class="p-3 rounded-2xl flex items-center justify-between text-xs transition-all"
+              style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); opacity: 0.75; color: #94a3b8;">
+              <div>
+                <div class="font-bold flex items-center gap-2">
+                  <span class="line-through text-slate-300">${item.dayName} ${item.date}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-slate-300 border border-slate-700">
+                    <i class="fa-solid fa-circle-check text-emerald-400 ml-1"></i> مخصوم بالكامل
+                  </span>
+                </div>
+                <div class="text-[10px] opacity-75 mt-1">
+                  الإضافي الأصلي: +${formatMin(item.minutes)} | المستخدم: -${formatMin(item.usedMinutes)}
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] opacity-60 block font-normal">المتبقي:</span>
+                <span class="text-xs font-black text-slate-400 dir-ltr">0 د</span>
+              </div>
+            </div>
+          `;
+        } else {
+          // Active card style for available overtime days
+          return `
+            <div class="p-3.5 rounded-2xl flex items-center justify-between text-xs transition-all hover:border-blue-500/40"
+              style="background: var(--c-surface); border: 1px solid var(--c-border);">
+              <div>
+                <div class="font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                  <span>${item.dayName} ${item.date}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                    <i class="fa-solid fa-star text-amber-500 ml-1"></i> رصيد متاح
+                  </span>
+                </div>
+                <div class="text-[10px] opacity-70 mt-1 flex items-center gap-2">
+                  <span>المكتسب: +${formatMin(item.minutes)}</span>
+                  <span>•</span>
+                  <span>المستخدم: -${formatMin(item.usedMinutes || 0)}</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] opacity-60 block font-normal">المتبقي المتاح:</span>
+                <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 dir-ltr">${formatMin(item.remainingMinutes)}</span>
+              </div>
+            </div>
+          `;
+        }
+      }).join('');
+    }
+  }
+
+  // Render Automatic FIFO Deduction Breakdown Preview (معاينة الخصم التلقائي من الأقدم)
+  let fifoEl = document.getElementById('otLeaveFIFOPreview');
+  if (fifoEl) {
+    let availableDays = sortedAsc.filter(d => d.remainingMinutes > 0);
+    if (!availableDays.length) {
+      fifoEl.innerHTML = `
+        <div class="p-2.5 text-center text-red-500 font-bold text-xs bg-red-500/10 rounded-xl">
+          <i class="fa-solid fa-triangle-exclamation ml-1"></i> لا يوجد أي رصيد إضافي متاح للخصم منه حالياً!
+        </div>
+      `;
+    } else if (totalMin <= 0) {
+      fifoEl.innerHTML = `
+        <div class="p-2 text-center opacity-60 text-[11px]">
+          يرجى تحديد عدد الأيام أو الساعات لمعاينة توزيع الخصم التلقائي.
+        </div>
+      `;
+    } else {
+      let remainingNeeded = totalMin;
+      let allocations = [];
+      for (let d of availableDays) {
+        if (remainingNeeded <= 0) break;
+        let takeMin = Math.min(d.remainingMinutes, remainingNeeded);
+        remainingNeeded -= takeMin;
+        allocations.push({
+          date: d.date,
+          dayName: d.dayName,
+          takeMin: takeMin,
+          remAfter: d.remainingMinutes - takeMin
+        });
+      }
+
+      let allocHtml = allocations.map(a => {
+        let isFullyDepleted = a.remAfter === 0;
+        return `
+          <div class="p-2 rounded-xl flex items-center justify-between bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800 dark:text-slate-100">${a.dayName} ${a.date}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full font-black ${isFullyDepleted ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-blue-500/20 text-blue-700 dark:text-blue-300'}">
+                ${isFullyDepleted ? 'سيصبح مخصوم بالكامل ✂️' : 'خصم جزئي'}
+              </span>
+            </div>
+            <div class="text-right font-black">
+              <span class="text-amber-600 dark:text-amber-400">-${formatMin(a.takeMin)}</span>
+              <span class="text-[10px] opacity-70 block font-normal">${isFullyDepleted ? 'المتبقي: 0 د' : 'المتبقي: ' + formatMin(a.remAfter)}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (remainingNeeded > 0) {
+        allocHtml += `
+          <div class="p-2 text-center text-red-600 dark:text-red-400 font-bold text-xs bg-red-500/10 border border-red-500/20 rounded-xl mt-1">
+            ⚠️ الرصيد المتاح غير كافٍ لتغطية كامل المدة! ينقص ${formatMin(remainingNeeded)}.
+          </div>
+        `;
+      }
+      fifoEl.innerHTML = allocHtml;
+    }
+  }
 };
 window.calcOTLeaveDays = window.updateOTLeaveCalc;
 
@@ -2117,12 +2313,29 @@ window.saveOTLeave = async function() {
   let totalMin = Math.max(0, h * 60 + m);
   
   if(!dateVal) return toast('يرجى تحديد التاريخ', 'err');
-  if(totalMin <= 0) return toast('يرجى إدخال عدد ساعات أو دقائق أكبر من 0', 'err');
+  if(totalMin <= 0) return toast('يرجى إدخال عدد أيام أو ساعات أكبر من 0', 'err');
   
   let slashDate = isoToSlash(dateVal);
   let bal = await calcOvertimeBalance();
   if(totalMin > bal.balance) {
-    return toast(`رصيد الإضافي غير كافٍ. المطلوب خصم ${formatMin(totalMin)} والرصيد الحالي ${formatMin(bal.balance)}`, 'err');
+    return toast(`رصيد الإضافي غير كافٍ. المطلوب خصم ${formatMin(totalMin)} والرصيد المتاح هو ${formatMin(bal.balance)}`, 'err');
+  }
+  
+  // Perform FIFO Allocation (oldest to newest)
+  let sortedAsc = [...(bal.extraDays || [])].sort((a,b) => slashToISO(a.date).localeCompare(slashToISO(b.date)));
+  let availableDays = sortedAsc.filter(d => d.remainingMinutes > 0);
+  
+  let remainingNeeded = totalMin;
+  let allocationDetails = [];
+  
+  for (let d of availableDays) {
+    if (remainingNeeded <= 0) break;
+    let takeMin = Math.min(d.remainingMinutes, remainingNeeded);
+    remainingNeeded -= takeMin;
+    allocationDetails.push({
+      date: d.date,
+      minutes: takeMin
+    });
   }
   
   let rec = records.find(r => r.date === slashDate);
@@ -2132,12 +2345,13 @@ window.saveOTLeave = async function() {
     date: slashDate,
     type: 'leave',
     minutes: totalMin,
+    sourceDetails: allocationDetails,
     note: note,
     createdAt: new Date().toISOString()
   });
   saveSettings();
   
-  let noteText = note ? `${note} (خصم ${formatMin(totalMin)})` : `خصم ${formatMin(totalMin)} من الإضافي`;
+  let noteText = note ? `${note} (خصم ${formatMin(totalMin)} من الإضافي)` : `خصم ${formatMin(totalMin)} من الإضافي`;
   if(rec) {
     rec.status = 'إجازة من الإضافي';
     rec.checkIn = null;
@@ -2160,11 +2374,11 @@ window.saveOTLeave = async function() {
   await saveRecord(rec);
   
   closeOTLeaveM();
-  renderCompensation();
+  await renderCompensation();
   renderRecords();
   renderHome();
   renderStats();
-  toast(`✅ تم خصم ${formatMin(totalMin)} من رصيد الإضافي بنجاح`, 'ok');
+  toast(`✅ تم خصم ${formatMin(totalMin)} من الأيام الأقدم وتطبيق الإجازة بنجاح`, 'ok');
 };
 
 window.undoCompensation = async function(id) {
@@ -2248,11 +2462,9 @@ async function renderCompensation() {
     </div>
   `;
   
-  let otBalanceCardMaster = document.getElementById('otBalanceCardMaster');
-  if(otBalanceCardMaster) otBalanceCardMaster.innerHTML = balanceHtml;
-
-  let otBalanceCard = document.getElementById('otBalanceCard');
-  if(otBalanceCard) otBalanceCard.innerHTML = balanceHtml;
+  document.querySelectorAll('#otBalanceCardMaster, #otBalanceCard').forEach(el => {
+    el.innerHTML = balanceHtml;
+  });
   
   await renderCompensationList();
 }
@@ -2260,8 +2472,8 @@ window.renderCompensation = renderCompensation;
 
 async function renderCompensationList() {
   let bal = await calcOvertimeBalance();
-  let container = document.getElementById('compListContainer');
-  if(!container) return;
+  let containers = document.querySelectorAll('#compListContainer');
+  if(!containers.length) return;
   
   let html = '';
   if(currentCompSubTab === 'overtime') {
@@ -2530,7 +2742,10 @@ async function renderCompensationList() {
               badgeText = 'إجازة من الرصيد';
             }
 
-            let sourceInfo = item.sourceDate ? `تم الخصم من رصيد يوم: <strong class="text-blue-600 dark:text-blue-400">${item.sourceDate}</strong>` : 'خصم مباشر من إجمالي الرصيد';
+            let sourceInfo = item.sourceDate ? `تم الخصم من رصيد يوم: <strong class="text-blue-600 dark:text-blue-400">${item.sourceDate}</strong>` : 
+              (Array.isArray(item.sourceDetails) && item.sourceDetails.length ? 
+                `تم الخصم تلقائياً من الأيام الأقدم: ` + item.sourceDetails.map(sd => `<strong class="text-blue-600 dark:text-blue-400">${sd.date}</strong> (${formatMin(sd.minutes)})`).join(' ، ') : 
+                'خصم مباشر من إجمالي الرصيد');
             let createdFormatted = item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG-u-nu-latn', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
             
             return `
@@ -2568,7 +2783,9 @@ async function renderCompensationList() {
       `;
     }
   }
-  container.innerHTML = html;
+  containers.forEach(container => {
+    container.innerHTML = html;
+  });
 }
 
 window.goToRecordDate = async function(dateStr) {
@@ -4665,7 +4882,7 @@ window.exeExpExcel=async function(){
              else val = r.status;
           }
           else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : '') || '-';
-          else if(c.key === 'note') val = r.note || (r.auto && r.status === 'absent' ? 'مسجل آلياً' : '');
+          else if(c.key === 'note') val = r.note || '';
           
           let escCsv = (str) => `"${String(str).replace(/"/g, '""')}"`;
           rowData.push(escCsv(val));
