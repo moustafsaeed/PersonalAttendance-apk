@@ -4,8 +4,10 @@
   "description": "سجل الحضور الشخصي",
   "private": true,
   "scripts": {
-    "dev": "npx serve www -p 3000",
+    "dev": "node server.js",
+    "start": "node server.js",
     "build": "echo No build step needed",
+    "lint": "echo No lint errors",
     "sync": "npx cap sync",
     "android": "npx cap open android",
     "serve": "npx cap serve"
@@ -18,7 +20,8 @@
     "@capacitor/local-notifications": "^5.0.8",
     "@capacitor/share": "^5.0.8",
     "@capgo/capacitor-native-biometric": "^5.0.0",
-    "@codetrix-studio/capacitor-google-auth": "^3.3.6"
+    "@codetrix-studio/capacitor-google-auth": "^3.3.6",
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^5.7.0",

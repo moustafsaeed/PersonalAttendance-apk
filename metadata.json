@@ -1,0 +1,6 @@
+{
+  "name": "سجل الحضور الشخصي",
+  "description": "تطبيق سجل الحضور والغياب الشخصي وتقارير الدوام",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
