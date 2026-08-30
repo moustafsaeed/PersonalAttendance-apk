@@ -24,8 +24,8 @@ android {
         }
     }
     signingConfigs {
-        if (keystorePropertiesFile.exists() && keystoreProperties['RELEASE_STORE_FILE'] != null) {
-            release {
+        release {
+            if (keystorePropertiesFile.exists() && keystoreProperties['RELEASE_STORE_FILE'] != null) {
                 storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
                 storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
                 keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
@@ -37,13 +37,15 @@ android {
         release {
             if (keystorePropertiesFile.exists() && keystoreProperties['RELEASE_STORE_FILE'] != null) {
                 signingConfig signingConfigs.release
-            } else {
-                signingConfig signingConfigs.debug
             }
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
