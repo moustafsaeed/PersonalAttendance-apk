@@ -1,0 +1,104 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets
+        run: npm run build --if-present
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Release APK
+        run: |
+          cd android
+          ./gradlew clean assembleRelease --stacktrace
+
+      - name: Find and Verify APK
+        id: find_apk
+        run: |
+          echo "=== Searching for Release APK ==="
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ No APK found in release directory!"
+            exit 1
+          fi
+          echo "✅ Found APK at: $APK_PATH"
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "APK Size: $APK_SIZE"
+          
+          # Check if it is a real release build (does not contain "debug" in name and is in release folder)
+          if [[ "$APK_PATH" == *"debug"* ]]; then
+            echo "❌ Found APK is a debug build!"
+            exit 1
+          fi
+          
+          # Save outputs for subsequent steps
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          
+          # Print summary
+          echo "=========================================="
+          echo "  APK PATH: $APK_PATH"
+          echo "  APK SIZE: $APK_SIZE"
+          echo "=========================================="
+
+      # Optional signing step if secrets are configured
+      - name: Sign Release APK
+        id: sign_app
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          singleKeystore: true
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Output signed APK path (if signed)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "✅ Signed APK at: ${{ steps.sign_app.outputs.signedReleaseFile }}"
+          SIGNED_SIZE=$(du -h "${{ steps.sign_app.outputs.signedReleaseFile }}" | cut -f1)
+          echo "Signed APK Size: $SIGNED_SIZE"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PersonalAttendance-Release-APK
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

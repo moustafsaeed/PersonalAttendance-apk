@@ -505,6 +505,7 @@
 
     .page {
       display: none;
+      padding-top: 16px;
     }
 
     .page.active {
@@ -1727,11 +1728,11 @@
       gap: 6px;
       padding: 6px;
       background: var(--c-surface);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border: 1.5px solid var(--c-border);
-      border-radius: 22px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      border-radius: 24px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
       max-width: 520px;
       margin: 0 auto;
     }
@@ -1742,13 +1743,13 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 10px 12px;
-      min-height: 44px;
-      border-radius: 16px;
-      font-size: 12px;
+      padding: 11px 14px;
+      min-height: 46px;
+      border-radius: 18px;
+      font-size: 12.5px;
       font-weight: 800;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
       background: transparent;
       color: var(--c-text-3);
       border: none;
@@ -1757,7 +1758,7 @@
 
     .rec-tab i {
       font-size: 15px;
-      transition: transform 0.3s ease;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .rec-tab:hover {
@@ -1768,7 +1769,7 @@
     .rec-tab.active {
       background: var(--theme-grad-h, var(--pri));
       color: #ffffff !important;
-      box-shadow: 0 6px 18px var(--pri-lt);
+      box-shadow: 0 8px 20px var(--pri-lt);
     }
 
     .rec-tab.active i {
@@ -2057,8 +2058,8 @@
       </div>
     </div>
   </div>
-  <header class="px-5 pt-8 pb-10 relative overflow-hidden w-full max-w-2xl mx-auto"
-    style="background: var(--theme-grad-h); box-shadow: 0 10px 40px rgba(0,0,0,0.15)">
+  <header class="px-5 pt-10 pb-14 relative overflow-hidden w-full max-w-2xl mx-auto rounded-b-[2.5rem] border-b border-white/10"
+    style="background: var(--theme-grad-h); box-shadow: 0 15px 40px rgba(0,0,0,0.15)">
     <!-- Decorative Orbs for background -->
     <div class="orb w-40 h-40 -top-20 -right-20 bg-white/20"></div>
     <div class="orb w-32 h-32 -bottom-10 -left-10 bg-white/10"></div>
@@ -2425,7 +2426,7 @@
     </div>
 
     <div id="pg-settings" class="page max-w-3xl mx-auto pb-24 w-full">
-      <div class="settings-nav-container" style="position: static; background: transparent; padding-top: 24px;">
+      <div class="settings-nav-container" style="position: static; background: transparent; padding-top: 8px;">
         <div class="settings-tabs">
           <button onclick="switchSetTab('account')" id="st-account" class="set-tab active"><i
               class="fa-solid fa-user"></i> الحساب</button>
@@ -2765,7 +2766,7 @@
                     style="font-size: 0.7rem;"><i class="fa-solid fa-upload ml-1"></i> ملف محلي</button>
                   <button onclick="restoreAutoBackup()" class="btn btn-outline w-full" style="font-size: 0.7rem;"><i
                       class="fa-solid fa-clock-rotate-left ml-1"></i> التلقائية</button>
-                  <input type="file" id="restF" class="hidden" accept=".json" onchange="restoreData(this)">
+                  <input type="file" id="restF" class="hidden" accept=".json,.txt,.backup,*" onchange="restoreData(this)">
                 </div>
               </div>
               <button onclick="shareBackup()" class="btn btn-outline w-full"

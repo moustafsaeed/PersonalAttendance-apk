@@ -3871,10 +3871,33 @@ window.renderReportFooters = function() {
 // ── BACKUP: Save to Documents/PersonalAttendance/Backup ───
 
 // With no-overwrite: backup(1).json, backup(2).json ...
+function generateSimpleChecksum(obj) {
+  let str = JSON.stringify(obj);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(16);
+}
+
 window.backupData=async function(type = 'all'){
-  let data = { d: new Date().toISOString(), type: type };
-  let prefix = `backup_FULL_`;
   let allRecs = await RECDB.getAll();
+  let metadata = {
+    backupFormatVersion: "2.0",
+    schemaVersion: "6.0",
+    appVersion: "1.0.0",
+    createdAt: new Date().toISOString(),
+    platform: window.Capacitor ? 'Android' : 'Web',
+    databaseVersion: 2
+  };
+  
+  let data = { 
+    d: metadata.createdAt, 
+    type: type,
+    metadata: metadata
+  };
+  
+  let prefix = `backup_FULL_`;
   if (type === 'settings') {
     data.S = settings;
     prefix = `backup_SETTINGS_`;
@@ -3885,6 +3908,10 @@ window.backupData=async function(type = 'all'){
     data.S = settings;
     data.R = allRecs;
   }
+  
+  // Safe checksum generation
+  data.metadata.checksum = generateSimpleChecksum({ S: data.S || null, R: data.R || null });
+
   let json=JSON.stringify(data);
   let timestamp=new Date().toISOString().replace(/[:.]/g,`-`).slice(0,19);
   let baseFileName=`${prefix}${timestamp}.json`;
@@ -3920,7 +3947,24 @@ window.backupData=async function(type = 'all'){
 
 // ── Share backup file ─────────────────────────────────────
 window.shareBackup=async function(){
-  let data={S:settings,R: await RECDB.getAll(),d:new Date().toISOString()};
+  let allRecs = await RECDB.getAll();
+  let metadata = {
+    backupFormatVersion: "2.0",
+    schemaVersion: "6.0",
+    appVersion: "1.0.0",
+    createdAt: new Date().toISOString(),
+    platform: window.Capacitor ? 'Android' : 'Web',
+    databaseVersion: 2
+  };
+  
+  let data={
+    S:settings,
+    R:allRecs,
+    d:metadata.createdAt,
+    metadata: metadata
+  };
+  data.metadata.checksum = generateSimpleChecksum({ S: settings, R: allRecs });
+  
   let json=JSON.stringify(data);
   let timestamp=new Date().toISOString().replace(/[:.]/g,`-`).slice(0,19);
   let fileName=`backup_${timestamp}.json`;
@@ -4223,20 +4267,112 @@ window.browseCloudBackups = async function() {
 
 // ── Universal Multi-Version Backup Engine ───────────────────
 window.parseAnyBackup = function(raw) {
+  function parseCSVBackup(csvText) {
+    let lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let records = [];
+    let detected = false;
+    let headerIndex = -1;
+    let colMap = { date: -1, status: -1, checkIn: -1, checkOut: -1, note: -1, absenceType: -1 };
+    
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      let line = lines[i];
+      if (line.includes("التاريخ") || line.toLowerCase().includes("date") || line.includes("الحالة") || line.toLowerCase().includes("status")) {
+        headerIndex = i;
+        detected = true;
+        let cols = line.split(",").map(c => c.replace(/"/g, "").trim());
+        cols.forEach((col, idx) => {
+          if (col.includes("التاريخ") || col.toLowerCase() === "date") colMap.date = idx;
+          else if (col.includes("الحالة") || col.toLowerCase() === "status") colMap.status = idx;
+          else if (col.includes("الحضور") || col.toLowerCase() === "checkin" || col.toLowerCase() === "check_in" || col.toLowerCase() === "in") colMap.checkIn = idx;
+          else if (col.includes("الانصراف") || col.toLowerCase() === "checkout" || col.toLowerCase() === "check_out" || col.toLowerCase() === "out") colMap.checkOut = idx;
+          else if (col.includes("ملاحظات") || col.toLowerCase() === "note" || col.toLowerCase() === "notes" || col.toLowerCase() === "comment") colMap.note = idx;
+          else if (col.includes("نوع الغياب") || col.toLowerCase() === "absencetype" || col.toLowerCase() === "absence_type") colMap.absenceType = idx;
+        });
+        break;
+      }
+    }
+    
+    if (!detected || colMap.date === -1) {
+      let testLine = lines[0] && lines[0].includes(",") ? lines[0] : (lines[1] && lines[1].includes(",") ? lines[1] : "");
+      if (testLine) {
+        let parts = testLine.split(",").map(p => p.replace(/"/g, "").trim());
+        if (parts.length >= 2 && (parts[1].includes("/") || parts[1].includes("-"))) {
+          colMap = { date: 1, status: 2, checkIn: 3, checkOut: 4, note: 5, absenceType: -1 };
+          headerIndex = -1;
+          detected = true;
+        }
+      }
+    }
+    
+    if (detected) {
+      let startRow = headerIndex + 1;
+      for (let i = startRow; i < lines.length; i++) {
+        let line = lines[i];
+        if (!line || !line.includes(",")) continue;
+        let parts = line.split(",").map(p => p.replace(/"/g, "").trim());
+        let dateVal = parts[colMap.date];
+        if (!dateVal || dateVal === "التاريخ" || dateVal.toLowerCase() === "date") continue;
+        
+        let statusVal = colMap.status !== -1 ? parts[colMap.status] : "absent";
+        let checkInVal = colMap.checkIn !== -1 ? parts[colMap.checkIn] : null;
+        let checkOutVal = colMap.checkOut !== -1 ? parts[colMap.checkOut] : null;
+        let noteVal = colMap.note !== -1 ? parts[colMap.note] : "";
+        let absTypeVal = colMap.absenceType !== -1 ? parts[colMap.absenceType] : "";
+        
+        if (checkInVal === "-" || checkInVal === "لا يوجد" || !checkInVal) checkInVal = null;
+        if (checkOutVal === "-" || checkOutVal === "لا يوجد" || !checkOutVal) checkOutVal = null;
+        
+        records.push({
+          date: dateVal,
+          status: statusVal,
+          checkIn: checkInVal,
+          checkOut: checkOutVal,
+          note: noteVal,
+          absenceType: absTypeVal
+        });
+      }
+    }
+    return records;
+  }
+
   let parsed = raw;
   if (typeof raw === 'string') {
     let clean = raw.trim();
-    // Remove BOM character
     if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1);
-    // Strip markdown code fences if wrapped
     if (clean.startsWith('```')) {
-      clean = clean.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '');
+      clean = clean.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
     }
-    parsed = JSON.parse(clean);
+    
+    if (clean.startsWith('{') || clean.startsWith('[')) {
+      try {
+        parsed = JSON.parse(clean);
+      } catch(e) {
+        throw new Error('الملف يبدو كـ JSON ولكنه يحتوي على أخطاء هيكلية: ' + e.message);
+      }
+    } else if (clean.includes(',') && clean.includes('\n')) {
+      let csvRecs = parseCSVBackup(clean);
+      if (csvRecs && csvRecs.length > 0) {
+        parsed = { R: csvRecs };
+      } else {
+        throw new Error('الملف غير معروف التنسيق ولا يحتوي على سجلات صالحة');
+      }
+    } else {
+      throw new Error('صيغة الملف غير مدعومة (يجب أن يكون نص JSON أو تقرير CSV)');
+    }
   }
   
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('محتوى الملف فارغ أو غير صالح');
+  }
+
+  // Checksum verification if metadata exists
+  if (parsed.metadata && parsed.metadata.checksum) {
+    let currentHash = generateSimpleChecksum({ S: parsed.S || null, R: parsed.R || null });
+    if (currentHash !== parsed.metadata.checksum) {
+      console.warn("Checksum verification failed! Data might have been modified or corrupted.");
+    } else {
+      console.log("Backup checksum verified successfully!");
+    }
   }
 
   let extractedRecords = [];
@@ -4507,41 +4643,150 @@ window.showRestoreOptionsModal = function(backupPackage) {
 
   window.executeRestorePackage = async function(mode) {
     document.getElementById('restoreChoiceModal')?.remove();
-    toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري تنفيذ الاستعادة...`, `ok`);
+    toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري التحضير للاستعادة وبدء الفحص الوقائي...`, `ok`);
+
+    // 1. GATHER SNAPSHOT FOR PRE-RESTORE SAFETY (Atomic Backup)
+    let currentSettings = null;
+    let currentRecords = [];
+    try {
+      currentSettings = await IDB.get(DB_KEYS.S);
+      currentRecords = await RECDB.getAll() || [];
+      
+      // Save snapshot to IndexedDB under safe temporary key
+      await IDB.set('pa_restore_safety_backup', { S: currentSettings, R: currentRecords, timestamp: Date.now() });
+    } catch(snapshotErr) {
+      console.warn("Failed to write safety snapshot to IndexedDB. Continuing with in-memory snapshot...", snapshotErr);
+    }
 
     try {
-      if (mode === 'full') {
-        if (backupPackage.settings) await IDB.set(DB_KEYS.S, backupPackage.settings);
-        if (backupPackage.records && backupPackage.records.length > 0) {
-          await RECDB.clearAll();
-          await RECDB.putAll(backupPackage.records);
-        }
-        toast(`<i class="fa-solid fa-check ml-1"></i> تمت الاستعادة بالكامل بنجاح! جارٍ التحديث...`, `ok`);
+      // 2. VALIDATION OF DATA TO RESTORE
+      let recordsToWrite = [];
+      let settingsToWrite = null;
+
+      if (mode === 'full' || mode === 'records_only') {
+        recordsToWrite = backupPackage.records || [];
       } else if (mode === 'merge') {
-        let currentRecs = await RECDB.getAll() || [];
         let recsMap = new Map();
-        currentRecs.forEach(r => recsMap.set(r.date, r));
-        // Merge & overwrite by date from backup
-        backupPackage.records.forEach(r => recsMap.set(r.date, r));
-        let mergedList = Array.from(recsMap.values());
-        await RECDB.clearAll();
-        await RECDB.putAll(mergedList);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تم دمج ${backupPackage.records.length} سجل بنجاح! جارٍ التحديث...`, `ok`);
-      } else if (mode === 'records_only') {
-        if (backupPackage.records && backupPackage.records.length > 0) {
-          await RECDB.clearAll();
-          await RECDB.putAll(backupPackage.records);
-        }
-        toast(`<i class="fa-solid fa-check ml-1"></i> تمت استعادة السجلات بنجاح! جارٍ التحديث...`, `ok`);
-      } else if (mode === 'settings_only') {
-        if (backupPackage.settings) await IDB.set(DB_KEYS.S, backupPackage.settings);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تمت استعادة الإعدادات بنجاح! جارٍ التحديث...`, `ok`);
+        currentRecords.forEach(r => {
+          if (r && r.date) recsMap.set(r.date, r);
+        });
+        
+        let backupRecs = backupPackage.records || [];
+        backupRecs.forEach(r => {
+          if (r && r.date) {
+            let existing = recsMap.get(r.date);
+            if (existing) {
+              recsMap.set(r.date, { ...existing, ...r });
+            } else {
+              recsMap.set(r.date, r);
+            }
+          }
+        });
+        recordsToWrite = Array.from(recsMap.values());
       }
 
+      if (mode === 'full' || mode === 'settings_only') {
+        settingsToWrite = backupPackage.settings;
+      }
+
+      // De-duplicate recordsToWrite and assign indexes
+      let finalRecsMap = new Map();
+      recordsToWrite.forEach(r => {
+        if (r && r.date) {
+          let norm = normalizeSlashDate(r.date);
+          r.date = norm;
+          let m = RECDB._meta(norm);
+          Object.assign(r, m); // Update yr and ym
+          
+          if (!r.id) r.id = uuid();
+          
+          if (finalRecsMap.has(norm)) {
+            let prev = finalRecsMap.get(norm);
+            if (r.checkIn && !prev.checkIn) {
+              finalRecsMap.set(norm, r);
+            }
+          } else {
+            finalRecsMap.set(norm, r);
+          }
+        }
+      });
+      recordsToWrite = Array.from(finalRecsMap.values());
+
+      // 3. EXECUTE RESTORE
+      toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري كتابة البيانات في قاعدة البيانات...`, `ok`);
+      
+      if (settingsToWrite) {
+        await IDB.set(DB_KEYS.S, settingsToWrite);
+      }
+      
+      if (mode === 'full' || mode === 'merge' || mode === 'records_only') {
+        await RECDB.clearAll();
+        if (recordsToWrite.length > 0) {
+          await RECDB.putAll(recordsToWrite);
+        }
+      }
+
+      // 4. POST-RESTORE VALIDATION
+      toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري التحقق النهائي من سلامة البيانات المستعادة...`, `ok`);
+      
+      let testSettings = await IDB.get(DB_KEYS.S);
+      let testRecords = await RECDB.getAll() || [];
+
+      let isValid = true;
+      let corruptionMessage = "";
+
+      if (settingsToWrite) {
+        if (!testSettings || typeof testSettings !== 'object' || !testSettings.workDays) {
+          isValid = false;
+          corruptionMessage = "فشل التحقق من صحة الإعدادات المستعادة";
+        }
+      }
+
+      if (mode === 'full' || mode === 'merge' || mode === 'records_only') {
+        if (testRecords.length !== recordsToWrite.length) {
+          isValid = false;
+          corruptionMessage = `عدد السجلات المستعادة في قاعدة البيانات (${testRecords.length}) لا يطابق العدد المطلوب (${recordsToWrite.length})`;
+        }
+        
+        for (let tr of testRecords) {
+          if (!tr || !tr.date || !tr.id) {
+            isValid = false;
+            corruptionMessage = "تم العثور على سجلات تالفة أو ناقصة بعد الاستعادة";
+            break;
+          }
+        }
+      }
+
+      if (!isValid) {
+        throw new Error(corruptionMessage);
+      }
+
+      // Success! Clean up safety snapshot
+      try {
+        await IDB.set('pa_restore_safety_backup', null);
+      } catch(e){}
+
+      toast(`<i class="fa-solid fa-check ml-1"></i> تمت الاستعادة بنجاح وأمان تام! جارٍ تحديث التطبيق...`, `ok`);
       setTimeout(() => location.reload(), 1200);
+
     } catch(err) {
-      console.error('Execute restore error:', err);
-      toast(`فشل تنفيذ الاستعادة: ` + (err.message || err), 'err');
+      console.error('Safe restore failed, executing Rollback:', err);
+      toast(`<i class="fa-solid fa-triangle-exclamation ml-1"></i> فشل الاستعادة: ${err.message || err}. جاري التراجع وإعادة البيانات السابقة...`, `err`);
+      
+      // 5. ROLLBACK TO PRE-RESTORE SNAPSHOT
+      try {
+        if (currentSettings) {
+          await IDB.set(DB_KEYS.S, currentSettings);
+        }
+        await RECDB.clearAll();
+        if (currentRecords.length > 0) {
+          await RECDB.putAll(currentRecords);
+        }
+        toast(`<i class="fa-solid fa-rotate-left ml-1"></i> تم التراجع بنجاح واسترجاع بياناتك الأصلية بأمان.`, `ok`);
+      } catch(rollbackErr) {
+        console.error('Rollback failed:', rollbackErr);
+        toast(`خطأ حرج: تعذر التراجع التلقائي! يرجى إعادة تحميل التطبيق.`, `err`);
+      }
     }
   };
 };
@@ -6077,50 +6322,6 @@ window.uploadHeaderFooterImg = function(input, targetId) {
     };
     reader.readAsDataURL(input.files[0]);
   }
-};
-window.showRestoreOptionsModal = function(parsed) {
-  let modal = document.createElement('div');
-  modal.id = 'restoreOptsM';
-  modal.className = "fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/70";
-  modal.innerHTML = `
-    <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 animate-in zoom-in duration-200 flex flex-col">
-      <h3 class="font-bold text-center mb-4 text-blue-600">خيارات الاستعادة</h3>
-      <p class="text-xs text-center text-gray-500 mb-4">هذا الملف يحتوي على نسخة كاملة. ماذا تريد أن تستعيد؟</p>
-      
-      <button onclick="executeRestore('records')" class="btn btn-primary w-full mb-3 shadow-md" style="padding:12px;">
-        <i class="fa-solid fa-list-check ml-2"></i> استعادة السجلات فقط
-      </button>
-      
-      <button onclick="executeRestore('settings')" class="btn btn-outline w-full mb-3" style="padding:12px;">
-        <i class="fa-solid fa-cog ml-2"></i> استعادة الإعدادات فقط
-      </button>
-
-      <button onclick="executeRestore('all')" class="btn btn-outline w-full mb-3" style="padding:12px;">
-        <i class="fa-solid fa-cloud-arrow-down ml-2"></i> استعادة النسخة كاملة
-      </button>
-      
-      <button onclick="document.getElementById('restoreOptsM')?.remove()" class="w-full text-center text-xs text-gray-400 mt-2 hover:text-gray-600">إلغاء</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  window.executeRestore = async function(mode) {
-    let m = document.getElementById('restoreOptsM'); if(m) m.remove();
-    if (mode === 'records') {
-      await RECDB.clearAll();
-      await RECDB.putAll(parsed.R);
-      toast('<i class="fa-solid fa-check ml-1"></i> تمت استعادة السجلات بنجاح، جارٍ التحديث...', 'ok');
-    } else if (mode === 'settings') {
-      await IDB.set(DB_KEYS.S, parsed.S);
-      toast('<i class="fa-solid fa-check ml-1"></i> تمت استعادة الإعدادات بنجاح، جارٍ التحديث...', 'ok');
-    } else if (mode === 'all') {
-      await IDB.set(DB_KEYS.S, parsed.S);
-      await RECDB.clearAll();
-      await RECDB.putAll(parsed.R);
-      toast('<i class="fa-solid fa-check ml-1"></i> تمت الاستعادة بالكامل بنجاح، جارٍ التحديث...', 'ok');
-    }
-    setTimeout(() => location.reload(), 1500);
-  };
 };
 // ── Global Mirroring Block ───────────────────────────────
 try {
