@@ -78,7 +78,9 @@ jobs:
       # Optional signing step if secrets are configured
       - name: Sign Release APK
         id: sign_app
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_BASE64 != ''
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: android/app/build/outputs/apk/release
@@ -89,7 +91,9 @@ jobs:
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Output signed APK path (if signed)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_BASE64 != ''
         run: |
           echo "✅ Signed APK at: ${{ steps.sign_app.outputs.signedReleaseFile }}"
           SIGNED_SIZE=$(du -h "${{ steps.sign_app.outputs.signedReleaseFile }}" | cut -f1)
