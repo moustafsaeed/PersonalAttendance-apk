@@ -4,6 +4,17 @@ const path = require('path');
 const app = express();
 const PORT = 3000;
 
+// Security Configurations
+app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'www')));
 
 // Catch-all fallback for SPA routing (Express 5 safe)
@@ -14,3 +25,4 @@ app.use((req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Attendance app server running on http://0.0.0.0:${PORT}`);
 });
+

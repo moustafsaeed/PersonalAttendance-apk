@@ -1559,7 +1559,7 @@ window.onEditDateChange=async function(){
   let dateInput = document.getElementById('eDate')?.value;
   if(!dateInput) return;
   let slash = isoToSlash(dateInput);
-  let eIdElem = document.getElementById('eId'); if(eIdElem) { eIdElem.setAttribute('data-date', slash); if(eIdElem.dataset) eIdElem.dataset.date = slash; }
+  document.getElementById('eId').dataset.date = slash;
   
   let d = new Date(dateInput);
   let dayName = !isNaN(d.getTime()) ? DAYS[d.getDay()] : '';
@@ -1620,8 +1620,7 @@ window.openEdit=async function(id, dateStr){
   let eIdEl = document.getElementById('eId');
   if (eIdEl) {
     eIdEl.value = rec.id || uuid();
-    eIdEl.setAttribute('data-date', rec.date || '');
-    if (eIdEl.dataset) eIdEl.dataset.date = rec.date || '';
+    eIdEl.dataset.date = rec.date;
   }
   
   let dateIn = document.getElementById('eDate');
@@ -1742,8 +1741,7 @@ window.delRec=async function(){
     if(!eIdEl) return;
     let id = eIdEl.value;
     let dateInput = document.getElementById('eDate')?.value;
-    let eIdElem = document.getElementById('eId');
-    let date = dateInput ? isoToSlash(dateInput) : (eIdElem && eIdElem.dataset ? eIdElem.dataset.date : (eIdElem ? eIdElem.getAttribute('data-date') : ''));
+    let date = dateInput ? isoToSlash(dateInput) : document.getElementById('eId').dataset.date;
     if (!date) { closeEdit(); return; }
     let normDate = normalizeSlashDate(date);
     
@@ -3948,7 +3946,7 @@ window.shareBackup=async function(){
     // Browser: try Web Share API with file
     try{
       let blob=new Blob([json],{type:`application/json`});
-      let file = (typeof File !== 'undefined') ? new File([blob],fileName,{type:`application/json`}) : blob;
+      let file=new File([blob],fileName,{type:`application/json`});
       if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
         await navigator.share({title:`نسخة احتياطية`,files:[file]});
       } else {
@@ -5063,9 +5061,7 @@ async function buildPDFCanvas(){
      // Minor delay between pages to allow UI thread to breath and avoid "Application hanging"
      await new Promise(r => setTimeout(r, 80)); 
      
-     let h2c = typeof html2canvas !== 'undefined' ? html2canvas : (window.html2canvas || null);
-      if(!h2c) return null;
-      let cv = await h2c(container, opts);
+     let cv = await html2canvas(container, opts);
      processCvs.push(cv.toDataURL('image/jpeg', 1.0));
      cv = null; // Free memory immediately
   }
@@ -5132,10 +5128,7 @@ async function buildPDFCanvas(){
 
 async function buildPDF(){
   let canvasesDataUrls=await buildPDFCanvas(); if(!canvasesDataUrls || !canvasesDataUrls.length) return null;
-  let doc=new jspdf.jsPDF(`p`,`mm`,`a4`);
-  let ps=doc.internal && doc.internal.pageSize ? doc.internal.pageSize : {};
-  let w=typeof ps.getWidth==='function' ? ps.getWidth() : (ps.width || 210);
-  let h=typeof ps.getHeight==='function' ? ps.getHeight() : (ps.height || 297);
+  let doc=new jspdf.jsPDF(`p`,`mm`,`a4`), w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
   
   for(let i=0; i<canvasesDataUrls.length; i++) {
      if(i>0) doc.addPage();
@@ -5153,7 +5146,7 @@ window.exeExpPreview=async function(){
   let box=document.getElementById(`exportMBox`);
   if(area) area.classList.remove(`hidden`);
   if(wrap) wrap.classList.add(`hidden`);
-  if(box && typeof box.scrollTo === 'function') { setTimeout(()=>box.scrollTo({top:box.scrollHeight,behavior:`smooth`}),100); } else if(box) { setTimeout(()=>box.scrollTop = box.scrollHeight, 100); }
+  if(box) setTimeout(()=>box.scrollTo({top:box.scrollHeight,behavior:`smooth`}),100);
   
   // Use requestAnimationFrame to ensure "Loading" spinner is visible before thread-lock
   (window.requestAnimationFrame || ((cb) => setTimeout(cb, 16)))(async () => {
@@ -5188,7 +5181,7 @@ window.exeExpPreview=async function(){
 
   if(loading) loading.classList.add(`hidden`);
   if(wrap) wrap.classList.remove(`hidden`);
-    if(box && typeof box.scrollTo === 'function') { setTimeout(()=>box.scrollTo({top:box.scrollHeight,behavior:`smooth`}),150); } else if(box) { setTimeout(()=>box.scrollTop = box.scrollHeight, 150); }
+    if(box) setTimeout(()=>box.scrollTo({top:box.scrollHeight,behavior:`smooth`}),150);
   });
 };
 
@@ -5493,7 +5486,7 @@ window.exeExpShare=function(){
     }
   } else {
     try{
-      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : blob;
+      let file=new File([blob],`${name}.pdf`,{type:`application/pdf`});
       if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
         await navigator.share({title:`تقرير الحضور`,files:[file]});
       } else {
