@@ -37,6 +37,8 @@ android {
         release {
             if (keystorePropertiesFile.exists() && keystoreProperties['RELEASE_STORE_FILE'] != null) {
                 signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
             }
             minifyEnabled true
             shrinkResources true
