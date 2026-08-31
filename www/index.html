@@ -35,7 +35,7 @@
       }
     };
   </script>
-  <script src="./assets/clean_app_source.js"></script>
+  <script src="./assets/clean_app_source.js?v=2.0.5"></script>
 
 <style>
     /* ══════════════════════════════════════════════
@@ -389,12 +389,12 @@
       border-radius: 99px;
     }
 
-    /* ── Cards ─────────────────────────────────── */
+    /* ── Cards (Unified Report Style) ── */
     .card {
-      background: linear-gradient(145deg, var(--c-surface), var(--c-surface2));
-      border: 1px solid var(--c-border);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-sm);
+      background: var(--c-surface);
+      border: 2px solid var(--c-border);
+      border-radius: 12px;
+      box-shadow: none;
       transition: transform .22s var(--trans), box-shadow .22s var(--trans);
       overflow: hidden;
     }
@@ -410,28 +410,39 @@
       border: 1px solid var(--c-border);
     }
 
-    /* ── Tables System (Phase 4: Unified Tables) ── */
+    /* ── Tables System (Phase 4: Unified Tables - Report Style) ── */
     .table-modern {
       width: 100%;
       border-collapse: collapse;
       text-align: right;
       font-size: 0.875rem;
+      background: var(--c-surface);
     }
 
     .table-modern th {
-      background: var(--background);
-      color: var(--text-secondary);
+      background: var(--c-surface-2);
+      color: var(--c-text);
       font-weight: 700;
-      padding: 0.75rem 1rem;
-      border-bottom: 2px solid var(--border-color);
+      padding: 0.85rem 1rem;
+      border-bottom: 2px solid var(--c-border);
+      border-left: 1px solid var(--c-border);
       white-space: nowrap;
     }
 
+    .table-modern th:last-child {
+      border-left: none;
+    }
+
     .table-modern td {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border-color);
-      color: var(--text-primary);
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--c-border);
+      border-left: 1px solid var(--c-border);
+      color: var(--c-text);
       vertical-align: middle;
+    }
+
+    .table-modern td:last-child {
+      border-left: none;
     }
 
     .table-modern tr:last-child td {
@@ -442,65 +453,65 @@
       background: rgba(0, 0, 0, 0.015);
     }
 
-    /* ── Status Colors for Records (Premium Look) ── */
+    /* ── Status Colors for Records (Premium Look & RTL Safe) ── */
     .table-modern tr.tr-present {
       background: var(--stat-present-bg);
-      border-left: 4px solid var(--stat-present-text);
+      border-inline-start: 4px solid var(--stat-present-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-absent {
       background: var(--stat-absent-bg);
-      border-left: 4px solid var(--stat-absent-text);
+      border-inline-start: 4px solid var(--stat-absent-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-late {
       background: var(--stat-late-bg);
-      border-left: 4px solid var(--stat-late-text);
+      border-inline-start: 4px solid var(--stat-late-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-custom {
       background: var(--stat-custom-bg);
-      border-left: 4px solid var(--stat-custom-text);
+      border-inline-start: 4px solid var(--stat-custom-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-holiday {
       background: var(--c-info-bg);
-      border-left: 4px solid var(--c-info);
-    }
-
-    html.dark .table-modern tr {
-      border-left-width: 0;
-      border-bottom: 1px solid var(--c-border);
+      border-inline-start: 4px solid var(--c-info);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-present {
       background: rgba(52, 211, 153, 0.08);
-      border-right: 4px solid var(--stat-present-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-present-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-absent {
       background: rgba(248, 113, 113, 0.08);
-      border-right: 4px solid var(--stat-absent-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-absent-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-late {
       background: rgba(251, 191, 36, 0.08);
-      border-right: 4px solid var(--stat-late-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-late-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-custom {
       background: rgba(96, 165, 250, 0.08);
-      border-right: 4px solid var(--stat-custom-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-custom-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-holiday {
       background: rgba(59, 130, 246, 0.08);
-      border-right: 4px solid var(--c-info);
-      border-left: none;
+      border-inline-start: 4px solid var(--c-info);
+      border-inline-end: none;
     }
 
     .page {
@@ -1490,7 +1501,35 @@
       -webkit-backdrop-filter: blur(4px);
     }
 
-    /* Animations */
+    /* Tech Redesign Styles */
+    @keyframes tech-scan {
+      0% { transform: translateY(-100%); opacity: 0; }
+      50% { opacity: 0.5; }
+      100% { transform: translateY(100%); opacity: 0; }
+    }
+
+    @keyframes neon-pulse {
+      0%, 100% { filter: drop-shadow(0 0 5px rgba(0, 242, 255, 0.6)) drop-shadow(0 0 10px rgba(0, 242, 255, 0.4)); }
+      50% { filter: drop-shadow(0 0 8px rgba(0, 242, 255, 0.9)) drop-shadow(0 0 20px rgba(0, 242, 255, 0.6)); }
+    }
+
+    .tech-chip {
+      background: #0f172a;
+      border: 1.5px solid rgba(0, 242, 255, 0.3);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .neon-svg {
+      animation: neon-pulse 3s infinite ease-in-out;
+    }
+
+    .circuit-bg {
+      background-image: radial-gradient(rgba(0, 242, 255, 0.1) 1px, transparent 1px);
+      background-size: 10px 10px;
+    }
+
     .animate-modal-in {
       animation: modalIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
@@ -2027,7 +2066,7 @@
     <div class="swipe-indicator opacity-20 bg-slate-400"></div>
     <div id="trialBannerInner"
       class="pointer-events-auto flex flex-col items-center solid-premium rounded-[24px] px-6 py-4 mx-4 w-[92%] max-w-sm cursor-pointer overflow-hidden transition-transform active:scale-95 shadow-xl"
-      onclick="window.openAboutM()" dir="rtl">
+      dir="rtl">
 
       <div class="relative z-10 flex flex-col items-center gap-2">
         <div class="flex items-center gap-2 mb-1">
@@ -2090,8 +2129,14 @@
       <div class="card p-0 overflow-hidden">
         <div class="p-4" style="background: var(--c-surface2)">
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black text-white shadow-sm"
-              style="background: var(--theme-grad-h)" id="homeAvatar">أ</div>
+            <div class="relative group">
+              <div class="w-12 h-12 rounded-full tech-chip flex items-center justify-center text-xl font-black text-white" id="homeAvatar">
+                <span class="relative z-10">أ</span>
+                <div class="absolute inset-0 circuit-bg opacity-30"></div>
+              </div>
+              <!-- Outer Ring Decoration -->
+              <div class="absolute -inset-1 rounded-full border border-emerald-500/20 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+            </div>
             <div class="flex-1">
               <div class="font-bold text-sm text-primary" id="homeGreeting">مرحباً</div>
               <div class="text-[11px] font-bold mt-0.5" style="color:var(--text2)" id="homeSchedule"></div>
@@ -2218,63 +2263,27 @@
 
       <!-- View 1: Attendance Records View -->
       <div id="rv-attendance" class="rec-view">
-        <div class="card p-4 sm:p-5 mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
-          <div class="flex flex-col gap-4">
-            <!-- Search Bar (Centered Full-Width Top) -->
-            <div class="relative w-full max-w-xl mx-auto">
-              <label class="text-xs font-bold block mb-1.5 text-center" style="color:var(--text2)">
-                <i class="fa-solid fa-magnifying-glass ml-1 opacity-70"></i>البحث في السجلات
-              </label>
+        <div class="card p-2 sm:p-2.5 mb-2 shadow-xs border border-[var(--c-border)] rounded-2xl">
+          <div class="flex flex-col gap-1.5">
+            <!-- Compact Search & Filter Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+              <!-- Search Bar -->
               <div class="relative">
-                <input type="text" id="recSearch" class="form-control text-sm pr-10 text-center rounded-xl transition-all shadow-xs focus:ring-2 focus:ring-[var(--theme-primary-bg)]" placeholder="ابحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
-                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-sm" style="color:var(--text2)"></i>
+                <input type="text" id="recSearch" class="form-control text-xs pr-8 text-right rounded-xl transition-all shadow-xs" placeholder="بحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
+                <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs" style="color:var(--text2)"></i>
               </div>
-            </div>
-
-            <!-- Controls Row: Period + Status (Balanced Centered Grid) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap items-center justify-center gap-3 w-full max-w-xl mx-auto">
               <!-- Period Filter -->
-              <div class="flex-1 min-w-[140px]">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-calendar-days ml-1 opacity-70"></i>الفترة
-                </label>
-                <select id="periodFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="togglePeriodFilter()">
+              <div>
+                <select id="periodFilter" class="form-control text-xs cursor-pointer text-center rounded-xl" onchange="togglePeriodFilter()">
                   <option value="current">الشهر الحالي</option>
                   <option value="prev">الشهر السابق</option>
                   <option value="specific">شهر محدد</option>
                   <option value="custom">مخصص (تاريخ)</option>
                 </select>
               </div>
-
-              <!-- Specific Month Input -->
-              <div id="filterSpecific" class="hidden flex-1 min-w-[140px] relative">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-calendar-check ml-1 opacity-70"></i>اختر الشهر
-                </label>
-                <div class="relative">
-                  <input type="text" id="monthIn" readonly class="form-control text-sm cursor-pointer text-center rounded-xl" onclick="openCal()">
-                  <i class="fa-solid fa-calendar-days absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-xs" style="color:var(--text2)"></i>
-                </div>
-              </div>
-
-              <!-- Custom Date Range -->
-              <div id="filterCustom" class="hidden flex gap-2 items-center justify-center flex-wrap w-full">
-                <div class="flex-1 min-w-[120px]">
-                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">من</label>
-                  <input type="date" lang="en-GB" id="dateStart" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
-                </div>
-                <div class="flex-1 min-w-[120px]">
-                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">إلى</label>
-                  <input type="date" lang="en-GB" id="dateEnd" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
-                </div>
-              </div>
-
               <!-- Status Filter -->
-              <div class="flex-1 min-w-[140px]">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-filter ml-1 opacity-70"></i>الحالة
-                </label>
-                <select id="statusFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="renderRecords()">
+              <div>
+                <select id="statusFilter" class="form-control text-xs cursor-pointer text-center rounded-xl" onchange="renderRecords()">
                   <option value="">جميع الحالات</option>
                   <option value="present">حاضر / مخصص</option>
                   <option value="absent">غائب</option>
@@ -2285,29 +2294,32 @@
                 </select>
               </div>
             </div>
-
-            <!-- Action Buttons (Centered for Page Balance) -->
-            <div class="w-full max-w-2xl mx-auto grid grid-cols-2 sm:grid-cols-4 items-center justify-center gap-2 sm:gap-3 pt-3 border-t"
-              style="border-color:var(--c-border)">
-              <button onclick="openAddRecord()"
-                class="btn btn-primary shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plus ml-1.5 text-base"></i>إضافة سجل
+            <!-- Specific Month / Custom Date Range (Conditional) -->
+            <div id="filterSpecific" class="hidden relative">
+              <input type="text" id="monthIn" readonly class="form-control text-xs cursor-pointer text-center rounded-xl" onclick="openCal()" placeholder="اختر الشهر">
+            </div>
+            <div id="filterCustom" class="hidden grid grid-cols-2 gap-2">
+              <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
+              <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
+            </div>
+            <!-- Action Buttons Row -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[var(--c-border)]">
+              <button onclick="openAddRecord()" class="btn btn-primary shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plus ml-1"></i>إضافة سجل
               </button>
-              <button onclick="openTravelM()"
-                class="btn btn-outline shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plane-departure ml-1.5 text-base"></i>تكليف سفر
+              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plane-departure ml-1"></i>تكليف سفر
               </button>
-              <button onclick="exeExpExcel()" id="btnExcelExp"
-                class="border border-transparent btn btn-success shadow-sm text-white px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-excel ml-1.5 text-base"></i>تصدير Excel
+              <button onclick="exeExpExcel()" id="btnExcelExp" class="border border-transparent btn btn-success shadow-xs text-white px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-excel ml-1"></i>Excel
               </button>
-              <button onclick="prepareExportPDF()"
-                class="btn btn-outline shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-pdf ml-1.5 text-base"></i>تصدير PDF
+              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-pdf ml-1"></i>PDF
               </button>
             </div>
           </div>
         </div>
+        
         <div id="monthSum" class="card p-4 mb-3 hidden">
           <div id="monthSumC" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
         </div>
@@ -2331,9 +2343,12 @@
               <tbody id="recBody"></tbody>
             </table>
           </div>
-          <div id="noRec" class="text-center py-10 hidden" style="color:var(--text2)"><i
-              class="fa-solid fa-clipboard-list text-3xl mb-2"></i>
-            <p class="text-sm">لا توجد سجلات</p>
+          <div id="noRec" class="text-center py-12 hidden" style="color:var(--text2)">
+            <div class="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center bg-blue-500/10 text-blue-500 text-3xl mb-3">
+              <i class="fa-solid fa-clipboard-list"></i>
+            </div>
+            <p class="text-sm font-black text-slate-700 dark:text-slate-200">لا توجد سجلات مطابقة</p>
+            <p class="text-xs opacity-60 mt-1">جرّب تغيير خيارات البحث أو الفترة المحددة</p>
           </div>
         </div>
       </div>
@@ -2376,26 +2391,26 @@
         <div class="card p-0 overflow-hidden mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
           <!-- Sub-tabs bar -->
           <div class="flex gap-1 p-2 border-b overflow-x-auto" style="border-color: var(--c-border); background: var(--c-surface2);">
-            <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-star text-amber-500 text-xs"></i>
               <span>أيام الإضافي المكتسبة</span>
             </button>
-            <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-clock-rotate-left text-amber-600 text-xs"></i>
               <span>التأخيرات الصباحية</span>
             </button>
-            <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-person-walking-arrow-right text-red-500 text-xs"></i>
               <span>الخروج المبكر</span>
             </button>
-            <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-list-check text-blue-500 text-xs"></i>
               <span>سجل العمليات والخصم</span>
             </button>
           </div>
 
           <!-- Dynamic List Container -->
-          <div id="compListContainer" class="p-3 sm:p-4 space-y-3 max-h-[600px] overflow-y-auto">
+          <div id="compListContainer" class="comp-list-container p-3 sm:p-4 space-y-3 max-h-[600px] overflow-y-auto">
             <!-- Rendered by renderCompensationList() -->
           </div>
         </div>
@@ -2458,6 +2473,22 @@
                 </div>
                 <input type="text" id="setName" placeholder="اكتب اسمك..." class="form-control"
                   style="max-width: 200px; text-align: left;" onchange="saveName()">
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-building ml-1" style="color:var(--primary-blue)"></i>
+                    القسم</span>
+                </div>
+                <input type="text" id="setDepartment" placeholder="مثال: إدارة الموارد..." class="form-control"
+                  style="max-width: 200px; text-align: left;" onchange="saveDepartment()">
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-user-tie ml-1" style="color:var(--primary-blue)"></i>
+                    رئيس القسم</span>
+                </div>
+                <input type="text" id="setManagerName" placeholder="اسم رئيس القسم..." class="form-control"
+                  style="max-width: 200px; text-align: left;" onchange="saveManagerName()">
               </div>
             </div>
           </div>
@@ -2578,6 +2609,109 @@
             </div>
           </div>
           <div>
+            <div class="flex justify-between items-center" style="margin-bottom: 8px;">
+              <h3 class="settings-section-title" style="margin: 0;">إعدادات التوقيع والاعتماد (أسفل التقرير)</h3>
+              <button onclick="saveSignatureSettings()" class="btn btn-primary" style="padding: 0.25rem 0.75rem; min-height: 32px;"><i class="fa-solid fa-save text-xs ml-1"></i> حفظ</button>
+            </div>
+            <div class="settings-section">
+              <!-- Column 1 -->
+              <div style="padding: 16px; border-bottom: 1px solid var(--border-color);">
+                <div class="flex justify-between items-center mb-3">
+                  <h4 class="label-title" style="margin: 0; color: var(--primary-blue); font-weight: bold;">العمود الأول</h4>
+                  <label class="toggle-container m-0" style="display:flex; align-items:center; gap:8px; font-size:12px;">
+                    <span>إظهار</span>
+                    <input type="checkbox" id="sig_show1" class="toggle-switch">
+                  </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">عنوان العمود (الترويسة)</label>
+                    <input type="text" id="sig_title1" class="form-control" style="font-size: 13px;">
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">تسمية حقل الاسم</label>
+                    <input type="text" id="sig_lbl1" class="form-control" style="font-size: 13px;" placeholder="مثال: الاسم:">
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 mb-1 block">قيمة حقل الاسم (الافتراضي)</label>
+                    <input type="text" id="sig_val1" class="form-control" style="font-size: 13px;" placeholder="استخدم NAME_PLACEHOLDER لجلب اسم الموظف">
+                  </div>
+                  <div class="md:col-span-2 mt-1 p-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 dark:bg-slate-800 dark:border-slate-600 text-center">
+                    <img id="sig_img_preview_col1" class="hidden mx-auto mb-2" style="max-height: 45px; object-fit: contain; border-bottom: 1px solid #e2e8f0;" />
+                    <div class="flex items-center justify-center gap-2">
+                      <button id="sig_img_add_col1" onclick="openSigPad('col1')" class="btn btn-outline text-xs py-1.5 px-3"><i class="fa-solid fa-signature ml-1"></i>إضافة توقيع إلكتروني</button>
+                      <button id="sig_img_clear_col1" onclick="clearSignature('col1')" class="hidden btn bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Column 2 -->
+              <div style="padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--background);">
+                <div class="flex justify-between items-center mb-3">
+                  <h4 class="label-title" style="margin: 0; color: var(--primary-blue); font-weight: bold;">العمود الثاني</h4>
+                  <label class="toggle-container m-0" style="display:flex; align-items:center; gap:8px; font-size:12px;">
+                    <span>إظهار</span>
+                    <input type="checkbox" id="sig_show2" class="toggle-switch">
+                  </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">عنوان العمود (الترويسة)</label>
+                    <input type="text" id="sig_title2" class="form-control" style="font-size: 13px;">
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">تسمية حقل الاسم</label>
+                    <input type="text" id="sig_lbl2" class="form-control" style="font-size: 13px;" placeholder="مثال: رئيس القسم:">
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 mb-1 block">قيمة حقل الاسم (الافتراضي)</label>
+                    <input type="text" id="sig_val2" class="form-control" style="font-size: 13px;" placeholder="استخدم MANAGER_PLACEHOLDER لجلب اسم المدير">
+                  </div>
+                  <div class="md:col-span-2 mt-1 p-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 dark:bg-slate-800 dark:border-slate-600 text-center">
+                    <img id="sig_img_preview_col2" class="hidden mx-auto mb-2" style="max-height: 45px; object-fit: contain; border-bottom: 1px solid #e2e8f0;" />
+                    <div class="flex items-center justify-center gap-2">
+                      <button id="sig_img_add_col2" onclick="openSigPad('col2')" class="btn btn-outline text-xs py-1.5 px-3"><i class="fa-solid fa-signature ml-1"></i>إضافة توقيع إلكتروني</button>
+                      <button id="sig_img_clear_col2" onclick="clearSignature('col2')" class="hidden btn bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Column 3 -->
+              <div style="padding: 16px;">
+                <div class="flex justify-between items-center mb-3">
+                  <h4 class="label-title" style="margin: 0; color: var(--primary-blue); font-weight: bold;">العمود الثالث</h4>
+                  <label class="toggle-container m-0" style="display:flex; align-items:center; gap:8px; font-size:12px;">
+                    <span>إظهار</span>
+                    <input type="checkbox" id="sig_show3" class="toggle-switch">
+                  </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">عنوان العمود (الترويسة)</label>
+                    <input type="text" id="sig_title3" class="form-control" style="font-size: 13px;">
+                  </div>
+                  <div>
+                    <label class="text-xs text-gray-500 mb-1 block">تسمية حقل الاسم</label>
+                    <input type="text" id="sig_lbl3" class="form-control" style="font-size: 13px;" placeholder="مثال: مسؤول الموارد:">
+                  </div>
+                  <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 mb-1 block">قيمة حقل الاسم (الافتراضي)</label>
+                    <input type="text" id="sig_val3" class="form-control" style="font-size: 13px;" placeholder="مثال: نقاط متقطعة أو اسم">
+                  </div>
+                  <div class="md:col-span-2 mt-1 p-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 dark:bg-slate-800 dark:border-slate-600 text-center">
+                    <img id="sig_img_preview_col3" class="hidden mx-auto mb-2" style="max-height: 45px; object-fit: contain; border-bottom: 1px solid #e2e8f0;" />
+                    <div class="flex items-center justify-center gap-2">
+                      <button id="sig_img_add_col3" onclick="openSigPad('col3')" class="btn btn-outline text-xs py-1.5 px-3"><i class="fa-solid fa-signature ml-1"></i>إضافة توقيع إلكتروني</button>
+                      <button id="sig_img_clear_col3" onclick="clearSignature('col3')" class="hidden btn bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 text-xs py-1.5 px-3"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
             <h3 class="settings-section-title">التصنيفات المخصصة</h3>
             <div class="settings-section">
               <div style="padding: 16px;">
@@ -2657,18 +2791,20 @@
               <!-- Sub-tabs within compensation -->
               <div class="flex gap-1"
                 style="padding: 8px; border-bottom: 1px solid var(--c-border); background: var(--c-surface);">
-                <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active"
+                <button id="settingsCompTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">⭐ أيام الإضافي</button>
-                <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">التأخيرات</button>
-                <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">الخروج المبكر</button>
-                <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">سجل العمليات</button>
               </div>
 
               <!-- List containers -->
-              <div id="compListContainer" style="padding: 12px; max-height: 400px; overflow-y: auto;">
+              <div id="settingsCompListContainer" class="comp-list-container" style="padding: 12px; max-height: 400px; overflow-y: auto;">
+                <!-- Lists generated dynamically -->
+              </div>
                 <!-- Lists generated dynamically -->
               </div>
             </div>
@@ -2807,6 +2943,18 @@
                 <input type="number" id="alertOffsetIn" class="form-control text-number"
                   style="max-width: 80px; text-align: center; padding: 0.5rem;" min="0" onchange="saveAlertSettings()">
               </div>
+
+              <div class="settings-row" style="border-top: 1px solid var(--border-color)">
+                <div class="settings-row-label">
+                  <span class="label-title"><i class="fa-solid fa-volume-high ml-1" style="color: #10b981;"></i> التنبيه الصوتي للبصمة</span>
+                  <span class="label-desc">صوت جهاز البصمة مع نطق الحالة</span>
+                </div>
+                <select id="voiceFeedbackIn" class="form-control" style="max-width: 120px; padding: 0.5rem; font-size: 13px;" onchange="saveVoiceSettings()">
+                  <option value="none">بدون</option>
+                  <option value="female">صوت نسائي</option>
+                  <option value="male">صوت رجالي</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -2814,6 +2962,8 @@
             <h3 class="settings-section-title" style="color: var(--error);"><i
                 class="fa-solid fa-triangle-exclamation ml-1"></i> منطقة الخطر</h3>
             <div class="danger-zone">
+              <button onclick="generateFakeYearData()" class="btn btn-outline w-full"
+                style="color: var(--primary-green); border-color: rgba(16,185,129,0.3); margin-bottom: 8px;"><i class="fa-solid fa-magic ml-1"></i> إنشاء سجلات وهمية (سنة كاملة)</button>
               <button onclick="clearRecs()" class="btn btn-outline w-full"
                 style="color: var(--warning); border-color: rgba(245,158,11,0.3);">تفريغ كافة السجلات الحالية</button>
               <button onclick="resetSettings()" class="btn btn-outline w-full"
@@ -2824,11 +2974,17 @@
             </div>
           </div>
 
-          <div style="padding: 24px 0 8px; text-align: center;">
-            <button onclick="openAboutM()"
-              style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); background: none; border: none; cursor: pointer;">
-              <i class="fa-solid fa-circle-info ml-1"></i> حول التطبيق وبيانات المطور
-            </button>
+          <div class="settings-card mt-6">
+            <div class="settings-item" onclick="openAboutM()">
+              <div class="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                <span class="text-lg font-black italic" style="color: #C9A227; font-family: 'Times New Roman', serif;">!</span>
+              </div>
+              <div class="settings-item-info">
+                <div class="settings-item-title">حول التطبيق</div>
+                <div class="settings-item-sub">الإصدار والهوية والبيانات التقنية للمطور</div>
+              </div>
+              <i class="fa-solid fa-angle-left text-slate-300"></i>
+            </div>
           </div>
         </div>
 
@@ -2977,9 +3133,51 @@
     </div>
   </div>
 
+  <div id="sigPadM" class="fixed inset-0 modal-overlay z-[70] hidden flex items-center justify-center p-3" onclick="closeSigPad()">
+    <div class="glass-surface rounded-2xl w-full max-w-sm shadow-2xl p-4 animate-modal-in" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-3 border-b pb-2" style="border-color: var(--c-border);">
+        <h3 class="font-bold text-sm flex items-center gap-2" style="color:var(--pri)">
+          <i class="fa-solid fa-signature"></i>
+          <span>الرسم اليدوي للتوقيع</span>
+        </h3>
+        <button onclick="closeSigPad()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <div class="text-[11px] text-slate-500 mb-2 flex justify-between items-center">
+        <span>يرجى رسم التوقيع أو إرفاق صورة:</span>
+        <button onclick="document.getElementById('sigImageUpload').click()" class="btn btn-outline py-1 px-2 text-[10px]"><i class="fa-solid fa-image ml-1"></i> إرفاق صورة</button>
+        <input type="file" id="sigImageUpload" class="hidden" accept="image/*" onchange="handleSigImageUpload(event)" />
+      </div>
+      <div class="bg-white rounded-xl border-2 overflow-hidden mb-2 flex justify-center relative" style="border-color: var(--c-border); touch-action: none;">
+        <canvas id="sigCanvas" width="300" height="150" class="cursor-crosshair w-full" style="max-width: 300px; height: 150px;"></canvas>
+      </div>
+      
+      <div id="sigImageControls" class="hidden flex-col gap-2 mb-3 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+         <div class="flex items-center text-[10px]">
+           <label class="w-12">التكبير:</label>
+           <input type="range" id="sigScale" min="10" max="300" value="100" class="flex-1 h-1" oninput="redrawSigImage()" />
+         </div>
+         <div class="flex items-center text-[10px]">
+           <label class="w-12">أفقي:</label>
+           <input type="range" id="sigOffsetX" min="-150" max="150" value="0" class="flex-1 h-1" oninput="redrawSigImage()" />
+         </div>
+         <div class="flex items-center text-[10px]">
+           <label class="w-12">عمودي:</label>
+           <input type="range" id="sigOffsetY" min="-75" max="75" value="0" class="flex-1 h-1" oninput="redrawSigImage()" />
+         </div>
+      </div>
+
+      <input type="hidden" id="sigTargetCol" />
+      <div class="flex gap-2">
+        <button onclick="clearSigCanvas()" class="btn btn-outline flex-1 py-2 text-xs"><i class="fa-solid fa-eraser ml-1"></i>مسح</button>
+        <button onclick="saveSigCanvas()" class="btn btn-primary flex-1 py-2 text-xs"><i class="fa-solid fa-check ml-1"></i>اعتماد التوقيع</button>
+      </div>
+    </div>
+  </div>
+
   <div id="editM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-end sm:items-center justify-center p-3 sm:p-4"
     onclick="closeEdit()">
-    <div class="glass-surface rounded-3xl w-full sm:max-w-md shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto"
+    <div class="glass-surface rounded-3xl w-full sm:max-w-md shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[90vh] overflow-y-auto"
       style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4 border-b pb-3" style="border-color: var(--c-border);">
         <h3 id="editModalTitle" class="font-bold text-base flex items-center gap-2" style="color:var(--pri)">
@@ -3104,12 +3302,16 @@
   </div>
 
   <div id="headerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeHeaderModal()">
-    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل ترويسة</h3>
         <button onclick="closeHeaderModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="overflow-y-auto flex-1 space-y-3 pr-2">
+        <div class="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-start gap-2 leading-relaxed">
+          <i class="fa-solid fa-circle-info text-blue-600 mt-0.5 text-sm flex-shrink-0"></i>
+          <span><strong>ملاحظة هامة:</strong> الترويسة الافتراضية القياسية (ثنائية اللغة لتقارير الحضور) ستظهر تلقائياً وبشكل إجباري أسفل ترويستك لضمان وجود اسم الموظف والتاريخ ورقم الصفحة.</span>
+        </div>
         <input type="hidden" id="headerIdIn">
         <div><label class="text-[11px] font-bold block mb-1">الاسم الوصفي</label><input type="text" id="headerNameIn" class="form-control text-sm" placeholder="مثال: ترويسة الإدارة"></div>
         <div>
@@ -3123,7 +3325,7 @@
   </div>
 
   <div id="footerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeFooterModal()">
-    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل تذييل</h3>
         <button onclick="closeFooterModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
@@ -3147,7 +3349,7 @@
 
   <div id="travelM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3 sm:p-4"
     onclick="closeTravelM()">
-    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-hidden"
+    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden"
       style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <!-- Header -->
       <div class="flex items-center justify-between mb-3 border-b pb-3" style="border-color: var(--c-border);">
@@ -3267,8 +3469,8 @@
 
   <div id="otLeaveM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3 sm:p-4"
     onclick="closeOTLeaveM()">
-    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in max-h-[92vh] overflow-y-auto flex flex-col"
-      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in max-h-[90vh] flex flex-col overflow-hidden"
+      style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 border-b mb-3" style="border-color: var(--c-border)">
@@ -3395,7 +3597,7 @@
   <div id="chooseCompSourceM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-4"
     onclick="closeCompModal()">
     <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 animate-modal-in"
-      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+      style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-black text-base flex items-center gap-2" style="color:var(--pri)">
           <i class="fa-solid fa-scale-balanced"></i>
@@ -3453,69 +3655,97 @@
 
   <!-- expM removed: orphan modal with no open trigger — exportM handles PDF export -->
 
-  <div id="aboutM" class="fixed inset-0 bg-black/70 z-[110] hidden flex items-center justify-center px-4"
+  <div id="aboutM" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 backdrop-blur-md transition-all duration-300 opacity-0"
+    style="background-color: var(--c-nav-bg, rgba(15, 23, 42, 0.8)); opacity: 0;"
     onclick="closeAboutM()">
-    <div class="w-full max-w-sm relative rounded-3xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()"
-      style="background: var(--c-surface); border: 1px solid var(--c-border);">
-      <div style="padding: 2.5rem 2rem; height: 100%;">
-
-        <div class="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center text-white text-3xl shadow-lg mb-4"
-          style="background: var(--theme-grad-h);">
-          <i class="fa-solid fa-fingerprint"></i>
-        </div>
-        <h2 class="text-xl font-black mb-1 text-center" style="color: var(--c-text);">سجل الحضور الشخصي</h2>
-        <p class="text-[10px] font-black text-center mb-6 tracking-widest uppercase" style="color: var(--c-text2);">
-          Version 1.1 Official</p>
-
-        <div class="space-y-4 text-sm font-bold text-center py-6 mb-6"
-          style="border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border); color: var(--c-text);">
-          <p>جميع الحقوق محفوظة &copy; 2026</p>
-          <p class="text-[11px]" style="color: var(--c-text2);">تم التطوير ليكون رفيقك التقني في تنظيم أوقات
-            العمل باحترافية وسهولة.</p>
+    <div id="aboutMContent" class="w-full max-w-[420px] relative rounded-[2.5rem] overflow-hidden shadow-2xl transition-all duration-300 transform scale-95 border" 
+      onclick="event.stopPropagation()"
+      style="background-color: var(--c-surface); border-color: var(--c-border); color: var(--c-text);">
+      
+      <!-- Premium Gold Accent Header Bar -->
+      <div class="h-1.5 w-full bg-gradient-to-r from-[#C9A227]/60 via-[#C9A227] to-[#C9A227]/60"></div>
+      
+      <div class="p-6 relative z-10 flex flex-col items-center text-center">
+        <!-- 1. Exclamation Mark Visual Element (App & Identity Icon - No App Logo) -->
+        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border relative group transition-transform hover:scale-105"
+             style="background-color: var(--c-surface-2); border-color: rgba(201, 162, 39, 0.35);">
+          <div class="absolute inset-[-4px] rounded-2xl border border-dashed border-[#C9A227]/25 pointer-events-none"></div>
+          <span class="text-3xl font-black italic select-none" style="color: #C9A227; font-family: 'Times New Roman', serif;">!</span>
         </div>
 
-        <div class="text-[10px] font-black uppercase tracking-widest text-center mb-2" style="color: var(--c-text2);">
-          Powered by</div>
-        <img src="assets/logo.png" alt="Developer Logo" onclick="openLogoViewer()"
-          class="w-16 h-16 rounded-full mx-auto shadow-xl cursor-pointer hover:scale-110 transition-transform duration-300"
-          style="object-fit: cover; border: 2px solid var(--c-border); background: var(--c-bg);">
-        <div class="text-xs font-black italic mt-2 text-center" style="color: var(--c-text);">AbU AghyAd</div>
+        <!-- 2. App Name (Dynamic) -->
+        <h2 id="aboutAppName" class="text-2xl font-black mb-1 text-center tracking-tight" style="color: var(--c-text);">سجل الحضور الشخصي</h2>
+        
+        <!-- 3. App Version (Dynamic) -->
+        <p id="aboutAppVersion" class="text-[11px] font-bold text-center mb-3 tracking-[0.2em] uppercase" style="color: var(--c-text-2);">
+          الإصدار 1.2.0</p>
 
+        <!-- 4. Copyright -->
+        <div class="text-[12px] font-bold mb-4 text-center" style="color: var(--c-text-2);">
+          جميع الحقوق محفوظة &copy; 2026
+        </div>
+
+        <!-- 5. App Description (Dynamic) -->
+        <div class="w-full py-3 px-2 border-t" style="border-color: var(--c-border);">
+          <p id="aboutAppDesc" class="text-[12px] leading-relaxed text-center font-medium italic" style="color: var(--c-text-2);">
+            "نظام احترافي متكامل لإدارة وتنظيم ومتابعة عمليات الحضور والبيانات بكفاءة تقنية فائقة."
+          </p>
+        </div>
+
+        <!-- 6. Powered by -->
+        <div class="mt-4 text-[10px] font-black uppercase tracking-[0.4em] mb-3" style="color: var(--c-text-3);">Powered by</div>
+        
+        <!-- 7. Digital Identity Area (Fingerprint Circle + Protected Lock Status + Developer Identity) -->
+        <div class="flex flex-col items-center w-full">
+          <div id="fpInteractiveBtn" class="relative w-24 h-24 flex items-center justify-center cursor-pointer group select-none"
+               onclick="handleFingerprintTap()"
+               aria-label="Abu Aghyad Digital Signature"
+               role="button"
+               tabindex="0">
+            
+            <!-- Rotating Gold Ring -->
+            <div id="fpRing" class="absolute inset-0 rounded-full border border-[#C9A227]/20 border-dashed animate-[spin_20s_linear_infinite] transition-all duration-500"></div>
+            
+            <!-- SVG Progress Ring -->
+            <svg id="fpProgressRingSvg" class="absolute inset-[-4px] w-[104px] h-[104px] -rotate-90 pointer-events-none z-15" viewBox="0 0 104 104">
+              <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(201, 162, 39, 0.12)" stroke-width="2" />
+              <circle id="fpProgressCircle" cx="52" cy="52" r="48" fill="none" stroke="#C9A227" stroke-width="2.5"
+                      stroke-dasharray="301.6" stroke-dashoffset="301.6" stroke-linecap="round" class="transition-all duration-150" />
+            </svg>
+
+            <!-- Orbit Ring for Easter Egg -->
+            <div id="fpOrbitRing" class="absolute inset-[-6px] rounded-full border border-dashed border-transparent transition-all duration-700 pointer-events-none"></div>
+
+            <!-- Inner Circle Container -->
+            <div id="fpCircleContainer" class="logo-spin-container relative w-20 h-20 rounded-full flex items-center justify-center shadow-xl border transition-all duration-500 overflow-hidden group-hover:shadow-[#C9A227]/30 group-hover:scale-105"
+                 style="background-color: var(--c-surface-2); border-color: rgba(201, 162, 39, 0.3);">
+               
+               <!-- Laser Scan Line -->
+               <div id="fpScanLine" class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#C9A227] to-transparent opacity-0 shadow-[0_0_12px_#C9A227] pointer-events-none z-20"></div>
+
+               <!-- Fingerprint Vector Icon -->
+               <i id="fpIcon" class="fa-solid fa-fingerprint text-3xl transition-all duration-500 relative z-10" style="color: #C9A227;"></i>
+            </div>
+          </div>
+
+          <!-- Lock Status Indicator Badge (LOCKED 🔒 -> UNLOCKED 🔓) -->
+          <div id="fpLockStatusBadge" class="mt-2.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all duration-300 flex items-center gap-1.5 shadow-sm"
+               style="background-color: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);">
+            <i id="fpLockIcon" class="fa-solid fa-lock text-xs text-amber-500 transition-transform duration-300"></i>
+            <span id="fpStatusText" class="tracking-wide">LOCKED • مقفل</span>
+          </div>
+
+          <!-- 8. Developer Identity -->
+          <div id="fpDevSignature" class="text-[14px] font-black italic text-center mt-2 tracking-widest transition-all duration-500 select-none opacity-80" style="color: var(--c-text-2);">Aᵦᵤ AɢʰᵧₐD</div>
+        </div>
       </div>
-      <button onclick="closeAboutM()"
-        class="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full transition-opacity"
-        style="background: var(--c-bg2); color: var(--c-text2);">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-  </div>
 
-  <!-- Aesthetic Deep Logo Viewer Modal -->
-  <div id="logoViewerM"
-    class="fixed inset-0 bg-black/95 z-[200] hidden flex-col items-center justify-center px-4 transition-all duration-700 opacity-0"
-    onclick="closeLogoViewer()">
-    <div class="relative flex flex-col items-center justify-center max-w-sm w-full animate-in zoom-in-90 duration-700"
-      onclick="event.stopPropagation()">
-      <div class="absolute inset-0 blur-[100px] w-64 h-64 rounded-full mx-auto -z-10 animate-pulse"
-        style="background: var(--theme-primary); opacity: 0.3;">
-      </div>
-
-      <img src="assets/logo.png" alt="High Res Logo" id="logoViewerImg"
-        class="w-56 h-56 rounded-full ring-4 ring-white/10 mb-8 object-cover transform hover:scale-105 hover:rotate-3 transition-all duration-700 ease-out"
-        style="box-shadow: 0 0 80px rgba(var(--theme-primary-rgb, 124,58,237), 0.5);">
-
-      <div class="relative overflow-hidden w-full text-center py-4">
-        <h1
-          class="text-4xl sm:text-5xl font-black italic tracking-[0.2em] bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
-          style="font-family: 'Inter', sans-serif; background-image: linear-gradient(to right, white, var(--theme-primary));">
-          AbU AghyAd
-        </h1>
-        <p class="mt-4 text-xs font-bold uppercase tracking-[0.4em] text-white/50"></p>
-      </div>
-
-      <button onclick="closeLogoViewer()"
-        class="mt-12 w-14 h-14 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all border border-white/10">
-        <i class="fa-solid fa-angle-down text-xl"></i>
+      <!-- Close Button (Linked directly to Protected Identity Panel State) -->
+      <button id="aboutMCloseBtn" onclick="handleAboutCloseBtn()"
+        class="absolute top-5 left-5 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300 border shadow-sm hover:scale-110 active:scale-95 z-20"
+        style="background-color: var(--c-surface-2); color: var(--c-text-2); border-color: var(--c-border);"
+        aria-label="إغلاق التبويب">
+        <i id="aboutMCloseIcon" class="fa-solid fa-xmark text-sm transition-all duration-300"></i>
       </button>
     </div>
   </div>
@@ -3527,9 +3757,9 @@
       <!-- Top Decorative Accent -->
       <div class="absolute top-0 left-0 w-full h-2.5" style="background: var(--theme-grad-h);"></div>
 
-      <div class="text-5xl mb-6 mx-auto w-24 h-24 flex justify-center items-center rounded-3xl shadow-inner border"
-        style="background: var(--theme-primary-bg); color: var(--theme-primary); border-color: rgba(128,128,128,0.2);">
-        <i class="fa-solid fa-fingerprint"></i>
+      <!-- Header Identity Icon (Fingerprint) -->
+      <div class="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-full tech-chip shadow-[0_0_40px_rgba(0,242,255,0.2)] border-2 border-cyan-500/30">
+        <i class="fa-solid fa-fingerprint text-5xl text-cyan-400 neon-svg relative z-10"></i>
       </div>
 
       <h2 class="text-3xl font-black mb-3 text-slate-800 dark:text-white">مرحباً بك</h2>

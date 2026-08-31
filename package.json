@@ -1,6 +1,6 @@
 {
   "name": "personal-attendance",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "سجل الحضور الشخصي",
   "private": true,
   "scripts": {

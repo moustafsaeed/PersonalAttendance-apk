@@ -26,7 +26,12 @@ var DEFAULT_SETTINGS={
   reportHeaders: [],
   reportFooters: [],
   activeHeaderId: "",
-  activeFooterId: ""
+  activeFooterId: "",
+  signatures: {
+    col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+  }
 };
 var DB_KEYS={S:`pa_s`,R:`pa_r`};
 var DAYS=[`الأحد`,`الاثنين`,`الثلاثاء`,`الأربعاء`,`الخميس`,`الجمعة`,`السبت`];
@@ -974,8 +979,8 @@ function toast(msg,type){
   let el=document.getElementById(`toast`);
   if(!el) return;
   el.innerHTML=msg;
-  // Modern High-Contrast Style (Fixed visible colors and centered horizontally)
-  el.className=`fixed bottom-24 left-0 right-0 mx-auto w-max text-center px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl z-[200] transition-all duration-500 pointer-events-none whitespace-nowrap toast-dark animate-modal-in ` + 
+  // Modern High-Contrast Style (Fixed visible colors, centered horizontally, and wrap-safe for small screens)
+  el.className=`fixed bottom-24 left-4 right-4 mx-auto w-max max-w-[90vw] text-center px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl z-[200] transition-all duration-500 pointer-events-none toast-dark animate-modal-in ` + 
     (type===`ok`?`text-emerald-400`:type===`err`?`text-red-400`:`text-cyan-400`);
   
   setTimeout(()=>{
@@ -1058,7 +1063,11 @@ window.toggleHolidayWork = function() {
 
 function renderHome(){
   let name=settings.name||`المستخدم`;
-  let av=document.getElementById(`homeAvatar`); if(av) av.textContent=name.charAt(0);
+  let av=document.getElementById(`homeAvatar`); if(av){ 
+    let span = av.querySelector('span');
+    if(span) span.textContent = name.charAt(0);
+    else av.textContent = name.charAt(0);
+  }
   let gr=document.getElementById(`homeGreeting`); if(gr) gr.textContent=`مرحباً، `+name;
   let now=new Date(),sch=getSchedule(now.getFullYear(),now.getMonth(),now),isHol=isHoliday(now),isWork=isWorkDay(now);
   let schLabel=sch.label+` `+fmt12(sch.start)+` - `+fmt12(sch.end);
@@ -1156,6 +1165,7 @@ function renderHome(){
   // ── AI Intelligence Tip 🧠 ──
   (async function(){
     try {
+      if (typeof RECDB === 'undefined' || !RECDB) return;
       let recs = await RECDB.getAll();
       let patterns = analyzeLatenessPatterns(recs);
       let tipEl = document.getElementById(`aiHomeTip`);
@@ -1181,19 +1191,23 @@ function renderHome(){
   // month stats
   let curYear = now.getFullYear();
   let curMonth = now.getMonth();
-  ensureMonthCache(curYear, curMonth).then(monthRecs => {
-    let p=0,a=0,l=0;
-    monthRecs.forEach(r=>{
-      if(r&&isPresent(r.status)){
-        p++;
-        let d=new Date(slashToISO(r.date)),s=getSchedule(d.getFullYear(),d.getMonth(),d);
-        if(lateMin(r.checkIn,s.start)>0)l++;
-      }else if(r&&r.status===`absent`)a++;
+  if (typeof ensureMonthCache !== 'undefined') {
+    ensureMonthCache(curYear, curMonth).then(monthRecs => {
+      let p=0,a=0,l=0;
+      if (monthRecs) {
+        monthRecs.forEach(r=>{
+          if(r&&isPresent(r.status)){
+            p++;
+            let d=new Date(slashToISO(r.date)),s=getSchedule(d.getFullYear(),d.getMonth(),d);
+            if(lateMin(r.checkIn,s.start)>0)l++;
+          }else if(r&&r.status===`absent`)a++;
+        });
+      }
+      let hp=document.getElementById(`hsPresent`); if(hp) hp.textContent=p;
+      let ha=document.getElementById(`hsAbsent`); if(ha) ha.textContent=a;
+      let hl=document.getElementById(`hsLate`); if(hl) hl.textContent=l;
     });
-    let hp=document.getElementById(`hsPresent`); if(hp) hp.textContent=p;
-    let ha=document.getElementById(`hsAbsent`); if(ha) ha.textContent=a;
-    let hl=document.getElementById(`hsLate`); if(hl) hl.textContent=l;
-  });
+  }
 }
 
 // ── Week strip ────────────────────────────────────────────
@@ -1273,7 +1287,7 @@ window.doCheckIn=async function(){
     if(rec&&rec.checkIn) return toast(`عفواً، سُجّل حضورك مسبقاً!`,`err`);
     if(rec){rec.status=`present`;rec.checkIn=time;rec.auto=false;rec.absenceType=``;if(note)rec.note=note;}
     else{rec={id:uuid(),date:k,checkIn:time,checkOut:null,status:`present`,absenceType:``,note:note,auto:false};records.push(rec);}
-    await saveRecord(rec);renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم تسجيل الحضور`,`ok`);if(noteEl)noteEl.value=``;
+    await saveRecord(rec);renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم تسجيل الحضور`,`ok`); playActionVoice(`in`); if(noteEl)noteEl.value=``;
   } finally {
     releaseActionLock('checkInOut');
   }
@@ -1288,7 +1302,7 @@ window.doCheckOut=async function(){
     if(!rec||!rec.checkIn) return toast(`سجّل الحضور أولاً`,`err`);
     if(rec.checkOut) return toast(`سُجّل الانصراف مسبقاً لهذا اليوم`,`err`);
     rec.checkOut=time;if(note)rec.note=((rec.note?rec.note+`\n`:``)+note).slice(0, 2000);
-    await saveRecord(rec);stopTimer();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم تسجيل الانصراف`,`ok`);if(noteEl)noteEl.value=``;
+    await saveRecord(rec);stopTimer();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم تسجيل الانصراف`,`ok`); playActionVoice(`out`); if(noteEl)noteEl.value=``;
   } finally {
     releaseActionLock('checkInOut');
   }
@@ -1378,6 +1392,8 @@ async function renderRecords(){
   if(body) body.innerHTML=`<tr><td colspan="10" class="text-center py-8 opacity-50"><i class="fa-solid fa-spinner fa-spin ml-2"></i> جارٍ التحميل...</td></tr>`;
   if(noRec) noRec.classList.add(`hidden`);
 
+  if (typeof RECDB === 'undefined' || !RECDB) return;
+
   let filtered=[];
   let summaryRecs=[];
 
@@ -1390,9 +1406,11 @@ async function renderRecords(){
   } else {
     // Monthly view (each month = one page)
     let mi=document.getElementById(`monthIn`); if(mi) mi.value=MONTHS[viewMonth]+` `+viewYear;
-    filtered = await ensureMonthCache(viewYear, viewMonth);
-    filtered = filtered.slice(); // don't mutate cache
-    summaryRecs = filtered.slice();
+    if (typeof ensureMonthCache !== 'undefined') {
+        filtered = await ensureMonthCache(viewYear, viewMonth);
+        filtered = filtered.slice(); // don't mutate cache
+        summaryRecs = filtered.slice();
+    }
   }
 
   // Search filter
@@ -2266,8 +2284,9 @@ async function renderTravelStats() {
 // ── Stats page ────────────────────────────────────────────
 async function renderStats(){
   let yr=viewYear;
+  if (typeof RECDB === 'undefined' || !RECDB) return;
   let recs = await RECDB.getYear(yr);
-  let bal = await calcOvertimeBalance();
+  let bal = (typeof calcOvertimeBalance !== 'undefined') ? await calcOvertimeBalance() : {balance: 0};
   recs = (recs || []).filter(r => {
     if (!r || typeof r !== 'object' || !r.date || typeof r.date !== 'string') return false;
     let parts = r.date.split('/');
@@ -2374,6 +2393,7 @@ async function renderStats(){
         <div class="font-black text-sm text-emerald-500">${formatMin(bal.balance)}</div>
       </div>
     </div>`;
+
 
   if(window.Chart){
     const cp=stClr(`p`), ca=stClr(`a`), cl=stClr(`l`), cb=stClr(`o`);
@@ -2556,8 +2576,15 @@ window.formatCompSourceText = formatCompSourceText;
 
 window.switchCompSubTab = function(tab) {
   currentCompSubTab = tab;
-  document.querySelectorAll('.btn-sub-tab').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll(`[id="compTabBtn-${tab}"]`).forEach(btn => btn.classList.add('active'));
+  document.querySelectorAll('[data-comp-tab]').forEach(btn => {
+    if(btn.getAttribute('data-comp-tab') === tab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  // Fallback for legacy class-based or id-based matches
+  document.querySelectorAll(`[id$="compTabBtn-${tab}"]`).forEach(btn => btn.classList.add('active'));
   
   renderCompensationList();
 };
@@ -3136,7 +3163,7 @@ window.renderCompensation = renderCompensation;
 
 async function renderCompensationList() {
   let bal = await calcOvertimeBalance();
-  let containers = document.querySelectorAll('#compListContainer');
+  let containers = document.querySelectorAll('#compListContainer, #settingsCompListContainer, .comp-list-container');
   if(!containers.length) return;
   
   let html = '';
@@ -3238,7 +3265,7 @@ async function renderCompensationList() {
           <div class="flex items-center gap-2.5">
             <span class="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/20 text-amber-600 dark:text-amber-400 text-sm shadow-xs"><i class="fa-solid fa-clock-rotate-left"></i></span>
             <div>
-              <div>إجمالي أيام التأخير: <strong class="text-amber-600 dark:text-amber-400">${list.length} يوم</strong> (${formatMin(totalLateMin)})</div>
+              <div>إجمالي <span style="display:inline-block; margin:0 2px;">أيام</span>&nbsp;<span style="display:inline-block; margin:0 2px;">التأخير</span>: <strong class="text-amber-600 dark:text-amber-400">${list.length} يوم</strong> (${formatMin(totalLateMin)})</div>
               <div class="text-[10px] opacity-70 font-normal">معوّض: ${compensatedCount} | متبقي بدون تعويض: ${pendingCount}</div>
             </div>
           </div>
@@ -3498,8 +3525,11 @@ window.analyzeLatenessPatterns = analyzeLatenessPatterns;
 
 // ── Settings page ─────────────────────────────────────────
 function renderSettingsPage(){
+  if (typeof settings === 'undefined') return;
   let sn=document.getElementById(`setName`); if(sn) sn.value=settings.name||``;
-  let ao=document.getElementById(`alertOffsetIn`); if(ao) ao.value=settings.alertOffset;
+  let sd=document.getElementById(`setDepartment`); if(sd) sd.value=settings.department||``;
+  let sm=document.getElementById(`setManagerName`); if(sm) sm.value=settings.managerName||``;
+  let ao=document.getElementById(`alertOffsetIn`); if(ao) ao.value=settings.alertOffset; let vf=document.getElementById(`voiceFeedbackIn`); if(vf) vf.value=settings.voiceFeedback||"female";
   let bs=document.getElementById(`baseStartIn`); if(bs) bs.value=settings.baseStart||`08:00`;
   let be=document.getElementById(`baseEndIn`); if(be) be.value=settings.baseEnd||`16:00`;
   let bos=document.getElementById(`baseOvertimeStartIn`); if(bos) bos.value=settings.baseOvertimeStart||``;
@@ -3527,7 +3557,25 @@ function renderSettingsPage(){
   renderHolidayList();
   renderReportHeaders();
   renderReportFooters();
+  
+  // Populate Signature Settings
+  if (!settings.signatures) {
+    settings.signatures = {
+      col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+      col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+      col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+    };
+  }
+  for (let i = 1; i <= 3; i++) {
+    let col = settings.signatures['col' + i] || {};
+    let showEl = document.getElementById('sig_show' + i); if (showEl) showEl.checked = col.show !== false;
+    let titleEl = document.getElementById('sig_title' + i); if (titleEl) titleEl.value = col.title || '';
+    let lblEl = document.getElementById('sig_lbl' + i); if (lblEl) lblEl.value = col.label1 || '';
+    let valEl = document.getElementById('sig_val' + i); if (valEl) valEl.value = col.value1 || '';
+  }
   if(window.updateGoogleUI) window.updateGoogleUI(); // Ensure cloud account status is shown
+  
+  if (typeof renderSigPreviews === 'function') renderSigPreviews();
   
   // Note font select population
   let fSel = document.getElementById('noteFontIn');
@@ -3574,6 +3622,8 @@ window.saveBackupSettings=function(){
   toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعدادات النسخ`,`ok`);
 };
 window.saveName=function(){let el=document.getElementById(`setName`);if(el){settings.name=el.value.trim()||``;saveSettings();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
+window.saveDepartment=function(){let el=document.getElementById(`setDepartment`);if(el){settings.department=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
+window.saveManagerName=function(){let el=document.getElementById(`setManagerName`);if(el){settings.managerName=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveAlertSettings=function(){settings.alertOffset=parseInt(document.getElementById(`alertOffsetIn`).value)||0;saveSettings();if(settings.alertOffset>0&&Notification.permission!==`granted`)Notification.requestPermission();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);};
 window.saveBaseSchedule=function(){
   let s=document.getElementById(`baseStartIn`), e=document.getElementById(`baseEndIn`), ot=document.getElementById(`baseOvertimeStartIn`);
@@ -3587,6 +3637,195 @@ window.toggleAutoBackup=function(){let el=document.getElementById(`autoBackupCB`
 window.toggleCloudAutoSync = function() {
   let el = document.getElementById('cloudAutoSyncCB');
   if(el){ settings.cloudAutoSync = el.checked; saveSettings(); toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`); }
+};
+window.saveSignatureSettings = function() {
+  if (!settings.signatures) {
+    settings.signatures = { col1: {}, col2: {}, col3: {} };
+  }
+  for (let i = 1; i <= 3; i++) {
+    let showEl = document.getElementById('sig_show' + i);
+    let titleEl = document.getElementById('sig_title' + i);
+    let lblEl = document.getElementById('sig_lbl' + i);
+    let valEl = document.getElementById('sig_val' + i);
+    let oldImg = (settings.signatures['col' + i] && settings.signatures['col' + i].signatureImage) || null;
+    
+    settings.signatures['col' + i] = {
+      show: showEl ? showEl.checked : true,
+      title: titleEl ? titleEl.value.trim() : '',
+      label1: lblEl ? lblEl.value.trim() : '',
+      value1: valEl ? valEl.value.trim() : '',
+      label2: "التوقيع:",
+      label3: "التاريخ:",
+      signatureImage: oldImg
+    };
+  }
+  saveSettings();
+  toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعدادات التواقيع والاعتماد`, `ok`);
+};
+
+// --- Electronic Signature Pad Logic ---
+let sigCanvas, sigCtx, sigDrawing = false, sigLastX = 0, sigLastY = 0;
+
+window.openSigPad = function(colId) {
+  document.getElementById('sigTargetCol').value = colId;
+  window.clearSigCanvas(); // reset state when opening
+  let m = document.getElementById('sigPadM');
+  if(m) {
+    m.classList.remove('hidden'); m.classList.add('flex');
+    initSigCanvas();
+  }
+};
+
+window.closeSigPad = function() {
+  let m = document.getElementById('sigPadM');
+  if(m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+};
+
+window.initSigCanvas = function() {
+  sigCanvas = document.getElementById('sigCanvas');
+  if(!sigCanvas) return;
+  sigCtx = sigCanvas.getContext('2d');
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  sigCtx.lineWidth = 3;
+  sigCtx.lineCap = 'round';
+  sigCtx.strokeStyle = '#0f172a'; // dark navy
+  
+  let getPos = (e) => {
+    let r = sigCanvas.getBoundingClientRect();
+    if(e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+    }
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
+  let startDraw = (e) => {
+    e.preventDefault();
+    sigDrawing = true;
+    let pos = getPos(e);
+    sigLastX = pos.x; sigLastY = pos.y;
+  };
+
+  let draw = (e) => {
+    e.preventDefault();
+    if(!sigDrawing) return;
+    let pos = getPos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(sigLastX, sigLastY);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+    sigLastX = pos.x; sigLastY = pos.y;
+  };
+
+  let endDraw = (e) => {
+    e.preventDefault();
+    sigDrawing = false;
+  };
+
+  // Mouse events
+  sigCanvas.onmousedown = startDraw;
+  sigCanvas.onmousemove = draw;
+  sigCanvas.onmouseup = endDraw;
+  sigCanvas.onmouseout = endDraw;
+  // Touch events
+  sigCanvas.ontouchstart = startDraw;
+  sigCanvas.ontouchmove = draw;
+  sigCanvas.ontouchend = endDraw;
+};
+
+
+let uploadedSigImg = null;
+window.handleSigImageUpload = function(e) {
+  let file = e.target.files[0];
+  if(!file) return;
+  let reader = new FileReader();
+  reader.onload = function(evt) {
+    let img = new Image();
+    img.onload = function() {
+      uploadedSigImg = img;
+      document.getElementById('sigImageControls').classList.remove('hidden');
+      document.getElementById('sigImageControls').classList.add('flex');
+      // Reset sliders
+      document.getElementById('sigScale').value = 100;
+      document.getElementById('sigOffsetX').value = 0;
+      document.getElementById('sigOffsetY').value = 0;
+      redrawSigImage();
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.redrawSigImage = function() {
+  if(!sigCanvas || !sigCtx || !uploadedSigImg) return;
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  
+  let scale = parseInt(document.getElementById('sigScale').value) / 100;
+  let offsetX = parseInt(document.getElementById('sigOffsetX').value);
+  let offsetY = parseInt(document.getElementById('sigOffsetY').value);
+  
+  let w = uploadedSigImg.width * scale;
+  let h = uploadedSigImg.height * scale;
+  
+  // Center by default, plus offsets
+  let cx = (sigCanvas.width - w) / 2 + offsetX;
+  let cy = (sigCanvas.height - h) / 2 + offsetY;
+  
+  sigCtx.drawImage(uploadedSigImg, cx, cy, w, h);
+};
+
+window.clearSigCanvas = function() {
+  uploadedSigImg = null;
+  let ctrls = document.getElementById('sigImageControls');
+  if(ctrls) { ctrls.classList.add('hidden'); ctrls.classList.remove('flex'); }
+  let uf = document.getElementById('sigImageUpload');
+  if(uf) uf.value = '';
+
+  if(sigCtx && sigCanvas) sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+};
+
+window.saveSigCanvas = function() {
+  if(!sigCanvas) return;
+  let colId = document.getElementById('sigTargetCol').value;
+  let dataUrl = sigCanvas.toDataURL('image/png');
+  
+  if(!settings.signatures) settings.signatures = { col1:{}, col2:{}, col3:{} };
+  if(!settings.signatures[colId]) settings.signatures[colId] = {};
+  settings.signatures[colId].signatureImage = dataUrl;
+  saveSettings();
+  
+  if(typeof renderSigPreviews === 'function') renderSigPreviews();
+  closeSigPad();
+  toast('تم حفظ التوقيع الإلكتروني', 'ok');
+};
+
+window.clearSignature = function(colId) {
+  if(!settings.signatures || !settings.signatures[colId]) return;
+  settings.signatures[colId].signatureImage = null;
+  saveSettings();
+  if(typeof renderSigPreviews === 'function') renderSigPreviews();
+  toast('تم مسح التوقيع', 'ok');
+};
+
+window.renderSigPreviews = function() {
+  for(let i=1; i<=3; i++) {
+    let colId = 'col' + i;
+    let img = document.getElementById('sig_img_preview_' + colId);
+    let btnClear = document.getElementById('sig_img_clear_' + colId);
+    let btnAdd = document.getElementById('sig_img_add_' + colId);
+    if(!img) continue;
+    let s = (settings.signatures && settings.signatures[colId]) ? settings.signatures[colId].signatureImage : null;
+    if(s) {
+      img.src = s;
+      img.classList.remove('hidden');
+      if(btnClear) btnClear.classList.remove('hidden');
+      if(btnAdd) btnAdd.innerHTML = '<i class="fa-solid fa-pen-nib ml-1"></i>تعديل التوقيع';
+    } else {
+      img.src = '';
+      img.classList.add('hidden');
+      if(btnClear) btnClear.classList.add('hidden');
+      if(btnAdd) btnAdd.innerHTML = '<i class="fa-solid fa-signature ml-1"></i>إضافة توقيع إلكتروني';
+    }
+  }
 };
 // --- Settings UI Redesign Logic ---
 window.switchSetTab = function(tabId) {
@@ -3782,7 +4021,18 @@ window.addSched=function(){
   settings.schedules.push({key:m,start:s,end:e,overtimeStart:ot,label:l||`توقيت مخصص`});
   saveSettings();renderScheduleList();closeSchedM();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تمت الإضافة`,`ok`);
 };
-window.delSched=function(key){settings.schedules=settings.schedules.filter(s=>s.key!==key);saveSettings();renderScheduleList();renderHome();toast(`تم الحذف`,`ok`);};
+window.delSched=function(key){
+  if(!confirm('هل أنت متأكد من حذف هذا الجدول؟')) return;
+  let idx = settings.schedules.findIndex(s => s.key === key);
+  if(idx === -1) return;
+  let s = settings.schedules[idx];
+  settings.schedules.splice(idx, 1);
+  saveSettings();renderScheduleList();renderHome();
+  showUndoable('تم حذف الجدول', () => {
+      settings.schedules.splice(idx, 0, s);
+      saveSettings();renderScheduleList();renderHome();
+  });
+};
 
 // Holidays
 function renderHolidayList(){
@@ -3802,16 +4052,52 @@ window.addHol=function(){
   if(!d||!l) return toast(`أكمل البيانات`,`err`);
   settings.holidays.push({date:d,label:l});saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();closeHolM();toast(`<i class="fa-solid fa-check ml-1"></i> تمت الإضافة`,`ok`);
 };
-window.delHol=function(date){settings.holidays=settings.holidays.filter(h=>h.date!==date);saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();toast(`تم الحذف`,`ok`);};
+window.delHol=function(date){
+  if(!confirm('هل أنت متأكد من حذف هذه الإجازة؟')) return;
+  let idx = settings.holidays.findIndex(h => h.date === date);
+  if(idx === -1) return;
+  let h = settings.holidays[idx];
+  settings.holidays.splice(idx, 1);
+  saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();
+  showUndoable('تم حذف الإجازة', () => {
+      settings.holidays.splice(idx, 0, h);
+      saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();
+  });
+};
 window.openAbsModal=function(){document.getElementById(`absM`)?.classList?.remove(`hidden`);};
 window.closeAbsM=function(){document.getElementById(`absM`)?.classList?.add(`hidden`);};
 window.addAbsType=function(){let el=document.getElementById(`absIn`); if(!el) return; let v=el.value.trim();if(!v||settings.absenceTypes.includes(v))return;settings.absenceTypes.push(v);saveSettings();renderHolidayList();closeAbsM();el.value=``;toast(`<i class="fa-solid fa-check ml-1"></i> تم`,`ok`);};
-window.delAbs=function(i){settings.absenceTypes.splice(i,1);saveSettings();renderHolidayList();toast(`تم`,`ok`);};
+window.delAbs=function(i){
+  if(!confirm('هل أنت متأكد من حذف نوع الغياب؟')) return;
+  let t = settings.absenceTypes[i];
+  settings.absenceTypes.splice(i,1);
+  saveSettings();renderHolidayList();
+  showUndoable('تم حذف نوع الغياب', () => {
+      settings.absenceTypes.splice(i, 0, t);
+      saveSettings();renderHolidayList();
+  });
+};
 window.openStatusModal=function(){document.getElementById(`statusM`)?.classList?.remove(`hidden`);};
 window.closeStatusM=function(){document.getElementById(`statusM`)?.classList?.add(`hidden`);};
 window.addCustomStatus=function(){let el=document.getElementById(`statusIn`); if(!el) return; let v=el.value.trim();if(!v||settings.customStatuses.includes(v))return;settings.customStatuses.push(v);saveSettings();renderHolidayList();closeStatusM();el.value=``;toast(`<i class="fa-solid fa-check ml-1"></i> تم`,`ok`);};
-window.delCustomStatus=function(i){settings.customStatuses.splice(i,1);saveSettings();renderHolidayList();toast(`تم`,`ok`);};
+window.delCustomStatus=function(i){
+  if(!confirm('هل أنت متأكد من حذف الحالة؟')) return;
+  let s = settings.customStatuses[i];
+  settings.customStatuses.splice(i,1);
+  saveSettings();renderHolidayList();
+  showUndoable('تم حذف الحالة', () => {
+      settings.customStatuses.splice(i, 0, s);
+      saveSettings();renderHolidayList();
+  });
+};
 
+
+var BUILTIN_REPORT_HEADERS = [];
+
+function getReportHeaderById(id) {
+  if(!id) return null;
+  return (settings.reportHeaders || []).find(x => x.id === id) || null;
+}
 
 window.openHeaderModal = function(id = null) {
   let hId = document.getElementById('headerIdIn');
@@ -3820,7 +4106,7 @@ window.openHeaderModal = function(id = null) {
   let m = document.getElementById('headerM');
   if(!m) return;
   if(id) {
-    let h = (settings.reportHeaders||[]).find(x => x.id === id);
+    let h = getReportHeaderById(id);
     if(h) {
       if(hId) hId.value = h.id;
       if(hName) hName.value = h.name;
@@ -3880,24 +4166,31 @@ window.setActiveHeader = function(id) {
 window.renderReportHeaders = function() {
   let list = document.getElementById('reportHeadersList');
   if(!list) return;
+  
+  // Clean up any residual active builtin header IDs or 'none'
+  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_')) {
+    settings.activeHeaderId = 'default';
+    saveSettings();
+  }
+
   let html = '';
   let defHChecked = (settings.activeHeaderId === '' || settings.activeHeaderId === 'default') ? 'checked' : '';
-  let noHChecked = settings.activeHeaderId === 'none' ? 'checked' : '';
+  
+  // Default Option
   html += `
     <div class="flex items-center justify-between p-3 rounded-xl border ${defHChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveHeader('default')">
       <div class="flex items-center gap-3">
         <input type="radio" name="active_header" ${defHChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">الترويسة الافتراضية</span>
-      </div>
-    </div>
-    <div class="flex items-center justify-between p-3 rounded-xl border ${noHChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveHeader('none')">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="active_header" ${noHChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">بدون ترويسة</span>
+        <div>
+          <div class="font-bold text-sm">الترويسة الافتراضية</div>
+          <div class="text-xs text-gray-500">ترويسة قياسية ثنائية اللغة لتقارير الحضور</div>
+        </div>
       </div>
     </div>
   `;
-  settings.reportHeaders.forEach(h => {
+
+  // Custom User Headers
+  (settings.reportHeaders || []).forEach(h => {
     let checked = settings.activeHeaderId === h.id ? 'checked' : '';
     html += `
       <div class="flex items-center justify-between p-3 rounded-xl border ${checked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all group">
@@ -3949,6 +4242,7 @@ window.saveReportFooter = function() {
   let content = contentEl?.value?.trim() || '';
   if(!name) return toast('يرجى إدخال اسم التذييل', 'err');
   
+  let targetId = id;
   if(id) {
     let idx = settings.reportFooters.findIndex(x => x.id === id);
     if(idx !== -1) {
@@ -3957,12 +4251,14 @@ window.saveReportFooter = function() {
     }
   } else {
     let newId = 'f_' + Date.now();
+    targetId = newId;
     settings.reportFooters.push({id: newId, name: name, content: content});
   }
+  settings.activeFooterId = targetId;
   saveSettings();
   renderReportFooters();
   closeFooterModal();
-  toast('تم حفظ التذييل', 'ok');
+  toast('تم حفظ وتفعيل التذييل', 'ok');
 };
 
 window.deleteReportFooter = function(id) {
@@ -3982,20 +4278,20 @@ window.setActiveFooter = function(id) {
 window.renderReportFooters = function() {
   let list = document.getElementById('reportFootersList');
   if(!list) return;
+
+  // Clean up any residual 'none'
+  if (!settings.activeFooterId || settings.activeFooterId === 'none') {
+    settings.activeFooterId = 'default';
+    saveSettings();
+  }
+
   let html = '';
   let defFChecked = (settings.activeFooterId === '' || settings.activeFooterId === 'default') ? 'checked' : '';
-  let noFChecked = settings.activeFooterId === 'none' ? 'checked' : '';
   html += `
     <div class="flex items-center justify-between p-3 rounded-xl border ${defFChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveFooter('default')">
       <div class="flex items-center gap-3">
         <input type="radio" name="active_footer" ${defFChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
         <span class="font-bold text-sm">التذييل الافتراضي</span>
-      </div>
-    </div>
-    <div class="flex items-center justify-between p-3 rounded-xl border ${noFChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveFooter('none')">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="active_footer" ${noFChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">بدون تذييل</span>
       </div>
     </div>
   `;
@@ -4139,19 +4435,32 @@ window.shareBackup=async function(){
     }
   } else {
     // Browser: try Web Share API with file
-    try{
-      let blob=new Blob([json],{type:`application/json`});
-      let file = (typeof File !== 'undefined') ? new File([blob],fileName,{type:`application/json`}) : blob;
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({title:`نسخة احتياطية`,files:[file]});
-      } else {
-        // Fallback: download
-        let url=URL.createObjectURL(blob);
-        let a=document.createElement(`a`); a.href=url; a.download=fileName; a.click();
-        URL.revokeObjectURL(url);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`,`ok`);
+    try {
+      let blob = new Blob([json], { type: `application/json` });
+      let file = (typeof File !== 'undefined') ? new File([blob], fileName, { type: `application/json` }) : null;
+      let shared = false;
+      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: `نسخة احتياطية`, files: [file] });
+          shared = true;
+        } catch(shareErr) {
+          if (shareErr.name === 'AbortError') {
+            shared = true;
+          } else {
+            console.warn('Web Share backup fallback to direct download:', shareErr.message || shareErr);
+          }
+        }
       }
-    } catch(err){ toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل / المشاركة`,`err`); }
+      if (!shared) {
+        // Fallback: download
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement(`a`); a.href = url; a.download = fileName; a.click();
+        URL.revokeObjectURL(url);
+        toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`, `ok`);
+      }
+    } catch(err) {
+      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل / المشاركة`, `err`);
+    }
   }
 };
 
@@ -5057,61 +5366,129 @@ window.restoreAutoBackup=async function(){
 };
 
 // ── Data management ───────────────────────────────────────
+function showConfirmDialog(title, message, confirmText, confirmClass, onConfirm) {
+  let existing = document.getElementById('customConfirmModal');
+  if (existing) existing.remove();
+
+  let modal = document.createElement('div');
+  modal.id = 'customConfirmModal';
+  modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-modal-in';
+  modal.innerHTML = `
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-modal-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" onclick="event.stopPropagation()">
+      <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-4 ${confirmClass.includes('red') || confirmClass.includes('danger') ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">
+        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">${title}</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">${message}</p>
+      <div class="flex gap-3">
+        <button id="confirmCancelBtn" class="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition">إلغاء</button>
+        <button id="confirmOkBtn" class="flex-1 py-3 px-4 rounded-xl font-semibold text-white ${confirmClass} transition shadow-lg">${confirmText}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('confirmCancelBtn').onclick = () => {
+    modal.remove();
+  };
+  document.getElementById('confirmOkBtn').onclick = () => {
+    modal.remove();
+    onConfirm();
+  };
+  modal.onclick = (e) => {
+    if(e.target === modal) modal.remove();
+  };
+}
+
 window.clearRecs=async function(){
-  if(!confirm(`هل أنت متأكد من تفريغ كافة سجلات الحضور الحالية مع الإبقاء على الأيام والتواريخ؟`))return;
-  let backup=await RECDB.getAll();
-  if(!backup || backup.length === 0){
-    toast("لا توجد سجلات لتفريغها", "err");
-    return;
-  }
-  let clearedRecs = backup.map(rec => {
-    let d = new Date(slashToISO(rec.date));
-    let status = 'absent';
-    let note = '';
-    if (!isNaN(d.getTime())) {
-      if (typeof isHoliday === 'function' && isHoliday(d)) {
-        status = 'إجازة';
-        note = typeof getHolidayLabel === 'function' ? getHolidayLabel(d) : 'إجازة رسمية';
-      } else if (typeof isWorkDay === 'function' && !isWorkDay(d)) {
-        status = 'إجازة';
-        note = 'إجازة أسبوعية';
+  showConfirmDialog(
+    "تفريغ السجلات الحالية",
+    "هل أنت متأكد من تفريغ كافة سجلات الحضور الحالية مع الإبقاء على الأيام والتواريخ؟",
+    "تفريغ",
+    "bg-amber-600 hover:bg-amber-700 text-white",
+    async () => {
+      let backup=await RECDB.getAll();
+      if(!backup || backup.length === 0){
+        toast("لا توجد سجلات لتفريغها", "err");
+        return;
       }
+      let clearedRecs = backup.map(rec => {
+        let d = new Date(slashToISO(rec.date));
+        let status = 'absent';
+        let note = '';
+        if (!isNaN(d.getTime())) {
+          if (typeof isHoliday === 'function' && isHoliday(d)) {
+            status = 'إجازة';
+            note = typeof getHolidayLabel === 'function' ? getHolidayLabel(d) : 'إجازة رسمية';
+          } else if (typeof isWorkDay === 'function' && !isWorkDay(d)) {
+            status = 'إجازة';
+            note = 'إجازة أسبوعية';
+          }
+        }
+        return {
+          id: rec.id || uuid(),
+          date: rec.date,
+          checkIn: '',
+          checkOut: '',
+          status: status,
+          absenceType: '',
+          note: note,
+          auto: true,
+          late: 0,
+          early: 0,
+          overtime: 0
+        };
+      });
+      await RECDB.putAll(clearedRecs);
+      let nowD=new Date();
+      _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
+      _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
+      let todayRec=await RECDB.get(todayKey());
+      records=todayRec?[todayRec]:[];
+      await renderRecords();
+      renderHome();
+      showUndoable(`<i class="fa-solid fa-rotate-left ml-1"></i> تم تفريغ محتوى السجلات`,async ()=>{
+        await RECDB.putAll(backup);
+        let nowD=new Date();
+        _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
+        _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
+        let todayRec=await RECDB.get(todayKey());
+        records=todayRec?[todayRec]:[];
+        await renderRecords();
+        renderHome();
+      });
     }
-    return {
-      id: rec.id || uuid(),
-      date: rec.date,
-      checkIn: '',
-      checkOut: '',
-      status: status,
-      absenceType: '',
-      note: note,
-      auto: true,
-      late: 0,
-      early: 0,
-      overtime: 0
-    };
-  });
-  await RECDB.putAll(clearedRecs);
-  let nowD=new Date();
-  _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
-  _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
-  let todayRec=await RECDB.get(todayKey());
-  records=todayRec?[todayRec]:[];
-  await renderRecords();
-  renderHome();
-  showUndoable(`<i class="fa-solid fa-rotate-left ml-1"></i> تم تفريغ محتوى السجلات`,async ()=>{
-    await RECDB.putAll(backup);
-    let nowD=new Date();
-    _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
-  _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
-  let todayRec=await RECDB.get(todayKey());
-    records=todayRec?[todayRec]:[];
-    await renderRecords();
-    renderHome();
-  });
+  );
 };
-window.resetSettings=function(){if(!confirm(`هل أنت متأكد من استعادة إعدادات التطبيق الافتراضية؟`))return;Object.assign(settings,DEFAULT_SETTINGS);saveSettings();renderSettingsPage();renderHome();toast(`تم الإرجاع`,`ok`);};
-window.clearAll=async function(){if(!confirm(`هل أنت متأكد من مسح جميع البيانات؟ لا يمكن التراجع عن هذا الإجراء!`))return;await IDB.clear();location.reload();};
+
+window.resetSettings=function(){
+  showConfirmDialog(
+    "إعادة ضبط الإعدادات",
+    "هل أنت متأكد من استعادة إعدادات التطبيق الافتراضية؟",
+    "استعادة",
+    "bg-blue-600 hover:bg-blue-700 text-white",
+    () => {
+      Object.assign(settings,DEFAULT_SETTINGS);
+      saveSettings();
+      renderSettingsPage();
+      renderHome();
+      toast(`تم الإرجاع`,`ok`);
+    }
+  );
+};
+
+window.clearAll=async function(){
+  showConfirmDialog(
+    "مسح التطبيق كاملاً (فورمات)",
+    "هل أنت متأكد من مسح جميع البيانات؟ لا يمكن التراجع عن هذا الإجراء!",
+    "مسح نهائي",
+    "bg-red-600 hover:bg-red-700 text-white",
+    async () => {
+      await IDB.clear();
+      location.reload();
+    }
+  );
+};
 
 // ── PDF Export ────────────────────────────────────────────
 window.prepareExportPDF = function() {
@@ -5174,9 +5551,12 @@ async function buildPDFCanvas(){
     try {
       await document.fonts.ready;
       await Promise.all([
+        document.fonts.load('900 24px Cairo'),
+        document.fonts.load('800 24px Cairo'),
         document.fonts.load('700 22px Cairo'),
-        document.fonts.load('600 13px Cairo'),
-        document.fonts.load('400 17px Cairo')
+        document.fonts.load('600 14px Cairo'),
+        document.fonts.load('500 14px Cairo'),
+        document.fonts.load('400 16px Cairo')
       ]);
     } catch(e) {
       console.warn('PDF font preload:', e);
@@ -5190,10 +5570,11 @@ async function buildPDFCanvas(){
   container.style.width=`1200px`;
   container.style.minWidth=`1200px`;
   container.style.maxWidth=`1200px`;
-  container.style.fontFamily=`'Cairo','Tajawal','Noto Sans Arabic',Arial,sans-serif`;
-  container.style.letterSpacing=`0px`;
-  container.style.wordSpacing=`0px`;
-  container.style.textRendering=`geometricPrecision`;
+  container.style.fontFamily=`'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif`;
+  container.style.letterSpacing=`normal`;
+  container.style.wordSpacing=`normal`;
+  container.style.textRendering=`optimizeLegibility`;
+  container.style.fontVariantLigatures=`normal`;
   container.style.webkitFontSmoothing=`antialiased`;
   container.setAttribute(`dir`,`rtl`);
   container.style.direction=`rtl`;
@@ -5262,17 +5643,44 @@ async function buildPDFCanvas(){
       }
     }
 
-    allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0; border-right:4px solid ${rowBorder};">
-      ${settings.exportColumns.date ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; border-right:none;" lang="en" dir="ltr">${r.date}</td>` : ''}
-      ${settings.exportColumns.day ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#475569; border:1px solid #cbd5e1;">${DAYS[d.getDay()]}</td>` : ''}
-      ${settings.exportColumns.checkIn ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkIn?fmt12(r.checkIn):`-`}</td>` : ''}
-      ${settings.exportColumns.checkOut ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkOut?fmt12(r.checkOut):`-`}</td>` : ''}
-      ${settings.exportColumns.status ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:${sc}">${r.status==='present'?'حاضر':(r.status==='absent'?'غائب':esc(r.status))}</td>` : ''}
-      ${settings.exportColumns.late ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${lateDec}</td>` : ''}
-      ${settings.exportColumns.early ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${earlyDec}</td>` : ''}
-      ${settings.exportColumns.overtime ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${extra>0?'+'+formatMin(extra):'-'}</td>` : ''}
-      ${settings.exportColumns.absenceType ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):(r.status==='إجازة من الإضافي'?'إجازة تعويض إضافي':'')}</td>` : ''}
-      ${settings.exportColumns.note ? `<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Cairo'}', serif; color:#111827; border:1px solid #cbd5e1; border-left:none; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(pdfNote)||``}</td>` : ''}
+    let rowCells = [];
+    if (settings.exportColumns.date) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.date}</td>`);
+    }
+    if (settings.exportColumns.day) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#475569; border:1px solid #cbd5e1;">${DAYS[d.getDay()]}</td>`);
+    }
+    if (settings.exportColumns.checkIn) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkIn?fmt12(r.checkIn):`-`}</td>`);
+    }
+    if (settings.exportColumns.checkOut) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkOut?fmt12(r.checkOut):`-`}</td>`);
+    }
+    if (settings.exportColumns.status) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:${sc}">${r.status==='present'?'حاضر':(r.status==='absent'?'غائب':esc(r.status))}</td>`);
+    }
+    if (settings.exportColumns.late) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${lateDec}</td>`);
+    }
+    if (settings.exportColumns.early) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${earlyDec}</td>`);
+    }
+    if (settings.exportColumns.overtime) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${extra>0?'+'+formatMin(extra):'-'}</td>`);
+    }
+    if (settings.exportColumns.absenceType) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):(r.status==='إجازة من الإضافي'?'إجازة تعويض إضافي':'')}</td>`);
+    }
+    if (settings.exportColumns.note) {
+      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Arial'}', sans-serif; color:#111827; border:1px solid #cbd5e1; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(pdfNote)||``}</td>`);
+    }
+
+    if (rowCells.length > 0) {
+      rowCells[0] = rowCells[0].replace('border:1px solid #cbd5e1;', `border:1px solid #cbd5e1; border-right:5px solid ${rowBorder};`);
+    }
+
+    allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0;">
+      ${rowCells.join('')}
     </tr>`);
     
     // Dynamic weight for row height and notes
@@ -5338,71 +5746,148 @@ async function buildPDFCanvas(){
               .trim();
   };
 
-  let baseHeader = function(pageNumber, totalPages) {
-    let customHeaderContent = '';
-    if (settings.activeHeaderId === 'none') {
-      customHeaderContent = '';
-    } else if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '') {
-      let h = (settings.reportHeaders || []).find(x => x.id === settings.activeHeaderId);
-      if (h) {
-        customHeaderContent = sanitizeReportText(h.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
-      }
-    } else if (settings.headerImage) {
-      customHeaderContent = `<div style="width:100%; text-align:center; margin-bottom:15px; border-bottom:2px solid #cbd5e1; padding-bottom:10px;">
-        <img src="${settings.headerImage}" style="max-width:100%; max-height:80px; object-fit:contain;" />
-      </div>`;
-    } else {
-      // Default Professional Dual-Language Header
-      let titleAr = sanitizeReportText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
-      let titleEn = sanitizeReportText(settings.headerTitleEn || 'Attendance & Absence Record');
-      let subAr = sanitizeReportText(settings.headerSubAr || `الموظف: ${settings.name} | الفترة: ${periodLabel}`);
-      let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
+  let renderHeaderHtml = function(pageNumber, totalPages) {
+    let titleAr = sanitizeReportText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
+    let titleEn = sanitizeReportText(settings.headerTitleEn || 'Attendance & Absence Record');
+    let subAr = sanitizeReportText(settings.headerSubAr || `الموظف: ${settings.name} | الفترة: ${periodLabel}`);
+    let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
 
-      customHeaderContent = `<!-- Professional Dual-Language PDF Header -->
-      <div style="padding:25px 40px 15px; background:#ffffff; border-bottom:2px solid #cbd5e1; margin-bottom:15px; direction:rtl; font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:0px !important; word-spacing:0px !important;">
+    // Default Professional Dual-Language Header (الترويسة الافتراضية القياسية ثنائية اللغة - بتصميم عالمي فاخر)
+    let defaultDualLangHeader = `<!-- Professional Dual-Language PDF Header -->
+      <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; margin:0; padding:0; background:transparent;">
           <tr>
-            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-              <div style="font-size:22px; font-weight:700; color:#1B3D6D; line-height:1.3; font-family:'Cairo',Arial,sans-serif; margin:0 0 4px 0; letter-spacing:0px !important;">${titleAr}</div>
-              <div style="font-size:13px; font-weight:600; color:#475569; font-family:'Cairo',Arial,sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
+            <!-- Right Aligned Arabic Title -->
+            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
+              <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
+              <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
             </td>
-            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:sans-serif;">
-              <div style="font-size:18px; font-weight:700; color:#1B3D6D; line-height:1.3; font-family:sans-serif; margin:0 0 4px 0;">${titleEn}</div>
-              <div style="font-size:12px; font-weight:600; color:#475569; font-family:sans-serif; margin:0;">${subEn}</div>
+            <!-- Left Aligned English Title -->
+            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
+              <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0;">${subEn}</div>
             </td>
           </tr>
         </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-top:10px; padding-top:6px; border-top:1px solid #e2e8f0; font-size:12px; color:#64748b; font-weight:600; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
+        <!-- Metadata bar with border-top -->
+        <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
           <tr>
-            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-              تاريخ التقرير: <span style="color:#1B3D6D; font-family:sans-serif;">${todayKey()}</span>
+            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
+              تاريخ التقرير: <span style="color:#1B3D6D; font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${todayKey()}</span>
             </td>
-            <td style="text-align:left; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-              الصفحة <span style="color:#1B3D6D; font-family:sans-serif;">${pageNumber}</span> من <span style="font-family:sans-serif;">${totalPages}</span>
+            <td style="text-align:left; border:none; padding:4px 0; direction:ltr; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
+              Page <span style="color:#1B3D6D; font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${pageNumber}</span> of <span style="font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${totalPages}</span>
             </td>
           </tr>
         </table>
+      </div>`;
+
+    if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '' && settings.activeHeaderId !== 'none') {
+      let h = getReportHeaderById(settings.activeHeaderId);
+      if (h) {
+        let customTop = sanitizeReportText(h.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
+        // Mandatory include the standard dual-language default header underneath any custom header
+        return `<div style="width:100%; margin-bottom:5px;">${customTop}</div>${defaultDualLangHeader}`;
+      }
+    } else if (settings.headerImage) {
+      return `<div style="width:100%; text-align:center; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+        <img src="${settings.headerImage}" style="max-width:100%; max-height:80px; object-fit:contain;" />
+      </div>${defaultDualLangHeader}`;
+    }
+    return defaultDualLangHeader;
+  };
+
+  let renderFooterHtml = function(pageNumber, totalPages) {
+    let customFooterContent = null;
+    if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '' && settings.activeFooterId !== 'none') {
+      let f = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
+      if (f) customFooterContent = sanitizeReportText(f.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
+    }
+
+    if (customFooterContent) {
+      return `<!-- Custom User Footer (Full Width Edge-to-Edge 100%, Fixed at Absolute Bottom of Page Canvas) -->
+        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
+          <div style="width:100%; box-sizing:border-box; margin:0; padding:0;">
+            ${customFooterContent}
+          </div>
+        </div>`;
+    }
+
+    if (settings.footerImage) {
+      return `<div style="position:absolute; bottom:0; left:0; right:0; width:100%; text-align:center; border-top:1px solid #cbd5e1; padding:10px 0 15px; background:#ffffff; box-sizing:border-box; z-index:30;">
+        <img src="${settings.footerImage}" style="max-width:100%; max-height:60px; object-fit:contain;" />
       </div>`;
     }
 
-    return `<div style="font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:0px !important; word-spacing:0px !important; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
+    let contactAr = sanitizeReportText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
+    let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
+
+    return `<!-- Professional Footer Banner & Page Numbering (Attached to Page Bottom & Full Width Edge-to-Edge 100%) -->
+      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+        <table style="width:100%; border:none; border-collapse:collapse; background:#ffffff; color:#64748b; padding:8px 16px; margin:0;">
+          <tr>
+            <td style="text-align:right; border:none; padding:10px 18px; font-size:11px; font-weight:600; direction:rtl; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; color:#64748b;">
+              ${contactAr}
+            </td>
+            <td style="text-align:center; border:none; padding:10px 6px; font-size:12px; font-weight:700; font-family:'Arial','Tahoma',sans-serif; white-space:nowrap; color:#0f172a; direction: ltr;">
+              Page ${pageNumber} of ${totalPages}
+            </td>
+            <td style="text-align:left; border:none; padding:10px 18px; font-size:10px; font-weight:500; font-family:'Arial','Tahoma',sans-serif; direction:ltr; color:#94a3b8;">
+              ${contactEn}
+            </td>
+          </tr>
+        </table>
+      </div>`;
+  };
+
+  let baseHeader = function(pageNumber, totalPages) {
+    let customHeaderContent = renderHeaderHtml(pageNumber, totalPages);
+
+    let ths = [];
+    if (settings.exportColumns.date) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">التاريخ</th>`);
+    }
+    if (settings.exportColumns.day) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">اليوم</th>`);
+    }
+    if (settings.exportColumns.checkIn) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الحضور</th>`);
+    }
+    if (settings.exportColumns.checkOut) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الانصراف</th>`);
+    }
+    if (settings.exportColumns.status) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الحالة</th>`);
+    }
+    if (settings.exportColumns.late) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">تأخير</th>`);
+    }
+    if (settings.exportColumns.early) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">مبكر</th>`);
+    }
+    if (settings.exportColumns.overtime) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">إضافي</th>`);
+    }
+    if (settings.exportColumns.absenceType) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">نوع الغياب</th>`);
+    }
+    if (settings.exportColumns.note) {
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">ملاحظات</th>`);
+    }
+
+    if (ths.length > 0) {
+      ths[0] = ths[0].replace(`border:1px solid ${themePri};`, `border:1px solid ${themePri}; border-right:5px solid ${themePri};`);
+    }
+
+    return `<div style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
       ${customHeaderContent}
       
       <!-- Table Body -->
       <div style="padding:15px 40px 80px;">
-        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
           <thead>
-            <tr style="background:${themePri}; color:#ffffff; font-family:'Cairo',sans-serif;">
-              ${settings.exportColumns.date ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; border-right:none; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">التاريخ</th>` : ''}
-              ${settings.exportColumns.day ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">اليوم</th>` : ''}
-              ${settings.exportColumns.checkIn ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الحضور</th>` : ''}
-              ${settings.exportColumns.checkOut ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الانصراف</th>` : ''}
-              ${settings.exportColumns.status ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الحالة</th>` : ''}
-              ${settings.exportColumns.late ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">تأخير</th>` : ''}
-              ${settings.exportColumns.early ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">مبكر</th>` : ''}
-              ${settings.exportColumns.overtime ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">إضافي</th>` : ''}
-              ${settings.exportColumns.absenceType ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">نوع الغياب</th>` : ''}
-              ${settings.exportColumns.note ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:2px solid ${themePri}; border-left:none; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">ملاحظات</th>` : ''}
+            <tr style="background:${themePri}; color:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              ${ths.join('')}
             </tr>
           </thead>
           <tbody>`;
@@ -5410,45 +5895,14 @@ async function buildPDFCanvas(){
 
   let baseFooter = function(pageNumber, totalPages, sumBlockHtml) {
     let sb = sumBlockHtml ? sumBlockHtml : '';
-    if (settings.activeFooterId === 'none') return '</tbody></table>' + sb + '</div></div>';
-    if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '') {
-      let f = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
-      if (f) return '</tbody></table>' + sb + '</div>' + sanitizeReportText(f.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages)) + '</div>';
-    }
-
-    if (settings.footerImage) {
-      return `</tbody></table>${sb}</div>
-        <div style="position:absolute; bottom:15px; left:0; right:0; text-align:center; border-top:1px solid #cbd5e1; padding-top:8px;">
-          <img src="${settings.footerImage}" style="max-width:100%; max-height:50px; object-fit:contain;" />
-        </div>
-      </div>`;
-    }
-
-    let contactAr = sanitizeReportText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
-    let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
+    let footerBanner = renderFooterHtml(pageNumber, totalPages);
 
     return `</tbody></table>${sb}</div>
-      
-      <!-- Professional Footer Banner & Page Numbering -->
-      <div style="position:absolute; bottom:15px; left:40px; right:40px; border-top:1px solid #cbd5e1; padding-top:10px; z-index:10; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-        <table style="width:100%; border:none; border-collapse:collapse; background:#1B3D6D; color:#ffffff; border-radius:6px; padding:6px 12px; margin:0;">
-          <tr>
-            <td style="text-align:right; border:none; padding:8px 14px; font-size:11px; font-weight:600; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-              ${contactAr}
-            </td>
-            <td style="text-align:center; border:none; padding:8px 6px; font-size:12px; font-weight:700; font-family:sans-serif; white-space:nowrap;">
-              Page <span dir="ltr">${pageNumber}</span> of <span dir="ltr">${totalPages}</span>
-            </td>
-            <td style="text-align:left; border:none; padding:8px 14px; font-size:10px; font-weight:500; font-family:sans-serif; direction:ltr;">
-              ${contactEn}
-            </td>
-          </tr>
-        </table>
-      </div>
+      ${footerBanner}
     </div>`;
   };
 
-  let opts = { scale: 1.5, useCORS: true, allowTaint: true, logging: false, width: 1200, windowWidth: 1200, x: 0, y: 0, scrollY: 0, scrollX: 0 };
+  let opts = { scale: 1.0, useCORS: true, allowTaint: true, logging: false, width: 1200, windowWidth: 1200, x: 0, y: 0, scrollY: 0, scrollX: 0 };
   let processCvs = [];
 
   for(let i=0; i<chunks.length; i++) {
@@ -5467,68 +5921,191 @@ async function buildPDFCanvas(){
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
      
      // Minor delay between pages to allow UI thread to breath and avoid "Application hanging"
-     await new Promise(r => setTimeout(r, 80)); 
+     await new Promise(r => setTimeout(r, 5)); 
      
      let h2c = typeof html2canvas !== 'undefined' ? html2canvas : (window.html2canvas || null);
       if(!h2c) return null;
       let cv = await h2c(container, opts);
-     processCvs.push(cv.toDataURL('image/jpeg', 1.0));
+     processCvs.push(cv.toDataURL('image/jpeg', 0.8));
      cv = null; // Free memory immediately
   }
 
-  container.innerHTML = `<div style="font-family:'Cairo',Arial,sans-serif; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; letter-spacing: normal !important; word-spacing: normal !important; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
-    <div style="padding:60px 60px 30px; text-align:center; border-bottom:4px solid ${themePri}; background:#f8fafc; position:relative; letter-spacing: normal !important;">
-      <h1 style="font-size:46px; margin:0; font-weight:900; color:${themePri}; letter-spacing: normal !important; word-spacing: normal !important;">ملخص الإحصائيات والاعتماد النهائي</h1>
-      <div style="font-size:20px; color:#475569; font-weight:bold; margin-top:15px; letter-spacing: normal !important;">الموظف: <span style="color:#0f172a">${settings.name}</span> | تقرير: <span style="color:#0f172a">${repTitle}</span></div>
-    </div>
+  // Last Page: Summary Statistics & Final Approval (Page chunks.length + 1 of chunks.length + 1)
+  let totalPages = chunks.length + 1;
+  let finalPageHeader = renderHeaderHtml(totalPages, totalPages);
+  let finalPageFooter = renderFooterHtml(totalPages, totalPages);
+
+  // Format report title cleanly without duplicating "تقرير"
+  let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
+  let displayRepType = cleanRepTitle || repTitle;
+
+  // Dynamic Signatures block
+  let sigs = settings.signatures || {
+    col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+  };
+
+  let activeCols = [];
+  ['col1', 'col2', 'col3'].forEach(k => {
+    if (sigs[k] && sigs[k].show !== false) {
+      activeCols.push(sigs[k]);
+    }
+  });
+
+  let signaturesHtml = '';
+  if (activeCols.length > 0) {
+    let colWidth = (100 / activeCols.length).toFixed(2) + '%';
+    let headerCells = activeCols.map((col, idx) => {
+      let borderLeft = idx < activeCols.length - 1 ? 'border-left:2px solid #cbd5e1;' : '';
+      return `<td style="width:${colWidth}; text-align:center; padding:12px; font-size:16px; font-weight:800; color:#1e293b; border:none; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; ${borderLeft}">
+        ${esc(col.title)}
+      </td>`;
+    }).join('');
+
+    let bodyCells = activeCols.map((col, idx) => {
+      let borderLeft = idx < activeCols.length - 1 ? 'border-left:2px solid #cbd5e1;' : '';
+      
+      let resolvedValue = col.value1 || '';
+      if (resolvedValue === 'NAME_PLACEHOLDER') {
+        resolvedValue = settings.name || '.......................................';
+      } else if (resolvedValue === 'MANAGER_PLACEHOLDER') {
+        resolvedValue = settings.managerName || '.......................................';
+      }
+      if (!resolvedValue.trim()) {
+        resolvedValue = '.......................................';
+      }
+
+      let sigHtml = col.signatureImage 
+        ? `<div style="text-align: center;"><img src="${col.signatureImage}" style="max-height: 40px; object-fit: contain; margin-top:-5px; margin-bottom:-5px;" /></div>` 
+        : `<span style="color:#94a3b8; font-weight:normal;">.......................................</span>`;
+        
+      return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:20px 24px; ${borderLeft} font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; direction:rtl; letter-spacing:0px !important;">
+        <!-- Field: Name -->
+        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+          <tr>
+            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+              ${esc(col.label1 || 'الاسم:')}
+            </td>
+            <td style="border:none; padding:4px 0; border-bottom:1px dotted #94a3b8; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:8px; letter-spacing:0px !important;">
+              ${esc(resolvedValue)}
+            </td>
+          </tr>
+        </table>
+        <!-- Field: Signature -->
+        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+          <tr>
+            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+              ${esc(col.label2 || 'التوقيع:')}
+            </td>
+            <td style="border:none; padding:4px 0; border-bottom:${col.signatureImage ? 'none' : '1px dotted #94a3b8'}; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; height:24px; position:relative; letter-spacing:0px !important;">
+              ${sigHtml}
+            </td>
+          </tr>
+        </table>
+        <!-- Field: Date -->
+        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:4px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+          <tr>
+            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+              ${esc(col.label3 || 'التاريخ:')}
+            </td>
+            <td style="border:none; padding:4px 0; border-bottom:1px dotted #94a3b8; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:8px; height:24px; letter-spacing:0px !important;">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;2026م
+            </td>
+          </tr>
+        </table>
+      </td>`;
+    }).join('');
+
+    signaturesHtml = `
+    <!-- Final Signatures & Approval Section (Corporate Standard Dynamic-Column) -->
+    <div style="margin-top:35px; border:2px solid #cbd5e1; border-radius:12px; overflow:hidden; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+      <!-- Header Banner matching the grey layout of the corporate report -->
+      <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#f1f5f9; border-bottom:2px solid #cbd5e1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+        <tr>
+          ${headerCells}
+        </tr>
+      </table>
+
+      <!-- Signature Fields with Clean Alignments & Dots -->
+      <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+        <tr>
+          ${bodyCells}
+        </tr>
+      </table>
+    </div>`;
+  }
+
+  container.innerHTML = `<div style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
+    ${finalPageHeader}
     
-    <div style="padding:80px 60px;">
-      <div style="border:3px solid ${themePri}; border-radius:24px; padding:60px; background:#f8fafc; position:relative; letter-spacing: normal !important;">
-          <div style="position:absolute; top:-30px; right:50px; background:${themePri}; color:white; padding:10px 40px; font-size:24px; font-weight:900; border-radius:30px; letter-spacing: normal !important;">ملخص جميع الفترات</div>
-          <div style="display:flex; flex-wrap:wrap; gap:40px; justify-content:center; margin-top:30px; font-feature-settings:'tnum'; letter-spacing: normal !important;">
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:${themePri}; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.p}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي أيام الحضور</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#dc2626; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.a}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي أيام الغياب</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#d97706; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.l}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">أيام التأخير</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#d97706; margin-bottom:15px;" lang="en" dir="ltr">${totalLateDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي ساعات التأخير</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#dc2626; margin-bottom:15px;" lang="en" dir="ltr">${totalEarlyDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">ساعات الخروج المبكر</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#059669; margin-bottom:15px;" lang="en" dir="ltr">${totalExtraDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي وقت العمل الإضافي</div>
-              </div>
-          </div>
+    <div style="padding:10px 40px 0 40px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+      <!-- Title Section with elegant dual-line border -->
+      <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+        <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
+        <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+          <span style="display:inline-block; margin:0 8px;">الموظف:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${settings.name || '-'}</b></span>
+          <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
+          <span style="display:inline-block; margin:0 8px;">نوع التقرير:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${displayRepType}</b></span>
+          <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
+          <span style="display:inline-block; margin:0 8px;">الفترة:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${periodLabel}</b></span>
+        </div>
       </div>
       
-      <div style="display:flex; justify-content:space-around; margin-top:150px; font-weight:bold; font-size:22px; color:#475569;">
-          <div style="width:300px; text-align:center;"><div style="border-bottom:3px solid #334155; margin-bottom:20px; height:60px;"></div>المدير المباشر / الإدارة</div>
-          <div style="width:300px; text-align:center;"><div style="border-bottom:3px solid #334155; margin-bottom:20px; height:60px;"></div>توقيع الموظف</div>
+      <!-- Stats Container (3 Columns x 2 Rows) -->
+      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:24px 20px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+        <table style="width:100%; border:none; border-collapse:separate; border-spacing:16px; margin:0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+          <tr>
+            <!-- Stat 1: Present Days -->
+            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الحضور</div>
+              <div style="font-size:42px; font-weight:900; color:#16a34a; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.p}</div>
+              <div style="font-size:13px; font-weight:700; color:#15803d; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم عمل</div>
+            </td>
+            <!-- Stat 2: Absence Days -->
+            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الغياب</div>
+              <div style="font-size:42px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.a}</div>
+              <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم غياب</div>
+            </td>
+            <!-- Stat 3: Late Days -->
+            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">أيام التأخير</div>
+              <div style="font-size:42px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.l}</div>
+              <div style="font-size:13px; font-weight:700; color:#b45309; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم به تأخير</div>
+            </td>
+          </tr>
+          <tr>
+            <!-- Stat 4: Total Late Hours -->
+            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي ساعات التأخير</div>
+              <div style="font-size:38px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalLateDec}</div>
+              <div style="font-size:13px; font-weight:700; color:#b45309; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+            <!-- Stat 5: Early Leave Hours -->
+            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعات الخروج المبكر</div>
+              <div style="font-size:38px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalEarlyDec}</div>
+              <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+            <!-- Stat 6: Overtime -->
+            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي العمل الإضافي</div>
+              <div style="font-size:38px; font-weight:900; color:#059669; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalExtraDec}</div>
+              <div style="font-size:13px; font-weight:700; color:#15803d; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+          </tr>
+        </table>
       </div>
+      
+      ${signaturesHtml}
     </div>
     
-    <!-- Footer Page Numbering -->
-    <div style="position:absolute; bottom:40px; left:0; right:0; text-align:center; font-feature-settings:'tnum'; z-index:10;">
-       <div style="display:inline-block; padding:10px 30px; background:#ffffff; box-shadow:0 0 15px rgba(0,0,0,0.05); color:#475569; font-weight:900; font-size:16px; border-radius:30px; border:1px solid #e2e8f0;">
-          صفحة <span lang="en" dir="ltr" style="color:${themePri};">${chunks.length + 1}</span> من <span lang="en" dir="ltr">${chunks.length + 1}</span>
-       </div>
-    </div>
+    ${finalPageFooter}
   </div>`;
 
   let cvFinal = await html2canvas(container, opts);
-  processCvs.push(cvFinal.toDataURL('image/jpeg', 1.0));
+  processCvs.push(cvFinal.toDataURL('image/jpeg', 0.8));
   cvFinal = null;
   
   pdfCanvasesCache = processCvs;
@@ -5648,52 +6225,103 @@ window.exeExpDownload=function(){
     let finalLocation = "";
 
     try {
-      let nowForBackup=new Date();
-      let bkName=`backup_${nowForBackup.toISOString().replace(/[:.]/g,'-').slice(0,19)}.json`;
-      let bkData=JSON.stringify({S:settings,R: await RECDB.getAll(),d:nowForBackup.toISOString()});
+      let isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform);
       
-      if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
+      // Automatic backup if running on native device
+      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+        try {
+          let nowForBackup = new Date();
+          let bkName = `backup_${nowForBackup.toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
+          let bkData = JSON.stringify({ S: settings, R: await RECDB.getAll(), d: nowForBackup.toISOString() });
           await requestStoragePermission();
-          await ensureDir(BACKUP_FOLDER,`DOCUMENTS`);
-          let bkPath=await uniqueFilePath(`${BACKUP_FOLDER}/${bkName}`,`DOCUMENTS`);
-          await window.Capacitor.Plugins.Filesystem.writeFile({path:bkPath,data:bkData,directory:`DOCUMENTS`,encoding:`utf8`,recursive:true});
+          await ensureDir(BACKUP_FOLDER, `DOCUMENTS`);
+          let bkPath = await uniqueFilePath(`${BACKUP_FOLDER}/${bkName}`, `DOCUMENTS`);
+          await window.Capacitor.Plugins.Filesystem.writeFile({ path: bkPath, data: bkData, directory: `DOCUMENTS`, encoding: `utf8`, recursive: true });
+        } catch(bkErr) {
+          console.warn('Native backup on export warning:', bkErr);
+        }
       }
 
-      if(window.showSaveFilePicker && (!window.Capacitor || !window.Capacitor.isNativePlatform)){
-        let handle = await window.showSaveFilePicker({
+      let saved = false;
+
+      // 1. If Native Android / Capacitor
+      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+        try {
+          await ensureDir(APP_FOLDER, `DOCUMENTS`);
+          let safeName = name.replace(/[\\/:*?"<>|]/g, `_`);
+          let basePath = `${APP_FOLDER}/${safeName}.pdf`;
+          let finalPath = await uniqueFilePath(basePath, `DOCUMENTS`);
+          let b64 = await blobToBase64(blob);
+          await window.Capacitor.Plugins.Filesystem.writeFile({ path: finalPath, data: b64, directory: `DOCUMENTS`, recursive: true });
+          finalLocation = `مجلد التخزين الداخلي / Documents / ${finalPath}`;
+          saved = true;
+        } catch(capErr) {
+          console.warn('Native PDF file write error, falling back to download:', capErr);
+        }
+      }
+
+      // 2. Check if running inside iframe / subframe (cross-origin frames reject showSaveFilePicker)
+      let isInIframe = false;
+      try {
+        isInIframe = window.self !== window.top;
+      } catch (e) {
+        isInIframe = true;
+      }
+
+      if (!saved && !isInIframe && typeof window.showSaveFilePicker === 'function') {
+        try {
+          let handle = await window.showSaveFilePicker({
             suggestedName: `${name}.pdf`,
-            types: [{description: 'PDF Document', accept: {'application/pdf': ['.pdf']}}]
-        });
-        let writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        finalLocation = "جهاز الكمبيوتر / التنزيلات (حسب المكان الذي اخترته)";
-      } else if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
-        await ensureDir(APP_FOLDER,`DOCUMENTS`);
-        let safeName=name.replace(/[\\/:*?"<>|]/g,`_`);
-        let basePath=`${APP_FOLDER}/${safeName}.pdf`;
-        let finalPath=await uniqueFilePath(basePath,`DOCUMENTS`);
-        let b64=await blobToBase64(blob);
-        await window.Capacitor.Plugins.Filesystem.writeFile({path:finalPath,data:b64,directory:`DOCUMENTS`,recursive:true});
-        finalLocation = `مجلد التخزين الداخلي / Documents / ${finalPath}`;
-      } else {
-        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
+            types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
+          });
+          let writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          finalLocation = "جهاز الكمبيوتر / التنزيلات (حسب المكان الذي اخترته)";
+          saved = true;
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            toast(`تم إلغاء الحفظ`, `err`);
+            if (btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+            return;
+          }
+          console.warn('showSaveFilePicker fallback to standard download:', pickerErr.message || pickerErr);
+        }
+      }
+
+      // 3. Browser direct download fallback (standard for iframe & web)
+      if (!saved) {
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement(`a`);
+        a.href = url;
+        a.download = `${name}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
         finalLocation = "مجلد التنزيلات الخاص بمتصفحك";
       }
-      
+
       window.showExportSuccess(finalLocation);
 
     } catch(err){
-      console.error(`Export/Backup error:`,err);
-      if(err.name === 'SecurityError' || (err.message && err.message.includes('gesture'))) {
-         let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-         a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-         window.showExportSuccess("تم تنزيل الملف أوتوماتيكياً (تجاوزاً لتقييد المتصفح)");
-      } else if(err.name !== 'AbortError') {
-        toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل العملية: `+(err.message||err),`err`);
+      console.warn(`Export error:`, err);
+      if (err.name !== 'AbortError') {
+        try {
+          let url = URL.createObjectURL(blob);
+          let a = document.createElement(`a`);
+          a.href = url;
+          a.download = `${name}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1500);
+          window.showExportSuccess("مجلد التنزيلات الخاص بمتصفحك");
+        } catch (e) {
+          toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل العملية: ` + (err.message || err), `err`);
+        }
       } else {
-        toast(`تم إلغاء الحفظ`,`err`);
+        toast(`تم إلغاء الحفظ`, `err`);
       }
     }
     
@@ -5703,16 +6331,19 @@ window.exeExpDownload=function(){
 
 function getPlainTextHeader(repTitle, periodLabel) {
   if (settings.activeHeaderId === 'none') return '';
+  let defaultText = `${repTitle} - الموظف: ${settings.name} - الفترة: ${periodLabel}`;
   if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '') {
-    let h = (settings.reportHeaders || []).find(x => x.id === settings.activeHeaderId);
-    if (h) return h.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    let h = getReportHeaderById(settings.activeHeaderId);
+    if (h) {
+      let customTxt = h.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return customTxt ? `${customTxt} | ${defaultText}` : defaultText;
+    }
   }
-  return `${repTitle} - الموظف: ${settings.name} - الفترة: ${periodLabel}`;
+  return defaultText;
 }
 
 function getPlainTextFooter() {
-  if (settings.activeFooterId === 'none') return '';
-  if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '') {
+  if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '' && settings.activeFooterId !== 'none') {
     let f = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
     if (f) return f.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
@@ -5907,27 +6538,37 @@ window.exeExpShare=function(){
         dialogTitle:`مشاركة التقرير`
       });
     } catch(err){
-      console.error(`Share PDF error:`,err);
-      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+      if(err.name !== 'AbortError') {
+        console.warn(`Share PDF error:`,err);
+        toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+      }
     }
   } else {
-    try{
-      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : blob;
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({title:`تقرير الحضور`,files:[file]});
-      } else {
+    try {
+      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : null;
+      let shared = false;
+      if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        try {
+          await navigator.share({title:`تقرير الحضور`,files:[file]});
+          shared = true;
+        } catch(shareErr) {
+          if (shareErr.name === 'AbortError') {
+            shared = true; // User intentionally dismissed native share dialog
+          } else {
+            console.warn('Web share restricted or gesture expired, falling back to direct download:', shareErr.message || shareErr);
+          }
+        }
+      }
+      if (!shared) {
         let url=URL.createObjectURL(blob),a=document.createElement(`a`);
         a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-        toast(`تم التحميل (تطبيق المشاركة غير مدعوم محلياً)`,`ok`);
+        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
       }
-    } catch(err){
-      console.error(`Web Share PDF error:`,err);
-      if(err.name === 'NotAllowedError' || err.message.includes('gesture')) {
-          let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-          a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-          toast(`تم تنزيل الملف أوتوماتيكياً نظراً لقيود المتصفح الأمنية للنافذة`,`ok`);
-      } else if (err.name !== 'AbortError') {
-          toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+    } catch(err) {
+      if (err.name !== 'AbortError') {
+        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
+        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
+        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
       }
     }
   }
@@ -6014,11 +6655,32 @@ async function scheduleAllNotifications(silent = false){
             iconColor: '#1d4ed8',
             sound: null,
             importance: 4,
-            visibility: 1
+            visibility: 1,
+            actionTypeId: 'ATTENDANCE_ACTIONS'
           }]
         });
       } catch(e) { console.error(`Error scheduling day ${day}:`, e); }
     }
+
+    // Register action types for interactive notifications
+    try {
+      await LN.registerActionTypes({
+        types: [{
+          id: 'ATTENDANCE_ACTIONS',
+          actions: [
+            { id: 'checkInAction', title: 'بصمة دخول', foreground: true },
+            { id: 'checkOutAction', title: 'بصمة خروج', foreground: true }
+          ]
+        }]
+      });
+      LN.addListener('actionPerformed', async (action) => {
+        if (action.actionId === 'checkInAction') {
+          await window.doCheckIn();
+        } else if (action.actionId === 'checkOutAction') {
+          await window.doCheckOut();
+        }
+      });
+    } catch (e) { console.warn('Action registration error:', e); }
 
     if(!silent) toast(`<i class="fa-solid fa-check ml-1"></i> تم تفعيل التنبيهات بنجاح`,`ok`);
   } catch(err) {
@@ -6109,26 +6771,493 @@ async function checkXiaomiBatterySettings() {
 }
 
 
-// ── About modal ───────────────────────────────────────────
-window.openAboutM=function(){let el=document.getElementById(`aboutM`);if(el){el.classList.remove(`hidden`);el.style.display=`flex`;}};
-window.closeAboutM=function(){let el=document.getElementById(`aboutM`);if(el){el.classList.add(`hidden`);el.style.display=`none`;}};
-window.openLogoViewer=function(){
-  let el=document.getElementById(`logoViewerM`);
-  if(el){
-    el.classList.remove(`hidden`);
-    el.classList.add(`flex`);
-    setTimeout(() => { el.style.opacity = '1'; }, 10);
+// ── About Modal & Abu Aghyad Digital Signature System ────
+window.APP_INFO = {
+  get appName() {
+    return document.title || 'سجل الحضور الشخصي';
+  },
+  get version() {
+    return '1.2.0';
+  },
+  description: 'نظام احترافي متكامل لإدارة وتنظيم ومتابعة عمليات الحضور والبيانات بكفاءة تقنية فائقة.'
+};
+
+const FP_STATE = {
+  IDLE: 'IDLE',
+  DETECTING: 'DETECTING',
+  SCANNING: 'SCANNING',
+  ANALYZING: 'ANALYZING',
+  VERIFYING: 'VERIFYING',
+  SUCCESS: 'SUCCESS',
+  FAILURE: 'FAILURE',
+  WARNING: 'WARNING'
+};
+
+let currentFpState = FP_STATE.IDLE;
+let fpTapCount = 0;
+let fpTapTimer = null;
+let fpActiveTimers = [];
+
+function clearFpTimers() {
+  fpActiveTimers.forEach(t => clearTimeout(t));
+  fpActiveTimers = [];
+}
+
+window.handleAboutCloseBtn = function() {
+  if (currentFpState === FP_STATE.IDLE || currentFpState === FP_STATE.SUCCESS) {
+    closeAboutM();
+  } else {
+    // Attempting to close while locked/scanning
+    playSignatureSound('warning');
+    triggerHaptic('warning');
+    const closeBtn = document.getElementById('aboutMCloseBtn');
+    const closeIcon = document.getElementById('aboutMCloseIcon');
+    if (closeBtn) {
+      closeBtn.classList.add('animate-shake');
+      setTimeout(() => closeBtn.classList.remove('animate-shake'), 400);
+    }
+    if (closeIcon) {
+      closeIcon.style.color = '#EF4444';
+      setTimeout(() => { closeIcon.style.color = 'var(--c-text-2)'; }, 500);
+    }
   }
 };
-window.closeLogoViewer=function(){
-  let el=document.getElementById(`logoViewerM`);
-  if(el){
-    el.style.opacity = '0';
-    setTimeout(() => {
-      el.classList.add(`hidden`);
-      el.classList.remove(`flex`);
-    }, 700);
+
+function morphTopButton(target) {
+  const btn = document.getElementById('aboutMCloseBtn');
+  const icon = document.getElementById('aboutMCloseIcon');
+  if (!btn || !icon) return;
+
+  icon.style.transform = 'scale(0) rotate(180deg)';
+  
+  setTimeout(() => {
+    if (target === 'lock') {
+      icon.className = 'fa-solid fa-lock text-xs text-amber-500 transition-all duration-300';
+      btn.style.borderColor = 'rgba(201, 162, 39, 0.5)';
+      btn.style.boxShadow = '0 0 12px rgba(201, 162, 39, 0.2)';
+    } else if (target === 'unlock') {
+      icon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-all duration-300';
+      btn.style.borderColor = '#C9A227';
+      btn.style.boxShadow = '0 0 15px rgba(201, 162, 39, 0.4)';
+    } else if (target === 'close') {
+      icon.className = 'fa-solid fa-xmark text-sm transition-all duration-300';
+      btn.style.borderColor = 'var(--c-border)';
+      btn.style.boxShadow = 'none';
+    }
+    icon.style.transform = 'scale(1) rotate(0deg)';
+  }, 150);
+}
+
+function updateFpProgress(percent) {
+  const circle = document.getElementById('fpProgressCircle');
+  if (!circle) return;
+  const circumference = 301.6;
+  const offset = circumference * (1 - percent / 100);
+  circle.style.strokeDashoffset = offset;
+}
+
+window.handleFingerprintTap = function() {
+  if (currentFpState !== FP_STATE.IDLE) return;
+  fpTapCount++;
+  
+  if (fpTapTimer) clearTimeout(fpTapTimer);
+  
+  fpTapTimer = setTimeout(() => {
+    if (fpTapCount === 1) {
+      triggerSingleTapSignature();
+    } else if (fpTapCount === 2) {
+      triggerDoubleTapSignature();
+    } else if (fpTapCount >= 3) {
+      triggerTripleTapSignature();
+    }
+    fpTapCount = 0;
+    fpTapTimer = null;
+  }, 280);
+};
+
+function playSignatureSound(type) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    
+    if (type === 'start') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(500, now);
+      osc.frequency.exponentialRampToValueAtTime(900, now + 0.12);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else if (type === 'scan') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(750, now);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } else if (type === 'analyze') {
+      [600, 900].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const t = now + idx * 0.08;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.05, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.15);
+      });
+    } else if (type === 'success') {
+      [659.25, 880, 1046.5].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const t = now + idx * 0.1;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.07, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.35);
+      });
+    } else if (type === 'warning' || type === 'failure') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.setValueAtTime(180, now + 0.1);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (type === 'double' || type === 'triple') {
+      [440, 880, 1320].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const t = now + idx * 0.08;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.06, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      });
+    }
+  } catch (e) {
+    console.warn('Sound signature:', e);
   }
+}
+
+function triggerHaptic(type) {
+  try {
+    if (!navigator || !navigator.vibrate) return;
+    if (type === 'start') navigator.vibrate([25]);
+    else if (type === 'scan') navigator.vibrate([10]);
+    else if (type === 'success') navigator.vibrate([25, 40, 25]);
+    else if (type === 'warning' || type === 'failure') navigator.vibrate([40, 60, 40]);
+    else if (type === 'double') navigator.vibrate([20, 40, 20]);
+    else if (type === 'triple') navigator.vibrate([15, 30, 15, 30, 40]);
+  } catch(e) {}
+}
+
+function triggerSingleTapSignature() {
+  clearFpTimers();
+  currentFpState = FP_STATE.DETECTING;
+  
+  playSignatureSound('start');
+  triggerHaptic('start');
+  morphTopButton('lock');
+  
+  const circle = document.getElementById('fpCircleContainer');
+  const scanLine = document.getElementById('fpScanLine');
+  const lockIcon = document.getElementById('fpLockIcon');
+  const statusEl = document.getElementById('fpStatusText');
+  const sigEl = document.getElementById('fpDevSignature');
+  const ring = document.getElementById('fpRing');
+  
+  if (circle) {
+    circle.style.transform = 'scale(0.96)';
+    circle.style.boxShadow = '0 0 20px rgba(201, 162, 39, 0.4)';
+  }
+  if (ring) ring.style.borderColor = 'rgba(201, 162, 39, 0.8)';
+  if (statusEl) {
+    statusEl.innerHTML = `<span class="text-amber-500 font-bold">● DETECTING FINGERPRINT... • جاري الكشف</span>`;
+  }
+  updateFpProgress(15);
+  
+  // Phase 1: SCANNING (Progress 15% -> 85%)
+  const t1 = setTimeout(() => {
+    currentFpState = FP_STATE.SCANNING;
+    playSignatureSound('scan');
+    triggerHaptic('scan');
+    
+    if (circle) circle.style.transform = 'scale(1)';
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-amber-500 font-bold">◉ SCANNING... 45% • جاري المسح</span>`;
+    }
+    updateFpProgress(45);
+    
+    if (scanLine) {
+      scanLine.style.opacity = '1';
+      scanLine.style.top = '0%';
+      scanLine.style.transition = 'top 0.7s cubic-bezier(0.4, 0, 0.2, 1)';
+      setTimeout(() => { scanLine.style.top = '100%'; }, 20);
+    }
+  }, 250);
+  fpActiveTimers.push(t1);
+
+  // Phase 2: ANALYZING & VERIFYING (Progress 85% -> 100%)
+  const t2 = setTimeout(() => {
+    currentFpState = FP_STATE.ANALYZING;
+    playSignatureSound('analyze');
+    updateFpProgress(85);
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold">✓ PATTERN ANALYZED • تم تحليل البصمة</span>`;
+    }
+  }, 950);
+  fpActiveTimers.push(t2);
+
+  const t3 = setTimeout(() => {
+    currentFpState = FP_STATE.VERIFYING;
+    updateFpProgress(100);
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold">◉ VERIFYING IDENTITY... • جاري التحقق</span>`;
+    }
+  }, 1400);
+  fpActiveTimers.push(t3);
+
+  // Phase 3: SUCCESS & UNLOCK
+  const t4 = setTimeout(() => {
+    currentFpState = FP_STATE.SUCCESS;
+    playSignatureSound('success');
+    triggerHaptic('success');
+    
+    if (scanLine) scanLine.style.opacity = '0';
+    if (lockIcon) {
+      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+    }
+    morphTopButton('unlock');
+    
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-circle-check text-xs"></i> IDENTITY VERIFIED • تم التحقق</span>`;
+    }
+    if (sigEl) {
+      sigEl.style.color = '#C9A227';
+      sigEl.style.opacity = '1';
+      sigEl.style.transform = 'scale(1.06)';
+      sigEl.style.textShadow = '0 0 20px rgba(201, 162, 39, 0.85)';
+    }
+  }, 1900);
+  fpActiveTimers.push(t4);
+  
+  // Phase 4: Restore Close Button (X)
+  const t5 = setTimeout(() => {
+    morphTopButton('close');
+  }, 2600);
+  fpActiveTimers.push(t5);
+}
+
+function triggerDoubleTapSignature() {
+  clearFpTimers();
+  currentFpState = FP_STATE.DETECTING;
+  
+  playSignatureSound('double');
+  triggerHaptic('double');
+  morphTopButton('lock');
+  
+  const circle = document.getElementById('fpCircleContainer');
+  const lockIcon = document.getElementById('fpLockIcon');
+  const statusEl = document.getElementById('fpStatusText');
+  const sigEl = document.getElementById('fpDevSignature');
+  const icon = document.getElementById('fpIcon');
+  
+  if (circle) {
+    circle.style.transform = 'scale(1.08)';
+    circle.style.boxShadow = '0 0 30px rgba(201, 162, 39, 0.5)';
+  }
+  if (icon) icon.style.transform = 'rotate(180deg)';
+  if (statusEl) {
+    statusEl.innerHTML = `<span class="text-amber-500 font-bold">◉ ANALYZING UNLOCK... • تحليل الإلغاء</span>`;
+  }
+  updateFpProgress(60);
+  
+  const t1 = setTimeout(() => {
+    currentFpState = FP_STATE.SUCCESS;
+    updateFpProgress(100);
+    if (circle) circle.style.transform = 'scale(1)';
+    if (icon) icon.style.transform = 'rotate(360deg)';
+    if (lockIcon) {
+      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+    }
+    morphTopButton('unlock');
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-lock-open text-xs"></i> IDENTITY UNLOCKED • تم فتح الهوية</span>`;
+    }
+    if (sigEl) {
+      sigEl.style.color = '#C9A227';
+      sigEl.style.opacity = '1';
+      sigEl.style.transform = 'scale(1.06)';
+      sigEl.style.textShadow = '0 0 20px rgba(201, 162, 39, 0.85)';
+    }
+  }, 600);
+  fpActiveTimers.push(t1);
+  
+  const t2 = setTimeout(() => {
+    morphTopButton('close');
+  }, 1600);
+  fpActiveTimers.push(t2);
+}
+
+function triggerTripleTapSignature() {
+  clearFpTimers();
+  currentFpState = FP_STATE.DETECTING;
+  
+  playSignatureSound('triple');
+  triggerHaptic('triple');
+  morphTopButton('lock');
+  
+  const orbitRing = document.getElementById('fpOrbitRing');
+  const lockIcon = document.getElementById('fpLockIcon');
+  const statusEl = document.getElementById('fpStatusText');
+  const sigEl = document.getElementById('fpDevSignature');
+  const icon = document.getElementById('fpIcon');
+  
+  if (orbitRing) {
+    orbitRing.style.borderColor = 'rgba(201, 162, 39, 0.8)';
+    orbitRing.style.transform = 'rotate(720deg) scale(1.35)';
+  }
+  if (icon) icon.style.transform = 'scale(1.3) rotate(360deg)';
+  if (statusEl) {
+    statusEl.innerHTML = `<span class="text-amber-500 font-bold">◉ DEEP BIOMETRIC SCAN...</span>`;
+  }
+  updateFpProgress(75);
+  
+  const t1 = setTimeout(() => {
+    currentFpState = FP_STATE.SUCCESS;
+    updateFpProgress(100);
+    if (lockIcon) {
+      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+    }
+    morphTopButton('unlock');
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-sparkles text-xs"></i> Aᵦᵤ AɢʰᵧₐD DIGITAL SIGNATURE</span>`;
+    }
+    if (sigEl) {
+      sigEl.style.color = '#C9A227';
+      sigEl.style.opacity = '1';
+      sigEl.style.transform = 'scale(1.08)';
+      sigEl.style.textShadow = '0 0 25px rgba(201, 162, 39, 1)';
+    }
+  }, 800);
+  fpActiveTimers.push(t1);
+
+  const t2 = setTimeout(() => {
+    morphTopButton('close');
+  }, 1800);
+  fpActiveTimers.push(t2);
+}
+
+window.resetSignatureState = function() {
+  clearFpTimers();
+  currentFpState = FP_STATE.IDLE;
+  
+  const circle = document.getElementById('fpCircleContainer');
+  const scanLine = document.getElementById('fpScanLine');
+  const lockIcon = document.getElementById('fpLockIcon');
+  const statusEl = document.getElementById('fpStatusText');
+  const sigEl = document.getElementById('fpDevSignature');
+  const ring = document.getElementById('fpRing');
+  const orbitRing = document.getElementById('fpOrbitRing');
+  const icon = document.getElementById('fpIcon');
+  
+  updateFpProgress(0);
+  morphTopButton('close');
+  
+  if (circle) {
+    circle.style.transform = 'none';
+    circle.style.boxShadow = '';
+  }
+  if (scanLine) scanLine.style.opacity = '0';
+  if (lockIcon) {
+    lockIcon.className = 'fa-solid fa-lock text-xs text-amber-500 transition-transform duration-300';
+  }
+  if (statusEl) {
+    statusEl.innerHTML = 'LOCKED • مقفل';
+  }
+  if (sigEl) {
+    sigEl.style.color = 'var(--c-text-2)';
+    sigEl.style.opacity = '0.8';
+    sigEl.style.transform = 'none';
+    sigEl.style.textShadow = 'none';
+  }
+  if (ring) ring.style.borderColor = 'rgba(201, 162, 39, 0.2)';
+  if (orbitRing) {
+    orbitRing.style.borderColor = 'transparent';
+    orbitRing.style.transform = 'none';
+  }
+  if (icon) icon.style.transform = 'none';
+};
+
+window.openAboutM = function() {
+  const el = document.getElementById('aboutM');
+  const contentEl = document.getElementById('aboutMContent');
+  if (!el) return;
+  
+  const nameEl = document.getElementById('aboutAppName');
+  if (nameEl) nameEl.textContent = window.APP_INFO.appName;
+  
+  const verEl = document.getElementById('aboutAppVersion');
+  if (verEl) verEl.textContent = 'الإصدار ' + window.APP_INFO.version;
+  
+  const descEl = document.getElementById('aboutAppDesc');
+  if (descEl) descEl.textContent = '"' + window.APP_INFO.description + '"';
+  
+  window.resetSignatureState();
+  
+  el.classList.remove('hidden');
+  el.style.display = 'flex';
+  
+  setTimeout(() => {
+    el.style.opacity = '1';
+    if (contentEl) {
+      contentEl.style.transform = 'scale(1)';
+    }
+  }, 10);
+};
+
+window.closeAboutM = function() {
+  const el = document.getElementById('aboutM');
+  const contentEl = document.getElementById('aboutMContent');
+  if (!el) return;
+  
+  if (contentEl) {
+    contentEl.style.transform = 'scale(0.95)';
+  }
+  el.style.opacity = '0';
+  
+  setTimeout(() => {
+    el.classList.add('hidden');
+    el.style.display = 'none';
+    window.resetSignatureState();
+  }, 300);
 };
 
 // ── Welcome screen ────────────────────────────────────────
@@ -6507,3 +7636,172 @@ try {
     });
   }
 } catch(e) {}
+window.generateFakeYearData = function() {
+  showConfirmDialog(
+    "توليد سجلات وهمية (سنة كاملة)",
+    "هل أنت متأكد من توليد سجلات وهمية لمدة سنة كاملة (365 يوم)؟ سيتم دمجها مع السجلات الحالية.",
+    "توليد البيانات",
+    "bg-emerald-600 hover:bg-emerald-700 text-white",
+    async () => {
+      toast("جاري توليد البيانات...", "info");
+      
+      // Starting from Jan 1st of current year to Dec 31st
+      let y = new Date().getFullYear();
+      let startD = new Date(y, 0, 1);
+      let endD = new Date(y, 11, 31);
+      
+      let recs = [];
+      let d = new Date(startD);
+      while(d <= endD) {
+        let dayNum = d.getDay();
+        let isWeekend = (dayNum === 5 || dayNum === 6); // Fri, Sat
+        
+        // YYYY/MM/DD using slash format (app default)
+        let dateStr = d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+        
+        // Meta fields
+        let yr = String(d.getFullYear());
+        let ym = yr + '-' + String(d.getMonth()+1).padStart(2,'0');
+
+        if (isWeekend) {
+          recs.push({
+            id: 'fake_' + Date.now() + Math.random(),
+            date: dateStr,
+            status: 'إجازة أسبوعية',
+            color: '#94a3b8',
+            yr: yr,
+            ym: ym
+          });
+        } else {
+          // 90% present, 5% absent, 5% late
+          let rand = Math.random();
+          if(rand < 0.85) {
+            // Present
+            recs.push({
+              id: 'fake_' + Date.now() + Math.random(),
+              date: dateStr,
+              status: 'present',
+              checkIn: '08:00',
+              checkOut: '16:00',
+              yr: yr,
+              ym: ym
+            });
+          } else if (rand < 0.90) {
+            // Late
+            recs.push({
+              id: 'fake_' + Date.now() + Math.random(),
+              date: dateStr,
+              status: 'present',
+              checkIn: '08:30',
+              checkOut: '16:00',
+              yr: yr,
+              ym: ym
+            });
+          } else if (rand < 0.95) {
+            // Overtime
+            recs.push({
+              id: 'fake_' + Date.now() + Math.random(),
+              date: dateStr,
+              status: 'present',
+              checkIn: '08:00',
+              checkOut: '18:00',
+              yr: yr,
+              ym: ym
+            });
+          } else {
+            // Absent
+            recs.push({
+              id: 'fake_' + Date.now() + Math.random(),
+              date: dateStr,
+              status: 'absent',
+              absenceType: 'بدون عذر',
+              yr: yr,
+              ym: ym
+            });
+          }
+        }
+        
+        d.setDate(d.getDate() + 1);
+      }
+      
+      // Add to DB using RECDB
+      try {
+         await RECDB.putAll(recs);
+         toast("تم توليد بيانات سنة كاملة بنجاح", "ok");
+         
+         // Update cache if current month
+         let nowD = new Date();
+         _monthCache = await RECDB.getMonth(nowD.getFullYear(), nowD.getMonth());
+         _monthCacheKey = `${nowD.getFullYear()}-${nowD.getMonth()}`;
+         
+         if(typeof renderRecords === 'function') renderRecords();
+         if(typeof renderHome === 'function') renderHome();
+      } catch(err) {
+         console.error(err);
+         toast("حدث خطأ أثناء التوليد", "err");
+      }
+    }
+  );
+};
+window.saveVoiceSettings = function() {
+  let el = document.getElementById('voiceFeedbackIn');
+  if (el) {
+    settings.voiceFeedback = el.value;
+    saveSettings();
+    toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعداد الصوت`, 'ok');
+  }
+};
+window.playActionVoice = function(type) {
+  // Always play the beep first if setting is not "none"
+  let voiceSetting = settings.voiceFeedback || 'female';
+  if (voiceSetting === 'none') return;
+  
+  // Play Fingerprint beep
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    }
+  } catch(e) {}
+  
+  // Text to speech
+  if ('speechSynthesis' in window) {
+    let text = type === 'in' ? "تَمَّ بَصْمَةُ الدُّخُول" : "تَمَّ بَصْمَةُ الْخُرُوج";
+    let msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'ar-SA';
+    // Modify pitch based on gender
+    if (voiceSetting === 'male') {
+      msg.pitch = 0.6;
+      msg.rate = 0.9;
+    } else {
+      msg.pitch = 1.3;
+      msg.rate = 1.0;
+    }
+    
+    // Optional: Try to find a matching voice if possible
+    let voices = window.speechSynthesis.getVoices();
+    if(voices.length > 0) {
+       // Just a best effort to find an Arabic voice, browser might not support gender specific
+       let arVoices = voices.filter(v => v.lang.startsWith('ar'));
+       if(arVoices.length > 0) msg.voice = arVoices[0];
+    }
+    
+    window.speechSynthesis.speak(msg);
+  }
+};
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}

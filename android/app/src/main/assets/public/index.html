@@ -35,7 +35,7 @@
       }
     };
   </script>
-  <script src="./assets/clean_app_source.js"></script>
+  <script src="./assets/clean_app_source.js?v=2.0.2"></script>
 
 <style>
     /* ══════════════════════════════════════════════
@@ -442,65 +442,69 @@
       background: rgba(0, 0, 0, 0.015);
     }
 
-    /* ── Status Colors for Records (Premium Look) ── */
+    /* ── Status Colors for Records (Premium Look & RTL Safe) ── */
     .table-modern tr.tr-present {
       background: var(--stat-present-bg);
-      border-left: 4px solid var(--stat-present-text);
+      border-inline-start: 4px solid var(--stat-present-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-absent {
       background: var(--stat-absent-bg);
-      border-left: 4px solid var(--stat-absent-text);
+      border-inline-start: 4px solid var(--stat-absent-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-late {
       background: var(--stat-late-bg);
-      border-left: 4px solid var(--stat-late-text);
+      border-inline-start: 4px solid var(--stat-late-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-custom {
       background: var(--stat-custom-bg);
-      border-left: 4px solid var(--stat-custom-text);
+      border-inline-start: 4px solid var(--stat-custom-text);
+      border-inline-end: none;
     }
 
     .table-modern tr.tr-holiday {
       background: var(--c-info-bg);
-      border-left: 4px solid var(--c-info);
+      border-inline-start: 4px solid var(--c-info);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr {
-      border-left-width: 0;
       border-bottom: 1px solid var(--c-border);
     }
 
     html.dark .table-modern tr.tr-present {
       background: rgba(52, 211, 153, 0.08);
-      border-right: 4px solid var(--stat-present-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-present-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-absent {
       background: rgba(248, 113, 113, 0.08);
-      border-right: 4px solid var(--stat-absent-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-absent-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-late {
       background: rgba(251, 191, 36, 0.08);
-      border-right: 4px solid var(--stat-late-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-late-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-custom {
       background: rgba(96, 165, 250, 0.08);
-      border-right: 4px solid var(--stat-custom-text);
-      border-left: none;
+      border-inline-start: 4px solid var(--stat-custom-text);
+      border-inline-end: none;
     }
 
     html.dark .table-modern tr.tr-holiday {
       background: rgba(59, 130, 246, 0.08);
-      border-right: 4px solid var(--c-info);
-      border-left: none;
+      border-inline-start: 4px solid var(--c-info);
+      border-inline-end: none;
     }
 
     .page {
@@ -2218,63 +2222,27 @@
 
       <!-- View 1: Attendance Records View -->
       <div id="rv-attendance" class="rec-view">
-        <div class="card p-4 sm:p-5 mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
-          <div class="flex flex-col gap-4">
-            <!-- Search Bar (Centered Full-Width Top) -->
-            <div class="relative w-full max-w-xl mx-auto">
-              <label class="text-xs font-bold block mb-1.5 text-center" style="color:var(--text2)">
-                <i class="fa-solid fa-magnifying-glass ml-1 opacity-70"></i>البحث في السجلات
-              </label>
+        <div class="card p-2 sm:p-2.5 mb-2 shadow-xs border border-[var(--c-border)] rounded-2xl">
+          <div class="flex flex-col gap-1.5">
+            <!-- Compact Search & Filter Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+              <!-- Search Bar -->
               <div class="relative">
-                <input type="text" id="recSearch" class="form-control text-sm pr-10 text-center rounded-xl transition-all shadow-xs focus:ring-2 focus:ring-[var(--theme-primary-bg)]" placeholder="ابحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
-                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-sm" style="color:var(--text2)"></i>
+                <input type="text" id="recSearch" class="form-control text-xs pr-8 text-right rounded-xl transition-all shadow-xs" placeholder="بحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
+                <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs" style="color:var(--text2)"></i>
               </div>
-            </div>
-
-            <!-- Controls Row: Period + Status (Balanced Centered Grid) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap items-center justify-center gap-3 w-full max-w-xl mx-auto">
               <!-- Period Filter -->
-              <div class="flex-1 min-w-[140px]">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-calendar-days ml-1 opacity-70"></i>الفترة
-                </label>
-                <select id="periodFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="togglePeriodFilter()">
+              <div>
+                <select id="periodFilter" class="form-control text-xs cursor-pointer text-center rounded-xl" onchange="togglePeriodFilter()">
                   <option value="current">الشهر الحالي</option>
                   <option value="prev">الشهر السابق</option>
                   <option value="specific">شهر محدد</option>
                   <option value="custom">مخصص (تاريخ)</option>
                 </select>
               </div>
-
-              <!-- Specific Month Input -->
-              <div id="filterSpecific" class="hidden flex-1 min-w-[140px] relative">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-calendar-check ml-1 opacity-70"></i>اختر الشهر
-                </label>
-                <div class="relative">
-                  <input type="text" id="monthIn" readonly class="form-control text-sm cursor-pointer text-center rounded-xl" onclick="openCal()">
-                  <i class="fa-solid fa-calendar-days absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-xs" style="color:var(--text2)"></i>
-                </div>
-              </div>
-
-              <!-- Custom Date Range -->
-              <div id="filterCustom" class="hidden flex gap-2 items-center justify-center flex-wrap w-full">
-                <div class="flex-1 min-w-[120px]">
-                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">من</label>
-                  <input type="date" lang="en-GB" id="dateStart" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
-                </div>
-                <div class="flex-1 min-w-[120px]">
-                  <label class="text-xs font-bold block mb-1 text-center" style="color:var(--text2)">إلى</label>
-                  <input type="date" lang="en-GB" id="dateEnd" class="form-control text-sm text-center rounded-xl" onchange="renderRecords()">
-                </div>
-              </div>
-
               <!-- Status Filter -->
-              <div class="flex-1 min-w-[140px]">
-                <label class="text-xs font-bold block mb-1 text-center sm:text-right" style="color:var(--text2)">
-                  <i class="fa-solid fa-filter ml-1 opacity-70"></i>الحالة
-                </label>
-                <select id="statusFilter" class="form-control text-sm cursor-pointer text-center rounded-xl" onchange="renderRecords()">
+              <div>
+                <select id="statusFilter" class="form-control text-xs cursor-pointer text-center rounded-xl" onchange="renderRecords()">
                   <option value="">جميع الحالات</option>
                   <option value="present">حاضر / مخصص</option>
                   <option value="absent">غائب</option>
@@ -2285,29 +2253,32 @@
                 </select>
               </div>
             </div>
-
-            <!-- Action Buttons (Centered for Page Balance) -->
-            <div class="w-full max-w-2xl mx-auto grid grid-cols-2 sm:grid-cols-4 items-center justify-center gap-2 sm:gap-3 pt-3 border-t"
-              style="border-color:var(--c-border)">
-              <button onclick="openAddRecord()"
-                class="btn btn-primary shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plus ml-1.5 text-base"></i>إضافة سجل
+            <!-- Specific Month / Custom Date Range (Conditional) -->
+            <div id="filterSpecific" class="hidden relative">
+              <input type="text" id="monthIn" readonly class="form-control text-xs cursor-pointer text-center rounded-xl" onclick="openCal()" placeholder="اختر الشهر">
+            </div>
+            <div id="filterCustom" class="hidden grid grid-cols-2 gap-2">
+              <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
+              <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
+            </div>
+            <!-- Action Buttons Row -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[var(--c-border)]">
+              <button onclick="openAddRecord()" class="btn btn-primary shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plus ml-1"></i>إضافة سجل
               </button>
-              <button onclick="openTravelM()"
-                class="btn btn-outline shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plane-departure ml-1.5 text-base"></i>تكليف سفر
+              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plane-departure ml-1"></i>تكليف سفر
               </button>
-              <button onclick="exeExpExcel()" id="btnExcelExp"
-                class="border border-transparent btn btn-success shadow-sm text-white px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-excel ml-1.5 text-base"></i>تصدير Excel
+              <button onclick="exeExpExcel()" id="btnExcelExp" class="border border-transparent btn btn-success shadow-xs text-white px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-excel ml-1"></i>Excel
               </button>
-              <button onclick="prepareExportPDF()"
-                class="btn btn-outline shadow-sm px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-pdf ml-1.5 text-base"></i>تصدير PDF
+              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-2.5 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-pdf ml-1"></i>PDF
               </button>
             </div>
           </div>
         </div>
+        
         <div id="monthSum" class="card p-4 mb-3 hidden">
           <div id="monthSumC" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
         </div>
@@ -2331,9 +2302,12 @@
               <tbody id="recBody"></tbody>
             </table>
           </div>
-          <div id="noRec" class="text-center py-10 hidden" style="color:var(--text2)"><i
-              class="fa-solid fa-clipboard-list text-3xl mb-2"></i>
-            <p class="text-sm">لا توجد سجلات</p>
+          <div id="noRec" class="text-center py-12 hidden" style="color:var(--text2)">
+            <div class="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center bg-blue-500/10 text-blue-500 text-3xl mb-3">
+              <i class="fa-solid fa-clipboard-list"></i>
+            </div>
+            <p class="text-sm font-black text-slate-700 dark:text-slate-200">لا توجد سجلات مطابقة</p>
+            <p class="text-xs opacity-60 mt-1">جرّب تغيير خيارات البحث أو الفترة المحددة</p>
           </div>
         </div>
       </div>
@@ -2376,26 +2350,26 @@
         <div class="card p-0 overflow-hidden mb-4 shadow-sm border border-[var(--c-border)] rounded-2xl">
           <!-- Sub-tabs bar -->
           <div class="flex gap-1 p-2 border-b overflow-x-auto" style="border-color: var(--c-border); background: var(--c-surface2);">
-            <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-star text-amber-500 text-xs"></i>
               <span>أيام الإضافي المكتسبة</span>
             </button>
-            <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-clock-rotate-left text-amber-600 text-xs"></i>
               <span>التأخيرات الصباحية</span>
             </button>
-            <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-person-walking-arrow-right text-red-500 text-xs"></i>
               <span>الخروج المبكر</span>
             </button>
-            <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
               <i class="fa-solid fa-list-check text-blue-500 text-xs"></i>
               <span>سجل العمليات والخصم</span>
             </button>
           </div>
 
           <!-- Dynamic List Container -->
-          <div id="compListContainer" class="p-3 sm:p-4 space-y-3 max-h-[600px] overflow-y-auto">
+          <div id="compListContainer" class="comp-list-container p-3 sm:p-4 space-y-3 max-h-[600px] overflow-y-auto">
             <!-- Rendered by renderCompensationList() -->
           </div>
         </div>
@@ -2657,18 +2631,20 @@
               <!-- Sub-tabs within compensation -->
               <div class="flex gap-1"
                 style="padding: 8px; border-bottom: 1px solid var(--c-border); background: var(--c-surface);">
-                <button id="compTabBtn-overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active"
+                <button id="settingsCompTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">⭐ أيام الإضافي</button>
-                <button id="compTabBtn-late" onclick="switchCompSubTab('late')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">التأخيرات</button>
-                <button id="compTabBtn-early" onclick="switchCompSubTab('early')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">الخروج المبكر</button>
-                <button id="compTabBtn-history" onclick="switchCompSubTab('history')" class="btn-sub-tab"
+                <button id="settingsCompTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab"
                   style="flex: 1; min-height: 38px; border-radius: var(--radius-sm); border: none; font-size: 11px; font-weight: bold; cursor: pointer;">سجل العمليات</button>
               </div>
 
               <!-- List containers -->
-              <div id="compListContainer" style="padding: 12px; max-height: 400px; overflow-y: auto;">
+              <div id="settingsCompListContainer" class="comp-list-container" style="padding: 12px; max-height: 400px; overflow-y: auto;">
+                <!-- Lists generated dynamically -->
+              </div>
                 <!-- Lists generated dynamically -->
               </div>
             </div>
@@ -2979,7 +2955,7 @@
 
   <div id="editM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-end sm:items-center justify-center p-3 sm:p-4"
     onclick="closeEdit()">
-    <div class="glass-surface rounded-3xl w-full sm:max-w-md shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto"
+    <div class="glass-surface rounded-3xl w-full sm:max-w-md shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[90vh] overflow-y-auto"
       style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4 border-b pb-3" style="border-color: var(--c-border);">
         <h3 id="editModalTitle" class="font-bold text-base flex items-center gap-2" style="color:var(--pri)">
@@ -3104,12 +3080,16 @@
   </div>
 
   <div id="headerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeHeaderModal()">
-    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل ترويسة</h3>
         <button onclick="closeHeaderModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="overflow-y-auto flex-1 space-y-3 pr-2">
+        <div class="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-start gap-2 leading-relaxed">
+          <i class="fa-solid fa-circle-info text-blue-600 mt-0.5 text-sm flex-shrink-0"></i>
+          <span><strong>ملاحظة هامة:</strong> الترويسة الافتراضية القياسية (ثنائية اللغة لتقارير الحضور) ستظهر تلقائياً وبشكل إجباري أسفل ترويستك لضمان وجود اسم الموظف والتاريخ ورقم الصفحة.</span>
+        </div>
         <input type="hidden" id="headerIdIn">
         <div><label class="text-[11px] font-bold block mb-1">الاسم الوصفي</label><input type="text" id="headerNameIn" class="form-control text-sm" placeholder="مثال: ترويسة الإدارة"></div>
         <div>
@@ -3123,7 +3103,7 @@
   </div>
 
   <div id="footerM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center" onclick="closeFooterModal()">
-    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 mx-4 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold" style="color:var(--pri)">إضافة / تعديل تذييل</h3>
         <button onclick="closeFooterModal()" class="w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-50 hover:opacity-100" style="background:var(--bg);color:var(--text)"><i class="fa-solid fa-xmark"></i></button>
@@ -3147,7 +3127,7 @@
 
   <div id="travelM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3 sm:p-4"
     onclick="closeTravelM()">
-    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[92vh] overflow-y-auto overflow-hidden"
+    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in flex flex-col max-h-[90vh] overflow-hidden"
       style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <!-- Header -->
       <div class="flex items-center justify-between mb-3 border-b pb-3" style="border-color: var(--c-border);">
@@ -3267,8 +3247,8 @@
 
   <div id="otLeaveM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-3 sm:p-4"
     onclick="closeOTLeaveM()">
-    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in max-h-[92vh] overflow-y-auto flex flex-col"
-      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+    <div class="glass-surface rounded-3xl w-full max-w-lg shadow-2xl p-5 sm:p-6 animate-modal-in max-h-[90vh] flex flex-col overflow-hidden"
+      style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       
       <!-- Modal Header -->
       <div class="flex items-center justify-between pb-3 border-b mb-3" style="border-color: var(--c-border)">
@@ -3395,7 +3375,7 @@
   <div id="chooseCompSourceM" class="fixed inset-0 modal-overlay z-[60] hidden flex items-center justify-center p-4"
     onclick="closeCompModal()">
     <div class="glass-surface rounded-3xl w-full max-w-md shadow-2xl p-6 animate-modal-in"
-      style="border: 1px solid var(--border)" onclick="event.stopPropagation()">
+      style="border: 1.5px solid var(--c-border)" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-black text-base flex items-center gap-2" style="color:var(--pri)">
           <i class="fa-solid fa-scale-balanced"></i>

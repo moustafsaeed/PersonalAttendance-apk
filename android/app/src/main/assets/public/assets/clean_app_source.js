@@ -686,35 +686,60 @@ async function generateAutoAbsentRecords(recs, year, month) {
   let modified = false;
   let comps = settings.compensations || [];
   
-  let recDateSet = new Set(recs.map(r => normalizeSlashDate(r.date)));
-  let compLeaveSet = new Set(comps.filter(c => c.type === 'leave').map(c => c.date));
+  let recDateMap = new Map();
+  recs.forEach(r => {
+    if (r && r.date) {
+      recDateMap.set(normalizeSlashDate(r.date), r);
+    }
+  });
+  
+  let compLeaveSet = new Set(comps.filter(c => c.type === 'leave').map(c => normalizeSlashDate(c.date)));
 
   for (let i = 1; i <= daysInMonth; i++) {
     let d = new Date(year, month, i);
-    if (d > now) continue; // Don't generate for future days
+    // For current month, don't generate beyond today unless already in recs
+    if (year === now.getFullYear() && month === now.getMonth() && d > now) continue;
     
-    // Workday check
-    if (!isWorkDay(d)) continue;
-    if (isHoliday(d)) continue;
-
     let dStr = makeDateKey(year, month, i);
-    if (!recDateSet.has(dStr)) {
+    let existRec = recDateMap.get(dStr);
+    
+    if (!existRec) {
+      let isHol = isHoliday(d);
+      let isWork = isWorkDay(d);
       let isCompLeave = compLeaveSet.has(dStr);
-      let status = isCompLeave ? 'إجازة من الإضافي' : 'absent';
-      let note = isCompLeave ? 'إجازة من الإضافي' : '';
+      
+      let status = 'absent';
+      let absenceType = '';
+      let note = '';
+      let auto = true;
+      
+      if (isHol) {
+        status = 'إجازة';
+        note = getHolidayLabel(d);
+      } else if (!isWork) {
+        status = 'إجازة';
+        note = 'إجازة أسبوعية';
+      } else if (isCompLeave) {
+        status = 'إجازة من الإضافي';
+        absenceType = 'إجازة تعويض إضافي';
+        note = 'إجازة من الإضافي';
+        auto = false;
+      }
+      
       let newRec = {
         id: uuid(),
         date: dStr,
         status: status,
-        absenceType: isCompLeave ? 'إجازة تعويض إضافي' : '',
+        absenceType: absenceType,
         note: note,
-        auto: !isCompLeave,
-        checkIn: '',
-        checkOut: ''
+        auto: auto,
+        checkIn: null,
+        checkOut: null
       };
+      
       await RECDB.put(newRec);
       recs.push(newRec);
-      recDateSet.add(dStr);
+      recDateMap.set(dStr, newRec);
       modified = true;
     }
   }
@@ -831,11 +856,6 @@ window.toggleBiometricLock = async function() {
 async function fillAbsences(){
   let now=new Date(),y=now.getFullYear(),m=now.getMonth();
   let from=new Date(y,m,1); from.setMonth(from.getMonth()-6);
-  if(settings.lastAbsenceFill){
-    let iso = slashToISO(settings.lastAbsenceFill);
-    let lastFill=new Date(iso);
-    if(!isNaN(lastFill.getTime()) && lastFill>from) from=lastFill;
-  }
   let existingMap = new Map(); // date -> record
   let cur2 = new Date(from);
   let lastProcessedYM = '';
@@ -954,8 +974,8 @@ function toast(msg,type){
   let el=document.getElementById(`toast`);
   if(!el) return;
   el.innerHTML=msg;
-  // Modern High-Contrast Style (Fixed visible colors and centered horizontally)
-  el.className=`fixed bottom-24 left-0 right-0 mx-auto w-max text-center px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl z-[200] transition-all duration-500 pointer-events-none whitespace-nowrap toast-dark animate-modal-in ` + 
+  // Modern High-Contrast Style (Fixed visible colors, centered horizontally, and wrap-safe for small screens)
+  el.className=`fixed bottom-24 left-4 right-4 mx-auto w-max max-w-[90vw] text-center px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl z-[200] transition-all duration-500 pointer-events-none toast-dark animate-modal-in ` + 
     (type===`ok`?`text-emerald-400`:type===`err`?`text-red-400`:`text-cyan-400`);
   
   setTimeout(()=>{
@@ -1411,6 +1431,10 @@ async function renderRecords(){
     let dayName = DAYS[d.getDay()];
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
+    let lateComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'late');
+    let earlyComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'early');
+    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+
     let rawLate = isPresent(r.status) ? lateMin(r.checkIn,sch.start) : 0;
     let rawEarly = r.checkOut ? earlyMin(r.checkOut,sch.end) : 0;
     let late = isLateComp ? 0 : rawLate;
@@ -1435,13 +1459,15 @@ async function renderRecords(){
 
     let timingArr = [];
     if(isLateComp) {
-      timingArr.push(`<span class="metric-chip metric-chip-compensated"><i class="fa-solid fa-check"></i> تعويض تأخير</span>`);
+      let srcTxt = lateComp && lateComp.sourceDate ? ` (من ${lateComp.sourceDate})` : '';
+      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض التأخير من رصيد يوم ${lateComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض تأخير${srcTxt}</span>`);
     } else if(late > 0) {
       timingArr.push(`<span class="metric-chip metric-chip-late"><i class="fa-solid fa-clock-rotate-left"></i> +${formatMin(late)} تأخير</span>`);
     }
 
     if(isEarlyComp) {
-      timingArr.push(`<span class="metric-chip metric-chip-compensated"><i class="fa-solid fa-check"></i> تعويض خروج</span>`);
+      let srcTxt = earlyComp && earlyComp.sourceDate ? ` (من ${earlyComp.sourceDate})` : '';
+      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض الخروج من رصيد يوم ${earlyComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض خروج${srcTxt}</span>`);
     } else if(early > 0) {
       timingArr.push(`<span class="metric-chip metric-chip-early"><i class="fa-solid fa-person-walking-arrow-right"></i> -${formatMin(early)} مبكر</span>`);
     }
@@ -1488,6 +1514,26 @@ async function renderRecords(){
       }
     }
 
+    let absenceTypeDisplay = r.status === `absent` ? esc(r.absenceType || ``) : (r.status === 'إجازة من الإضافي' ? esc(r.absenceType || 'إجازة تعويض إضافي') : '');
+    
+    let noteHTML = '';
+    if (leaveComp) {
+      let sourceDesc = formatCompSourceText(leaveComp, false);
+      let compNote = leaveComp.note ? esc(leaveComp.note) : '';
+      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+      let finalNoteText = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+      
+      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+        finalNoteText = `${esc(r.note)} | ${finalNoteText}`;
+      }
+      
+      noteHTML = `<div class="inline-block p-1.5 rounded-lg text-[11px] font-bold leading-normal bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
+        <i class="fa-solid fa-scissors ml-1 text-emerald-600 dark:text-emerald-400"></i> ${finalNoteText}
+      </div>`;
+    } else {
+      noteHTML = esc(r.note) || `<span class="opacity-30">-</span>`;
+    }
+
     return `<tr class="${rowClass}">
       <td class="font-bold text-xs opacity-90">${r.date}</td>
       ${settings.exportColumns.day ? `<td class="font-bold text-xs" style="color:var(--text2)">${esc(dayName)}</td>` : ''}
@@ -1496,8 +1542,8 @@ async function renderRecords(){
       <td>${statusBadgeHTML}</td>
       <td>${timingHTML}</td>
       <td>${extraHTML}</td>
-      <td class="text-[11px] opacity-80 break-words align-middle font-semibold">${r.status===`absent`&&esc(r.absenceType||``)||``}</td>
-      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:13px;" class="max-w-[180px] break-words align-middle leading-relaxed">${esc(r.note)||`<span class="opacity-30">-</span>`}</td>
+      <td class="text-[11px] opacity-80 break-words align-middle font-semibold">${absenceTypeDisplay}</td>
+      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:13px;" class="max-w-[200px] break-words align-middle leading-relaxed">${noteHTML}</td>
       <td style="text-align:center">
         <button onclick="openEdit('${r.id}', '${r.date}')" class="w-8 h-8 rounded-xl inline-flex items-center justify-center text-xs transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
           <i class="fa-solid fa-pen-to-square"></i>
@@ -1754,19 +1800,50 @@ window.delRec=async function(){
     }
     if (!deleted) { closeEdit(); return; }
     
-    await deleteRecord(deleted.date);
+    let d = new Date(slashToISO(deleted.date));
+    let restoredRec = {
+      id: uuid(),
+      date: deleted.date,
+      checkIn: null,
+      checkOut: null,
+      auto: true
+    };
+    
+    if (isHoliday(d)) {
+      restoredRec.status = 'إجازة';
+      restoredRec.absenceType = '';
+      restoredRec.note = getHolidayLabel(d);
+    } else if (!isWorkDay(d)) {
+      restoredRec.status = 'إجازة';
+      restoredRec.absenceType = '';
+      restoredRec.note = 'إجازة أسبوعية';
+    } else {
+      restoredRec.status = 'absent';
+      restoredRec.absenceType = '';
+      restoredRec.note = '';
+    }
+    
+    // Also remove any compensation records tied to this day
+    if (settings.compensations && settings.compensations.length > 0) {
+      settings.compensations = settings.compensations.filter(c => c.date !== deleted.date && c.sourceDate !== deleted.date);
+      saveSettings();
+    }
+    
+    await saveRecord(restoredRec);
     _monthCacheKey = '';
-    await fillAbsences();
     closeEdit();
     await renderRecords();
     renderHome();
     renderStats();
-    showUndoable('<i class="fa-solid fa-trash ml-1"></i> تم حذف السجل', async () => {
+    if (typeof renderCompensation === 'function') await renderCompensation();
+    
+    showUndoable('<i class="fa-solid fa-rotate-left ml-1"></i> تم إعادة ضبط السجل وإلغاء بيانات الدوام', async () => {
       await saveRecord(deleted);
       _monthCacheKey = '';
       await renderRecords();
       renderHome();
       renderStats();
+      if (typeof renderCompensation === 'function') await renderCompensation();
     });
   } finally {
     releaseActionLock('delRec');
@@ -1972,7 +2049,29 @@ window.deleteTravelAssignment = async function(assignmentId) {
         
         let rec = await RECDB.get(slashDate);
         if (rec && rec.status === 'تكليف سفر') {
-          await deleteRecord(slashDate);
+          let d = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+          if (isHoliday(d)) {
+            rec.status = 'إجازة';
+            rec.absenceType = '';
+            rec.note = getHolidayLabel(d);
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          } else if (!isWorkDay(d)) {
+            rec.status = 'إجازة';
+            rec.absenceType = '';
+            rec.note = 'إجازة أسبوعية';
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          } else {
+            rec.status = 'absent';
+            rec.absenceType = '';
+            rec.note = '';
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          }
         }
       }
       
@@ -2432,10 +2531,40 @@ async function calcOvertimeBalance() {
 }
 window.calcOvertimeBalance = calcOvertimeBalance;
 
+function formatCompSourceText(comp, shortFormat = false) {
+  if (!comp) return '';
+  if (comp.sourceDate) {
+    return `من رصيد إضافي يوم ${comp.sourceDate}`;
+  }
+  if (Array.isArray(comp.sourceDetails) && comp.sourceDetails.length > 0) {
+    if (comp.sourceDetails.length === 1) {
+      let sd = comp.sourceDetails[0];
+      return `من رصيد إضافي يوم ${sd.date}${sd.minutes ? ` (${formatMin(sd.minutes)})` : ''}`;
+    }
+    let firstD = comp.sourceDetails[0].date;
+    let lastD = comp.sourceDetails[comp.sourceDetails.length - 1].date;
+    let breakdown = comp.sourceDetails.map(sd => `${sd.date} (${formatMin(sd.minutes)})`).join(' ، ');
+    
+    if (shortFormat) {
+      return `من إضافي (${firstD} إلى ${lastD})`;
+    }
+    return `من إضافي (${firstD} إلى ${lastD}) [${breakdown}]`;
+  }
+  return 'من رصيد الإضافي';
+}
+window.formatCompSourceText = formatCompSourceText;
+
 window.switchCompSubTab = function(tab) {
   currentCompSubTab = tab;
-  document.querySelectorAll('.btn-sub-tab').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll(`[id="compTabBtn-${tab}"]`).forEach(btn => btn.classList.add('active'));
+  document.querySelectorAll('[data-comp-tab]').forEach(btn => {
+    if(btn.getAttribute('data-comp-tab') === tab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  // Fallback for legacy class-based or id-based matches
+  document.querySelectorAll(`[id$="compTabBtn-${tab}"]`).forEach(btn => btn.classList.add('active'));
   
   renderCompensationList();
 };
@@ -2842,7 +2971,7 @@ window.saveOTLeave = async function() {
     
     let rec = await RECDB.get(slashDate);
     
-    settings.compensations.push({
+    let newComp = {
       id: uuid(),
       date: slashDate,
       type: 'leave',
@@ -2850,10 +2979,12 @@ window.saveOTLeave = async function() {
       sourceDetails: allocationDetails,
       note: note,
       createdAt: new Date().toISOString()
-    });
+    };
+    settings.compensations.push(newComp);
     saveSettings();
     
-    let noteText = note ? `${note} (خصم ${formatMin(totalMin)} من الإضافي)` : `خصم ${formatMin(totalMin)} من الإضافي`;
+    let sourceDesc = formatCompSourceText(newComp, false);
+    let noteText = note ? `${note} (خصم ${formatMin(totalMin)} ${sourceDesc})` : `خصم ${formatMin(totalMin)} ${sourceDesc}`;
     if(rec) {
       rec.status = 'إجازة من الإضافي';
       rec.checkIn = null;
@@ -2897,8 +3028,33 @@ window.undoCompensation = async function(id) {
     
     if(comp.type === 'leave') {
       let rec = await RECDB.get(comp.date);
-      if(rec && rec.status === 'إجازة من الإضافي') {
-        await deleteRecord(comp.date);
+      if(rec && (rec.status === 'إجازة من الإضافي' || rec.absenceType === 'إجازة تعويض إضافي')) {
+        let d = new Date(slashToISO(comp.date));
+        if (isHoliday(d)) {
+          rec.status = 'إجازة';
+          rec.absenceType = '';
+          rec.note = getHolidayLabel(d);
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        } else if (!isWorkDay(d)) {
+          rec.status = 'إجازة';
+          rec.absenceType = '';
+          rec.note = 'إجازة أسبوعية';
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        } else {
+          rec.status = 'absent';
+          rec.absenceType = '';
+          rec.note = '';
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        }
       }
     }
     
@@ -2908,10 +3064,10 @@ window.undoCompensation = async function(id) {
     _monthCacheKey = '';
     await fillAbsences();
     await renderCompensation();
-    renderRecords();
+    await renderRecords();
     renderHome();
     renderStats();
-    toast('تم التراجع عن التعويض وإلغاء الخصم بنجاح', 'ok');
+    toast('تم التراجع عن التعويض وإلغاء الخصم بنجاح واستعادة السجل', 'ok');
   } finally {
     releaseActionLock('undoCompensation');
   }
@@ -2987,7 +3143,7 @@ window.renderCompensation = renderCompensation;
 
 async function renderCompensationList() {
   let bal = await calcOvertimeBalance();
-  let containers = document.querySelectorAll('#compListContainer');
+  let containers = document.querySelectorAll('#compListContainer, #settingsCompListContainer, .comp-list-container');
   if(!containers.length) return;
   
   let html = '';
@@ -3089,7 +3245,7 @@ async function renderCompensationList() {
           <div class="flex items-center gap-2.5">
             <span class="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/20 text-amber-600 dark:text-amber-400 text-sm shadow-xs"><i class="fa-solid fa-clock-rotate-left"></i></span>
             <div>
-              <div>إجمالي أيام التأخير: <strong class="text-amber-600 dark:text-amber-400">${list.length} يوم</strong> (${formatMin(totalLateMin)})</div>
+              <div>إجمالي <span style="display:inline-block; margin:0 2px;">أيام</span>&nbsp;<span style="display:inline-block; margin:0 2px;">التأخير</span>: <strong class="text-amber-600 dark:text-amber-400">${list.length} يوم</strong> (${formatMin(totalLateMin)})</div>
               <div class="text-[10px] opacity-70 font-normal">معوّض: ${compensatedCount} | متبقي بدون تعويض: ${pendingCount}</div>
             </div>
           </div>
@@ -3664,6 +3820,13 @@ window.addCustomStatus=function(){let el=document.getElementById(`statusIn`); if
 window.delCustomStatus=function(i){settings.customStatuses.splice(i,1);saveSettings();renderHolidayList();toast(`تم`,`ok`);};
 
 
+var BUILTIN_REPORT_HEADERS = [];
+
+function getReportHeaderById(id) {
+  if(!id) return null;
+  return (settings.reportHeaders || []).find(x => x.id === id) || null;
+}
+
 window.openHeaderModal = function(id = null) {
   let hId = document.getElementById('headerIdIn');
   let hName = document.getElementById('headerNameIn');
@@ -3671,7 +3834,7 @@ window.openHeaderModal = function(id = null) {
   let m = document.getElementById('headerM');
   if(!m) return;
   if(id) {
-    let h = (settings.reportHeaders||[]).find(x => x.id === id);
+    let h = getReportHeaderById(id);
     if(h) {
       if(hId) hId.value = h.id;
       if(hName) hName.value = h.name;
@@ -3731,24 +3894,31 @@ window.setActiveHeader = function(id) {
 window.renderReportHeaders = function() {
   let list = document.getElementById('reportHeadersList');
   if(!list) return;
+  
+  // Clean up any residual active builtin header IDs or 'none'
+  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_')) {
+    settings.activeHeaderId = 'default';
+    saveSettings();
+  }
+
   let html = '';
   let defHChecked = (settings.activeHeaderId === '' || settings.activeHeaderId === 'default') ? 'checked' : '';
-  let noHChecked = settings.activeHeaderId === 'none' ? 'checked' : '';
+  
+  // Default Option
   html += `
     <div class="flex items-center justify-between p-3 rounded-xl border ${defHChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveHeader('default')">
       <div class="flex items-center gap-3">
         <input type="radio" name="active_header" ${defHChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">الترويسة الافتراضية</span>
-      </div>
-    </div>
-    <div class="flex items-center justify-between p-3 rounded-xl border ${noHChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveHeader('none')">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="active_header" ${noHChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">بدون ترويسة</span>
+        <div>
+          <div class="font-bold text-sm">الترويسة الافتراضية</div>
+          <div class="text-xs text-gray-500">ترويسة قياسية ثنائية اللغة لتقارير الحضور</div>
+        </div>
       </div>
     </div>
   `;
-  settings.reportHeaders.forEach(h => {
+
+  // Custom User Headers
+  (settings.reportHeaders || []).forEach(h => {
     let checked = settings.activeHeaderId === h.id ? 'checked' : '';
     html += `
       <div class="flex items-center justify-between p-3 rounded-xl border ${checked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all group">
@@ -3800,6 +3970,7 @@ window.saveReportFooter = function() {
   let content = contentEl?.value?.trim() || '';
   if(!name) return toast('يرجى إدخال اسم التذييل', 'err');
   
+  let targetId = id;
   if(id) {
     let idx = settings.reportFooters.findIndex(x => x.id === id);
     if(idx !== -1) {
@@ -3808,12 +3979,14 @@ window.saveReportFooter = function() {
     }
   } else {
     let newId = 'f_' + Date.now();
+    targetId = newId;
     settings.reportFooters.push({id: newId, name: name, content: content});
   }
+  settings.activeFooterId = targetId;
   saveSettings();
   renderReportFooters();
   closeFooterModal();
-  toast('تم حفظ التذييل', 'ok');
+  toast('تم حفظ وتفعيل التذييل', 'ok');
 };
 
 window.deleteReportFooter = function(id) {
@@ -3833,20 +4006,20 @@ window.setActiveFooter = function(id) {
 window.renderReportFooters = function() {
   let list = document.getElementById('reportFootersList');
   if(!list) return;
+
+  // Clean up any residual 'none'
+  if (!settings.activeFooterId || settings.activeFooterId === 'none') {
+    settings.activeFooterId = 'default';
+    saveSettings();
+  }
+
   let html = '';
   let defFChecked = (settings.activeFooterId === '' || settings.activeFooterId === 'default') ? 'checked' : '';
-  let noFChecked = settings.activeFooterId === 'none' ? 'checked' : '';
   html += `
     <div class="flex items-center justify-between p-3 rounded-xl border ${defFChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveFooter('default')">
       <div class="flex items-center gap-3">
         <input type="radio" name="active_footer" ${defFChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
         <span class="font-bold text-sm">التذييل الافتراضي</span>
-      </div>
-    </div>
-    <div class="flex items-center justify-between p-3 rounded-xl border ${noFChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveFooter('none')">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="active_footer" ${noFChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-        <span class="font-bold text-sm">بدون تذييل</span>
       </div>
     </div>
   `;
@@ -3990,19 +4163,32 @@ window.shareBackup=async function(){
     }
   } else {
     // Browser: try Web Share API with file
-    try{
-      let blob=new Blob([json],{type:`application/json`});
-      let file = (typeof File !== 'undefined') ? new File([blob],fileName,{type:`application/json`}) : blob;
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({title:`نسخة احتياطية`,files:[file]});
-      } else {
-        // Fallback: download
-        let url=URL.createObjectURL(blob);
-        let a=document.createElement(`a`); a.href=url; a.download=fileName; a.click();
-        URL.revokeObjectURL(url);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`,`ok`);
+    try {
+      let blob = new Blob([json], { type: `application/json` });
+      let file = (typeof File !== 'undefined') ? new File([blob], fileName, { type: `application/json` }) : null;
+      let shared = false;
+      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: `نسخة احتياطية`, files: [file] });
+          shared = true;
+        } catch(shareErr) {
+          if (shareErr.name === 'AbortError') {
+            shared = true;
+          } else {
+            console.warn('Web Share backup fallback to direct download:', shareErr.message || shareErr);
+          }
+        }
       }
-    } catch(err){ toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل / المشاركة`,`err`); }
+      if (!shared) {
+        // Fallback: download
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement(`a`); a.href = url; a.download = fileName; a.click();
+        URL.revokeObjectURL(url);
+        toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`, `ok`);
+      }
+    } catch(err) {
+      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل / المشاركة`, `err`);
+    }
   }
 };
 
@@ -4908,61 +5094,129 @@ window.restoreAutoBackup=async function(){
 };
 
 // ── Data management ───────────────────────────────────────
+function showConfirmDialog(title, message, confirmText, confirmClass, onConfirm) {
+  let existing = document.getElementById('customConfirmModal');
+  if (existing) existing.remove();
+
+  let modal = document.createElement('div');
+  modal.id = 'customConfirmModal';
+  modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-modal-in';
+  modal.innerHTML = `
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-modal-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" onclick="event.stopPropagation()">
+      <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-4 ${confirmClass.includes('red') || confirmClass.includes('danger') ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">
+        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">${title}</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">${message}</p>
+      <div class="flex gap-3">
+        <button id="confirmCancelBtn" class="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition">إلغاء</button>
+        <button id="confirmOkBtn" class="flex-1 py-3 px-4 rounded-xl font-semibold text-white ${confirmClass} transition shadow-lg">${confirmText}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('confirmCancelBtn').onclick = () => {
+    modal.remove();
+  };
+  document.getElementById('confirmOkBtn').onclick = () => {
+    modal.remove();
+    onConfirm();
+  };
+  modal.onclick = (e) => {
+    if(e.target === modal) modal.remove();
+  };
+}
+
 window.clearRecs=async function(){
-  if(!confirm(`هل أنت متأكد من تفريغ كافة سجلات الحضور الحالية مع الإبقاء على الأيام والتواريخ؟`))return;
-  let backup=await RECDB.getAll();
-  if(!backup || backup.length === 0){
-    toast("لا توجد سجلات لتفريغها", "err");
-    return;
-  }
-  let clearedRecs = backup.map(rec => {
-    let d = new Date(slashToISO(rec.date));
-    let status = 'absent';
-    let note = '';
-    if (!isNaN(d.getTime())) {
-      if (typeof isHoliday === 'function' && isHoliday(d)) {
-        status = 'إجازة';
-        note = typeof getHolidayLabel === 'function' ? getHolidayLabel(d) : 'إجازة رسمية';
-      } else if (typeof isWorkDay === 'function' && !isWorkDay(d)) {
-        status = 'إجازة';
-        note = 'إجازة أسبوعية';
+  showConfirmDialog(
+    "تفريغ السجلات الحالية",
+    "هل أنت متأكد من تفريغ كافة سجلات الحضور الحالية مع الإبقاء على الأيام والتواريخ؟",
+    "تفريغ",
+    "bg-amber-600 hover:bg-amber-700 text-white",
+    async () => {
+      let backup=await RECDB.getAll();
+      if(!backup || backup.length === 0){
+        toast("لا توجد سجلات لتفريغها", "err");
+        return;
       }
+      let clearedRecs = backup.map(rec => {
+        let d = new Date(slashToISO(rec.date));
+        let status = 'absent';
+        let note = '';
+        if (!isNaN(d.getTime())) {
+          if (typeof isHoliday === 'function' && isHoliday(d)) {
+            status = 'إجازة';
+            note = typeof getHolidayLabel === 'function' ? getHolidayLabel(d) : 'إجازة رسمية';
+          } else if (typeof isWorkDay === 'function' && !isWorkDay(d)) {
+            status = 'إجازة';
+            note = 'إجازة أسبوعية';
+          }
+        }
+        return {
+          id: rec.id || uuid(),
+          date: rec.date,
+          checkIn: '',
+          checkOut: '',
+          status: status,
+          absenceType: '',
+          note: note,
+          auto: true,
+          late: 0,
+          early: 0,
+          overtime: 0
+        };
+      });
+      await RECDB.putAll(clearedRecs);
+      let nowD=new Date();
+      _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
+      _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
+      let todayRec=await RECDB.get(todayKey());
+      records=todayRec?[todayRec]:[];
+      await renderRecords();
+      renderHome();
+      showUndoable(`<i class="fa-solid fa-rotate-left ml-1"></i> تم تفريغ محتوى السجلات`,async ()=>{
+        await RECDB.putAll(backup);
+        let nowD=new Date();
+        _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
+        _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
+        let todayRec=await RECDB.get(todayKey());
+        records=todayRec?[todayRec]:[];
+        await renderRecords();
+        renderHome();
+      });
     }
-    return {
-      id: rec.id || uuid(),
-      date: rec.date,
-      checkIn: '',
-      checkOut: '',
-      status: status,
-      absenceType: '',
-      note: note,
-      auto: true,
-      late: 0,
-      early: 0,
-      overtime: 0
-    };
-  });
-  await RECDB.putAll(clearedRecs);
-  let nowD=new Date();
-  _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
-  _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
-  let todayRec=await RECDB.get(todayKey());
-  records=todayRec?[todayRec]:[];
-  await renderRecords();
-  renderHome();
-  showUndoable(`<i class="fa-solid fa-rotate-left ml-1"></i> تم تفريغ محتوى السجلات`,async ()=>{
-    await RECDB.putAll(backup);
-    let nowD=new Date();
-    _monthCache=await RECDB.getMonth(nowD.getFullYear(),nowD.getMonth());
-  _monthCacheKey=`${nowD.getFullYear()}-${nowD.getMonth()}`;
-  let todayRec=await RECDB.get(todayKey());
-    records=todayRec?[todayRec]:[];
-    await renderRecords();
-    renderHome();
-  });
+  );
 };
-window.resetSettings=function(){if(!confirm(`هل أنت متأكد من استعادة إعدادات التطبيق الافتراضية؟`))return;Object.assign(settings,DEFAULT_SETTINGS);saveSettings();renderSettingsPage();renderHome();toast(`تم الإرجاع`,`ok`);};
-window.clearAll=async function(){if(!confirm(`هل أنت متأكد من مسح جميع البيانات؟ لا يمكن التراجع عن هذا الإجراء!`))return;await IDB.clear();location.reload();};
+
+window.resetSettings=function(){
+  showConfirmDialog(
+    "إعادة ضبط الإعدادات",
+    "هل أنت متأكد من استعادة إعدادات التطبيق الافتراضية؟",
+    "استعادة",
+    "bg-blue-600 hover:bg-blue-700 text-white",
+    () => {
+      Object.assign(settings,DEFAULT_SETTINGS);
+      saveSettings();
+      renderSettingsPage();
+      renderHome();
+      toast(`تم الإرجاع`,`ok`);
+    }
+  );
+};
+
+window.clearAll=async function(){
+  showConfirmDialog(
+    "مسح التطبيق كاملاً (فورمات)",
+    "هل أنت متأكد من مسح جميع البيانات؟ لا يمكن التراجع عن هذا الإجراء!",
+    "مسح نهائي",
+    "bg-red-600 hover:bg-red-700 text-white",
+    async () => {
+      await IDB.clear();
+      location.reload();
+    }
+  );
+};
 
 // ── PDF Export ────────────────────────────────────────────
 window.prepareExportPDF = function() {
@@ -5025,9 +5279,12 @@ async function buildPDFCanvas(){
     try {
       await document.fonts.ready;
       await Promise.all([
+        document.fonts.load('900 24px Cairo'),
+        document.fonts.load('800 24px Cairo'),
         document.fonts.load('700 22px Cairo'),
-        document.fonts.load('600 13px Cairo'),
-        document.fonts.load('400 17px Cairo')
+        document.fonts.load('600 14px Cairo'),
+        document.fonts.load('500 14px Cairo'),
+        document.fonts.load('400 16px Cairo')
       ]);
     } catch(e) {
       console.warn('PDF font preload:', e);
@@ -5042,9 +5299,10 @@ async function buildPDFCanvas(){
   container.style.minWidth=`1200px`;
   container.style.maxWidth=`1200px`;
   container.style.fontFamily=`'Cairo','Tajawal','Noto Sans Arabic',Arial,sans-serif`;
-  container.style.letterSpacing=`0px`;
-  container.style.wordSpacing=`0px`;
-  container.style.textRendering=`geometricPrecision`;
+  container.style.letterSpacing=`normal`;
+  container.style.wordSpacing=`normal`;
+  container.style.textRendering=`optimizeLegibility`;
+  container.style.fontVariantLigatures=`normal`;
   container.style.webkitFontSmoothing=`antialiased`;
   container.setAttribute(`dir`,`rtl`);
   container.style.direction=`rtl`;
@@ -5101,6 +5359,18 @@ async function buildPDFCanvas(){
     let rowBg = r.status===`absent` ? `#fef2f2` : r.status===`تكليف سفر` ? `#f3e8ff` : (r.status===`إجازة رسمية` || r.status===`إجازة`) ? `#eff6ff` : (late>0 ? `#fffbeb` : `#ffffff`);
     let rowBorder = r.status==='absent' ? '#ef4444' : r.status===`تكليف سفر` ? '#a855f7' : (r.status===`إجازة رسمية` || r.status===`إجازة`) ? '#3b82f6' : (late>0 ? '#f59e0b' : themePri);
 
+    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+    let pdfNote = r.note || '';
+    if (leaveComp) {
+      let sourceDesc = formatCompSourceText(leaveComp, false);
+      let compNote = leaveComp.note ? leaveComp.note : '';
+      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+      pdfNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+        pdfNote = `${r.note} | ${pdfNote}`;
+      }
+    }
+
     allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0; border-right:4px solid ${rowBorder};">
       ${settings.exportColumns.date ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; border-right:none;" lang="en" dir="ltr">${r.date}</td>` : ''}
       ${settings.exportColumns.day ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#475569; border:1px solid #cbd5e1;">${DAYS[d.getDay()]}</td>` : ''}
@@ -5110,12 +5380,12 @@ async function buildPDFCanvas(){
       ${settings.exportColumns.late ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${lateDec}</td>` : ''}
       ${settings.exportColumns.early ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${earlyDec}</td>` : ''}
       ${settings.exportColumns.overtime ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${extra>0?'+'+formatMin(extra):'-'}</td>` : ''}
-      ${settings.exportColumns.absenceType ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):``}</td>` : ''}
-      ${settings.exportColumns.note ? `<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Cairo'}', serif; color:#111827; border:1px solid #cbd5e1; border-left:none; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(r.note)||``}</td>` : ''}
+      ${settings.exportColumns.absenceType ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):(r.status==='إجازة من الإضافي'?'إجازة تعويض إضافي':'')}</td>` : ''}
+      ${settings.exportColumns.note ? `<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Cairo'}', serif; color:#111827; border:1px solid #cbd5e1; border-left:none; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(pdfNote)||``}</td>` : ''}
     </tr>`);
     
     // Dynamic weight for row height and notes
-    let noteText = settings.exportColumns.note && r.note ? String(r.note).trim() : "";
+    let noteText = settings.exportColumns.note && pdfNote ? String(pdfNote).trim() : "";
     let absText = settings.exportColumns.absenceType && r.absenceType && r.status === 'absent' ? String(r.absenceType).trim() : "";
     let noteLines = 1;
     if (noteText) {
@@ -5177,33 +5447,20 @@ async function buildPDFCanvas(){
               .trim();
   };
 
-  let baseHeader = function(pageNumber, totalPages) {
-    let customHeaderContent = '';
-    if (settings.activeHeaderId === 'none') {
-      customHeaderContent = '';
-    } else if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '') {
-      let h = (settings.reportHeaders || []).find(x => x.id === settings.activeHeaderId);
-      if (h) {
-        customHeaderContent = sanitizeReportText(h.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
-      }
-    } else if (settings.headerImage) {
-      customHeaderContent = `<div style="width:100%; text-align:center; margin-bottom:15px; border-bottom:2px solid #cbd5e1; padding-bottom:10px;">
-        <img src="${settings.headerImage}" style="max-width:100%; max-height:80px; object-fit:contain;" />
-      </div>`;
-    } else {
-      // Default Professional Dual-Language Header
-      let titleAr = sanitizeReportText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
-      let titleEn = sanitizeReportText(settings.headerTitleEn || 'Attendance & Absence Record');
-      let subAr = sanitizeReportText(settings.headerSubAr || `الموظف: ${settings.name} | الفترة: ${periodLabel}`);
-      let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
+  let renderHeaderHtml = function(pageNumber, totalPages) {
+    let titleAr = sanitizeReportText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
+    let titleEn = sanitizeReportText(settings.headerTitleEn || 'Attendance & Absence Record');
+    let subAr = sanitizeReportText(settings.headerSubAr || `الموظف: ${settings.name} | الفترة: ${periodLabel}`);
+    let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
 
-      customHeaderContent = `<!-- Professional Dual-Language PDF Header -->
-      <div style="padding:25px 40px 15px; background:#ffffff; border-bottom:2px solid #cbd5e1; margin-bottom:15px; direction:rtl; font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:0px !important; word-spacing:0px !important;">
+    // Default Professional Dual-Language Header (الترويسة الافتراضية القياسية ثنائية اللغة)
+    let defaultDualLangHeader = `<!-- Professional Dual-Language PDF Header -->
+      <div style="padding:20px 40px 15px; background:#ffffff; border-bottom:2px solid #cbd5e1; margin-bottom:15px; direction:rtl; font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; margin:0; padding:0; background:transparent;">
           <tr>
-            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-              <div style="font-size:22px; font-weight:700; color:#1B3D6D; line-height:1.3; font-family:'Cairo',Arial,sans-serif; margin:0 0 4px 0; letter-spacing:0px !important;">${titleAr}</div>
-              <div style="font-size:13px; font-weight:600; color:#475569; font-family:'Cairo',Arial,sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
+            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important;">
+              <div style="font-size:22px; font-weight:700; color:#1B3D6D; line-height:1.3; font-family:'Cairo',Arial,sans-serif; margin:0 0 4px 0; letter-spacing:normal !important;">${titleAr}</div>
+              <div style="font-size:13px; font-weight:600; color:#475569; font-family:'Cairo',Arial,sans-serif; margin:0; letter-spacing:normal !important;">${subAr}</div>
             </td>
             <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:sans-serif;">
               <div style="font-size:18px; font-weight:700; color:#1B3D6D; line-height:1.3; font-family:sans-serif; margin:0 0 4px 0;">${titleEn}</div>
@@ -5211,68 +5468,63 @@ async function buildPDFCanvas(){
             </td>
           </tr>
         </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-top:10px; padding-top:6px; border-top:1px solid #e2e8f0; font-size:12px; color:#64748b; font-weight:600; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin-top:10px; padding-top:6px; border-top:1px solid #e2e8f0; font-size:12px; color:#64748b; font-weight:600; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important;">
           <tr>
-            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
+            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important;">
               تاريخ التقرير: <span style="color:#1B3D6D; font-family:sans-serif;">${todayKey()}</span>
             </td>
-            <td style="text-align:left; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
+            <td style="text-align:left; border:none; padding:4px 0; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important;">
               الصفحة <span style="color:#1B3D6D; font-family:sans-serif;">${pageNumber}</span> من <span style="font-family:sans-serif;">${totalPages}</span>
             </td>
           </tr>
         </table>
       </div>`;
-    }
 
-    return `<div style="font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:0px !important; word-spacing:0px !important; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
-      ${customHeaderContent}
-      
-      <!-- Table Body -->
-      <div style="padding:15px 40px 80px;">
-        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">
-          <thead>
-            <tr style="background:${themePri}; color:#ffffff; font-family:'Cairo',sans-serif;">
-              ${settings.exportColumns.date ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; border-right:none; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">التاريخ</th>` : ''}
-              ${settings.exportColumns.day ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">اليوم</th>` : ''}
-              ${settings.exportColumns.checkIn ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الحضور</th>` : ''}
-              ${settings.exportColumns.checkOut ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الانصراف</th>` : ''}
-              ${settings.exportColumns.status ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">الحالة</th>` : ''}
-              ${settings.exportColumns.late ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">تأخير</th>` : ''}
-              ${settings.exportColumns.early ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">مبكر</th>` : ''}
-              ${settings.exportColumns.overtime ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">إضافي</th>` : ''}
-              ${settings.exportColumns.absenceType ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">نوع الغياب</th>` : ''}
-              ${settings.exportColumns.note ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:2px solid ${themePri}; border-left:none; font-family:'Cairo',sans-serif; letter-spacing:0px !important;">ملاحظات</th>` : ''}
-            </tr>
-          </thead>
-          <tbody>`;
+    if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '' && settings.activeHeaderId !== 'none') {
+      let h = getReportHeaderById(settings.activeHeaderId);
+      if (h) {
+        let customTop = sanitizeReportText(h.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
+        // Mandatory include the standard dual-language default header underneath any custom header
+        return `<div style="width:100%; margin-bottom:5px;">${customTop}</div>${defaultDualLangHeader}`;
+      }
+    } else if (settings.headerImage) {
+      return `<div style="width:100%; text-align:center; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+        <img src="${settings.headerImage}" style="max-width:100%; max-height:80px; object-fit:contain;" />
+      </div>${defaultDualLangHeader}`;
+    }
+    return defaultDualLangHeader;
   };
 
-  let baseFooter = function(pageNumber, totalPages, sumBlockHtml) {
-    let sb = sumBlockHtml ? sumBlockHtml : '';
-    if (settings.activeFooterId === 'none') return '</tbody></table>' + sb + '</div></div>';
-    if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '') {
+  let renderFooterHtml = function(pageNumber, totalPages) {
+    let customFooterContent = null;
+    if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '' && settings.activeFooterId !== 'none') {
       let f = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
-      if (f) return '</tbody></table>' + sb + '</div>' + sanitizeReportText(f.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages)) + '</div>';
+      if (f) customFooterContent = sanitizeReportText(f.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
+    }
+
+    if (customFooterContent) {
+      return `<!-- Custom User Footer (Full Width Edge-to-Edge 100%, Fixed at Absolute Bottom of Page Canvas) -->
+        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
+          <div style="width:100%; box-sizing:border-box; margin:0; padding:0;">
+            ${customFooterContent}
+          </div>
+        </div>`;
     }
 
     if (settings.footerImage) {
-      return `</tbody></table>${sb}</div>
-        <div style="position:absolute; bottom:15px; left:0; right:0; text-align:center; border-top:1px solid #cbd5e1; padding-top:8px;">
-          <img src="${settings.footerImage}" style="max-width:100%; max-height:50px; object-fit:contain;" />
-        </div>
+      return `<div style="position:absolute; bottom:0; left:0; right:0; width:100%; text-align:center; border-top:1px solid #cbd5e1; padding:10px 0 15px; background:#ffffff; box-sizing:border-box; z-index:30;">
+        <img src="${settings.footerImage}" style="max-width:100%; max-height:60px; object-fit:contain;" />
       </div>`;
     }
 
     let contactAr = sanitizeReportText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
     let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
-    return `</tbody></table>${sb}</div>
-      
-      <!-- Professional Footer Banner & Page Numbering -->
-      <div style="position:absolute; bottom:15px; left:40px; right:40px; border-top:1px solid #cbd5e1; padding-top:10px; z-index:10; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
-        <table style="width:100%; border:none; border-collapse:collapse; background:#1B3D6D; color:#ffffff; border-radius:6px; padding:6px 12px; margin:0;">
+    return `<!-- Professional Footer Banner & Page Numbering (Attached to Page Bottom & Full Width Edge-to-Edge 100%) -->
+      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #cbd5e1; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">
+        <table style="width:100%; border:none; border-collapse:collapse; background:#1B3D6D; color:#ffffff; padding:8px 16px; margin:0;">
           <tr>
-            <td style="text-align:right; border:none; padding:8px 14px; font-size:11px; font-weight:600; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:0px !important;">
+            <td style="text-align:right; border:none; padding:8px 14px; font-size:11px; font-weight:600; direction:rtl; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important;">
               ${contactAr}
             </td>
             <td style="text-align:center; border:none; padding:8px 6px; font-size:12px; font-weight:700; font-family:sans-serif; white-space:nowrap;">
@@ -5283,7 +5535,41 @@ async function buildPDFCanvas(){
             </td>
           </tr>
         </table>
-      </div>
+      </div>`;
+  };
+
+  let baseHeader = function(pageNumber, totalPages) {
+    let customHeaderContent = renderHeaderHtml(pageNumber, totalPages);
+
+    return `<div style="font-family:'Cairo','Tajawal',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
+      ${customHeaderContent}
+      
+      <!-- Table Body -->
+      <div style="padding:15px 40px 80px;">
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">
+          <thead>
+            <tr style="background:${themePri}; color:#ffffff; font-family:'Cairo',sans-serif;">
+              ${settings.exportColumns.date ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; border-right:none; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">التاريخ</th>` : ''}
+              ${settings.exportColumns.day ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">اليوم</th>` : ''}
+              ${settings.exportColumns.checkIn ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">الحضور</th>` : ''}
+              ${settings.exportColumns.checkOut ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">الانصراف</th>` : ''}
+              ${settings.exportColumns.status ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">الحالة</th>` : ''}
+              ${settings.exportColumns.late ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">تأخير</th>` : ''}
+              ${settings.exportColumns.early ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">مبكر</th>` : ''}
+              ${settings.exportColumns.overtime ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">إضافي</th>` : ''}
+              ${settings.exportColumns.absenceType ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; border:2px solid ${themePri}; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">نوع الغياب</th>` : ''}
+              ${settings.exportColumns.note ? `<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:2px solid ${themePri}; border-left:none; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">ملاحظات</th>` : ''}
+            </tr>
+          </thead>
+          <tbody>`;
+  };
+
+  let baseFooter = function(pageNumber, totalPages, sumBlockHtml) {
+    let sb = sumBlockHtml ? sumBlockHtml : '';
+    let footerBanner = renderFooterHtml(pageNumber, totalPages);
+
+    return `</tbody></table>${sb}</div>
+      ${footerBanner}
     </div>`;
   };
 
@@ -5315,55 +5601,101 @@ async function buildPDFCanvas(){
      cv = null; // Free memory immediately
   }
 
-  container.innerHTML = `<div style="font-family:'Cairo',Arial,sans-serif; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; letter-spacing: normal !important; word-spacing: normal !important; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
-    <div style="padding:60px 60px 30px; text-align:center; border-bottom:4px solid ${themePri}; background:#f8fafc; position:relative; letter-spacing: normal !important;">
-      <h1 style="font-size:46px; margin:0; font-weight:900; color:${themePri}; letter-spacing: normal !important; word-spacing: normal !important;">ملخص الإحصائيات والاعتماد النهائي</h1>
-      <div style="font-size:20px; color:#475569; font-weight:bold; margin-top:15px; letter-spacing: normal !important;">الموظف: <span style="color:#0f172a">${settings.name}</span> | تقرير: <span style="color:#0f172a">${repTitle}</span></div>
-    </div>
+  // Last Page: Summary Statistics & Final Approval (Page chunks.length + 1 of chunks.length + 1)
+  let totalPages = chunks.length + 1;
+  let finalPageHeader = renderHeaderHtml(totalPages, totalPages);
+  let finalPageFooter = renderFooterHtml(totalPages, totalPages);
+
+  // Format report title cleanly without duplicating "تقرير"
+  let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
+  let displayRepType = cleanRepTitle || repTitle;
+
+  container.innerHTML = `<div style="font-family:'Cairo','Tajawal',Arial,sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:normal !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
+    ${finalPageHeader}
     
-    <div style="padding:80px 60px;">
-      <div style="border:3px solid ${themePri}; border-radius:24px; padding:60px; background:#f8fafc; position:relative; letter-spacing: normal !important;">
-          <div style="position:absolute; top:-30px; right:50px; background:${themePri}; color:white; padding:10px 40px; font-size:24px; font-weight:900; border-radius:30px; letter-spacing: normal !important;">ملخص جميع الفترات</div>
-          <div style="display:flex; flex-wrap:wrap; gap:40px; justify-content:center; margin-top:30px; font-feature-settings:'tnum'; letter-spacing: normal !important;">
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:${themePri}; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.p}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي أيام الحضور</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#dc2626; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.a}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي أيام الغياب</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#d97706; margin-bottom:15px;" lang="en" dir="ltr">${monthSummary.l}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">أيام التأخير</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#d97706; margin-bottom:15px;" lang="en" dir="ltr">${totalLateDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي ساعات التأخير</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#dc2626; margin-bottom:15px;" lang="en" dir="ltr">${totalEarlyDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">ساعات الخروج المبكر</div>
-              </div>
-              <div style="background:white; border-radius:20px; padding:40px 20px; width:28%; border:3px solid #cbd5e1; text-align:center;">
-                  <div style="font-size:52px; font-weight:900; color:#059669; margin-bottom:15px;" lang="en" dir="ltr">${totalExtraDec}</div>
-                  <div style="font-size:22px; font-weight:900; color:#111827; letter-spacing: normal !important;">إجمالي وقت العمل الإضافي</div>
-              </div>
-          </div>
+    <div style="padding:10px 40px 0 40px;">
+      <!-- Title Section -->
+      <div style="text-align:center; background:#f8fafc; border:2px solid #e2e8f0; border-radius:14px; padding:18px 24px; margin-bottom:24px;">
+        <h2 style="font-size:24px; font-weight:700; color:#1B3D6D; margin:0 0 10px 0; line-height:1.4; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">ملخص</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الإحصائيات</span>&nbsp;<span style="display:inline-block; margin:0 2px;">والاعتماد</span>&nbsp;<span style="display:inline-block; margin:0 2px;">النهائي</span></h2>
+        <div style="font-size:14px; color:#475569; font-weight:600; line-height:1.6; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">
+          <span style="display:inline-block; margin:0 6px;">الموظف:&nbsp;<b style="color:#0f172a;">${settings.name || '-'}</b></span>
+          <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
+          <span style="display:inline-block; margin:0 6px;">نوع التقرير:&nbsp;<b style="color:#0f172a;">${displayRepType}</b></span>
+          <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
+          <span style="display:inline-block; margin:0 6px;">الفترة:&nbsp;<b style="color:#0f172a;">${periodLabel}</b></span>
+        </div>
       </div>
       
-      <div style="display:flex; justify-content:space-around; margin-top:150px; font-weight:bold; font-size:22px; color:#475569;">
-          <div style="width:300px; text-align:center;"><div style="border-bottom:3px solid #334155; margin-bottom:20px; height:60px;"></div>المدير المباشر / الإدارة</div>
-          <div style="width:300px; text-align:center;"><div style="border-bottom:3px solid #334155; margin-bottom:20px; height:60px;"></div>توقيع الموظف</div>
+      <!-- Stats Container (3 Columns x 2 Rows) -->
+      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:24px 20px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+        <table style="width:100%; border:none; border-collapse:separate; border-spacing:16px; margin:0;">
+          <tr>
+            <!-- Stat 1: Present Days -->
+            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">إجمالي</span>&nbsp;<span style="display:inline-block; margin:0 2px;">أيام</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الحضور</span></div>
+              <div style="font-size:38px; font-weight:700; color:#16a34a; line-height:1.1; font-family:sans-serif;" dir="ltr">${monthSummary.p}</div>
+              <div style="font-size:12px; font-weight:600; color:#15803d; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">يوم عمل</div>
+            </td>
+            <!-- Stat 2: Absence Days -->
+            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">إجمالي</span>&nbsp;<span style="display:inline-block; margin:0 2px;">أيام</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الغياب</span></div>
+              <div style="font-size:38px; font-weight:700; color:#dc2626; line-height:1.1; font-family:sans-serif;" dir="ltr">${monthSummary.a}</div>
+              <div style="font-size:12px; font-weight:600; color:#b91c1c; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">يوم غياب</div>
+            </td>
+            <!-- Stat 3: Late Days -->
+            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">أيام</span>&nbsp;<span style="display:inline-block; margin:0 2px;">التأخير</span></div>
+              <div style="font-size:38px; font-weight:700; color:#d97706; line-height:1.1; font-family:sans-serif;" dir="ltr">${monthSummary.l}</div>
+              <div style="font-size:12px; font-weight:600; color:#b45309; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">يوم به تأخير</div>
+            </td>
+          </tr>
+          <tr>
+            <!-- Stat 4: Total Late Hours -->
+            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">إجمالي</span>&nbsp;<span style="display:inline-block; margin:0 2px;">ساعات</span>&nbsp;<span style="display:inline-block; margin:0 2px;">التأخير</span></div>
+              <div style="font-size:38px; font-weight:700; color:#d97706; line-height:1.1; font-family:sans-serif;" dir="ltr">${totalLateDec}</div>
+              <div style="font-size:12px; font-weight:600; color:#b45309; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+            <!-- Stat 5: Early Leave Hours -->
+            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">ساعات</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الخروج</span>&nbsp;<span style="display:inline-block; margin:0 2px;">المبكر</span></div>
+              <div style="font-size:38px; font-weight:700; color:#dc2626; line-height:1.1; font-family:sans-serif;" dir="ltr">${totalEarlyDec}</div>
+              <div style="font-size:12px; font-weight:600; color:#b91c1c; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+            <!-- Stat 6: Overtime -->
+            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:20px 14px; text-align:center; vertical-align:middle;">
+              <div style="font-size:14px; font-weight:700; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">إجمالي</span>&nbsp;<span style="display:inline-block; margin:0 2px;">العمل</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الإضافي</span></div>
+              <div style="font-size:38px; font-weight:700; color:#059669; line-height:1.1; font-family:sans-serif;" dir="ltr">${totalExtraDec}</div>
+              <div style="font-size:12px; font-weight:600; color:#15803d; margin-top:6px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <!-- Final Signatures & Approval Section -->
+      <div style="margin-top:35px; border:2px dashed #cbd5e1; border-radius:16px; padding:26px 30px 22px; background:#f8fafc;">
+        <div style="font-size:16px; font-weight:700; color:#1B3D6D; text-align:center; margin-bottom:26px; font-family:'Cairo',Arial,sans-serif; letter-spacing:normal !important; word-spacing:normal !important;">
+          <span style="display:inline-block; margin:0 2px;">مصادقة</span>&nbsp;<span style="display:inline-block; margin:0 2px;">واعتماد</span>&nbsp;<span style="display:inline-block; margin:0 2px;">التقرير</span>
+        </div>
+        <table style="width:100%; border:none; border-collapse:collapse; margin:0;">
+          <tr>
+            <td style="width:45%; text-align:center; vertical-align:top; border:none; padding:0 20px;">
+              <div style="font-size:15px; font-weight:700; color:#334155; margin-bottom:52px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">توقيع</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الموظف</span></div>
+              <div style="border-bottom:2px solid #475569; width:80%; margin:0 auto 10px auto;"></div>
+              <div style="font-size:13px; color:#64748b; font-weight:600; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">الاسم:&nbsp;<b style="color:#0f172a">${settings.name || '........................'}</b></div>
+            </td>
+            <td style="width:10%; border:none;"></td>
+            <td style="width:45%; text-align:center; vertical-align:top; border:none; padding:0 20px;">
+              <div style="font-size:15px; font-weight:700; color:#334155; margin-bottom:52px; font-family:'Cairo',sans-serif; letter-spacing:normal !important; word-spacing:normal !important;"><span style="display:inline-block; margin:0 2px;">المدير</span>&nbsp;<span style="display:inline-block; margin:0 2px;">المباشر</span>&nbsp;<span style="display:inline-block; margin:0 2px;">/</span>&nbsp;<span style="display:inline-block; margin:0 2px;">الإدارة</span></div>
+              <div style="border-bottom:2px solid #475569; width:80%; margin:0 auto 10px auto;"></div>
+              <div style="font-size:13px; color:#64748b; font-weight:600; font-family:'Cairo',sans-serif; letter-spacing:normal !important;">التوقيع والختم:&nbsp;<b style="color:#0f172a">........................</b></div>
+            </td>
+          </tr>
+        </table>
       </div>
     </div>
     
-    <!-- Footer Page Numbering -->
-    <div style="position:absolute; bottom:40px; left:0; right:0; text-align:center; font-feature-settings:'tnum'; z-index:10;">
-       <div style="display:inline-block; padding:10px 30px; background:#ffffff; box-shadow:0 0 15px rgba(0,0,0,0.05); color:#475569; font-weight:900; font-size:16px; border-radius:30px; border:1px solid #e2e8f0;">
-          صفحة <span lang="en" dir="ltr" style="color:${themePri};">${chunks.length + 1}</span> من <span lang="en" dir="ltr">${chunks.length + 1}</span>
-       </div>
-    </div>
+    ${finalPageFooter}
   </div>`;
 
   let cvFinal = await html2canvas(container, opts);
@@ -5487,52 +5819,103 @@ window.exeExpDownload=function(){
     let finalLocation = "";
 
     try {
-      let nowForBackup=new Date();
-      let bkName=`backup_${nowForBackup.toISOString().replace(/[:.]/g,'-').slice(0,19)}.json`;
-      let bkData=JSON.stringify({S:settings,R: await RECDB.getAll(),d:nowForBackup.toISOString()});
+      let isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform);
       
-      if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
+      // Automatic backup if running on native device
+      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+        try {
+          let nowForBackup = new Date();
+          let bkName = `backup_${nowForBackup.toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
+          let bkData = JSON.stringify({ S: settings, R: await RECDB.getAll(), d: nowForBackup.toISOString() });
           await requestStoragePermission();
-          await ensureDir(BACKUP_FOLDER,`DOCUMENTS`);
-          let bkPath=await uniqueFilePath(`${BACKUP_FOLDER}/${bkName}`,`DOCUMENTS`);
-          await window.Capacitor.Plugins.Filesystem.writeFile({path:bkPath,data:bkData,directory:`DOCUMENTS`,encoding:`utf8`,recursive:true});
+          await ensureDir(BACKUP_FOLDER, `DOCUMENTS`);
+          let bkPath = await uniqueFilePath(`${BACKUP_FOLDER}/${bkName}`, `DOCUMENTS`);
+          await window.Capacitor.Plugins.Filesystem.writeFile({ path: bkPath, data: bkData, directory: `DOCUMENTS`, encoding: `utf8`, recursive: true });
+        } catch(bkErr) {
+          console.warn('Native backup on export warning:', bkErr);
+        }
       }
 
-      if(window.showSaveFilePicker && (!window.Capacitor || !window.Capacitor.isNativePlatform)){
-        let handle = await window.showSaveFilePicker({
+      let saved = false;
+
+      // 1. If Native Android / Capacitor
+      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+        try {
+          await ensureDir(APP_FOLDER, `DOCUMENTS`);
+          let safeName = name.replace(/[\\/:*?"<>|]/g, `_`);
+          let basePath = `${APP_FOLDER}/${safeName}.pdf`;
+          let finalPath = await uniqueFilePath(basePath, `DOCUMENTS`);
+          let b64 = await blobToBase64(blob);
+          await window.Capacitor.Plugins.Filesystem.writeFile({ path: finalPath, data: b64, directory: `DOCUMENTS`, recursive: true });
+          finalLocation = `مجلد التخزين الداخلي / Documents / ${finalPath}`;
+          saved = true;
+        } catch(capErr) {
+          console.warn('Native PDF file write error, falling back to download:', capErr);
+        }
+      }
+
+      // 2. Check if running inside iframe / subframe (cross-origin frames reject showSaveFilePicker)
+      let isInIframe = false;
+      try {
+        isInIframe = window.self !== window.top;
+      } catch (e) {
+        isInIframe = true;
+      }
+
+      if (!saved && !isInIframe && typeof window.showSaveFilePicker === 'function') {
+        try {
+          let handle = await window.showSaveFilePicker({
             suggestedName: `${name}.pdf`,
-            types: [{description: 'PDF Document', accept: {'application/pdf': ['.pdf']}}]
-        });
-        let writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        finalLocation = "جهاز الكمبيوتر / التنزيلات (حسب المكان الذي اخترته)";
-      } else if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
-        await ensureDir(APP_FOLDER,`DOCUMENTS`);
-        let safeName=name.replace(/[\\/:*?"<>|]/g,`_`);
-        let basePath=`${APP_FOLDER}/${safeName}.pdf`;
-        let finalPath=await uniqueFilePath(basePath,`DOCUMENTS`);
-        let b64=await blobToBase64(blob);
-        await window.Capacitor.Plugins.Filesystem.writeFile({path:finalPath,data:b64,directory:`DOCUMENTS`,recursive:true});
-        finalLocation = `مجلد التخزين الداخلي / Documents / ${finalPath}`;
-      } else {
-        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
+            types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
+          });
+          let writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          finalLocation = "جهاز الكمبيوتر / التنزيلات (حسب المكان الذي اخترته)";
+          saved = true;
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            toast(`تم إلغاء الحفظ`, `err`);
+            if (btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+            return;
+          }
+          console.warn('showSaveFilePicker fallback to standard download:', pickerErr.message || pickerErr);
+        }
+      }
+
+      // 3. Browser direct download fallback (standard for iframe & web)
+      if (!saved) {
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement(`a`);
+        a.href = url;
+        a.download = `${name}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
         finalLocation = "مجلد التنزيلات الخاص بمتصفحك";
       }
-      
+
       window.showExportSuccess(finalLocation);
 
     } catch(err){
-      console.error(`Export/Backup error:`,err);
-      if(err.name === 'SecurityError' || (err.message && err.message.includes('gesture'))) {
-         let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-         a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-         window.showExportSuccess("تم تنزيل الملف أوتوماتيكياً (تجاوزاً لتقييد المتصفح)");
-      } else if(err.name !== 'AbortError') {
-        toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل العملية: `+(err.message||err),`err`);
+      console.warn(`Export error:`, err);
+      if (err.name !== 'AbortError') {
+        try {
+          let url = URL.createObjectURL(blob);
+          let a = document.createElement(`a`);
+          a.href = url;
+          a.download = `${name}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1500);
+          window.showExportSuccess("مجلد التنزيلات الخاص بمتصفحك");
+        } catch (e) {
+          toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل العملية: ` + (err.message || err), `err`);
+        }
       } else {
-        toast(`تم إلغاء الحفظ`,`err`);
+        toast(`تم إلغاء الحفظ`, `err`);
       }
     }
     
@@ -5542,16 +5925,19 @@ window.exeExpDownload=function(){
 
 function getPlainTextHeader(repTitle, periodLabel) {
   if (settings.activeHeaderId === 'none') return '';
+  let defaultText = `${repTitle} - الموظف: ${settings.name} - الفترة: ${periodLabel}`;
   if (settings.activeHeaderId && settings.activeHeaderId !== 'default' && settings.activeHeaderId !== '') {
-    let h = (settings.reportHeaders || []).find(x => x.id === settings.activeHeaderId);
-    if (h) return h.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    let h = getReportHeaderById(settings.activeHeaderId);
+    if (h) {
+      let customTxt = h.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return customTxt ? `${customTxt} | ${defaultText}` : defaultText;
+    }
   }
-  return `${repTitle} - الموظف: ${settings.name} - الفترة: ${periodLabel}`;
+  return defaultText;
 }
 
 function getPlainTextFooter() {
-  if (settings.activeFooterId === 'none') return '';
-  if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '') {
+  if (settings.activeFooterId && settings.activeFooterId !== 'default' && settings.activeFooterId !== '' && settings.activeFooterId !== 'none') {
     let f = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
     if (f) return f.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
@@ -5654,8 +6040,21 @@ window.exeExpExcel=async function(){
              else if(r.status === 'absent') val = 'غائب';
              else val = r.status;
           }
-          else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : '') || '-';
-          else if(c.key === 'note') val = r.note || '';
+          else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '')) || '-';
+          else if(c.key === 'note') {
+            let leaveComp = (settings.compensations || []).find(x => x.date === r.date && x.type === 'leave');
+            let exportNote = r.note || '';
+            if (leaveComp) {
+              let sourceDesc = formatCompSourceText(leaveComp, false);
+              let compNote = leaveComp.note ? leaveComp.note : '';
+              let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+              exportNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+              if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+                exportNote = `${r.note} | ${exportNote}`;
+              }
+            }
+            val = exportNote;
+          }
           
           let escCsv = (str) => `"${String(str).replace(/"/g, '""')}"`;
           rowData.push(escCsv(val));
@@ -5733,27 +6132,37 @@ window.exeExpShare=function(){
         dialogTitle:`مشاركة التقرير`
       });
     } catch(err){
-      console.error(`Share PDF error:`,err);
-      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+      if(err.name !== 'AbortError') {
+        console.warn(`Share PDF error:`,err);
+        toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+      }
     }
   } else {
-    try{
-      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : blob;
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({title:`تقرير الحضور`,files:[file]});
-      } else {
+    try {
+      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : null;
+      let shared = false;
+      if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        try {
+          await navigator.share({title:`تقرير الحضور`,files:[file]});
+          shared = true;
+        } catch(shareErr) {
+          if (shareErr.name === 'AbortError') {
+            shared = true; // User intentionally dismissed native share dialog
+          } else {
+            console.warn('Web share restricted or gesture expired, falling back to direct download:', shareErr.message || shareErr);
+          }
+        }
+      }
+      if (!shared) {
         let url=URL.createObjectURL(blob),a=document.createElement(`a`);
         a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-        toast(`تم التحميل (تطبيق المشاركة غير مدعوم محلياً)`,`ok`);
+        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
       }
-    } catch(err){
-      console.error(`Web Share PDF error:`,err);
-      if(err.name === 'NotAllowedError' || err.message.includes('gesture')) {
-          let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-          a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-          toast(`تم تنزيل الملف أوتوماتيكياً نظراً لقيود المتصفح الأمنية للنافذة`,`ok`);
-      } else if (err.name !== 'AbortError') {
-          toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
+    } catch(err) {
+      if (err.name !== 'AbortError') {
+        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
+        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
+        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
       }
     }
   }
@@ -6190,7 +6599,7 @@ async function initApp(){
     } catch(e) { console.warn("Clock Failed:", e); }
     
     // Step 4: Fill Absences (Logical step, usually safe)
-    try { fillAbsences(); } catch(e) { console.warn("FillAbsences Failed:", e); }
+    try { await fillAbsences(); } catch(e) { console.warn("FillAbsences Failed:", e); }
     
     // Step 5: Screen Rendering
     try {
