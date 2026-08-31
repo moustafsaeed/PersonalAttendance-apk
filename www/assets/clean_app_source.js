@@ -686,35 +686,60 @@ async function generateAutoAbsentRecords(recs, year, month) {
   let modified = false;
   let comps = settings.compensations || [];
   
-  let recDateSet = new Set(recs.map(r => normalizeSlashDate(r.date)));
-  let compLeaveSet = new Set(comps.filter(c => c.type === 'leave').map(c => c.date));
+  let recDateMap = new Map();
+  recs.forEach(r => {
+    if (r && r.date) {
+      recDateMap.set(normalizeSlashDate(r.date), r);
+    }
+  });
+  
+  let compLeaveSet = new Set(comps.filter(c => c.type === 'leave').map(c => normalizeSlashDate(c.date)));
 
   for (let i = 1; i <= daysInMonth; i++) {
     let d = new Date(year, month, i);
-    if (d > now) continue; // Don't generate for future days
+    // For current month, don't generate beyond today unless already in recs
+    if (year === now.getFullYear() && month === now.getMonth() && d > now) continue;
     
-    // Workday check
-    if (!isWorkDay(d)) continue;
-    if (isHoliday(d)) continue;
-
     let dStr = makeDateKey(year, month, i);
-    if (!recDateSet.has(dStr)) {
+    let existRec = recDateMap.get(dStr);
+    
+    if (!existRec) {
+      let isHol = isHoliday(d);
+      let isWork = isWorkDay(d);
       let isCompLeave = compLeaveSet.has(dStr);
-      let status = isCompLeave ? 'إجازة من الإضافي' : 'absent';
-      let note = isCompLeave ? 'إجازة من الإضافي' : '';
+      
+      let status = 'absent';
+      let absenceType = '';
+      let note = '';
+      let auto = true;
+      
+      if (isHol) {
+        status = 'إجازة';
+        note = getHolidayLabel(d);
+      } else if (!isWork) {
+        status = 'إجازة';
+        note = 'إجازة أسبوعية';
+      } else if (isCompLeave) {
+        status = 'إجازة من الإضافي';
+        absenceType = 'إجازة تعويض إضافي';
+        note = 'إجازة من الإضافي';
+        auto = false;
+      }
+      
       let newRec = {
         id: uuid(),
         date: dStr,
         status: status,
-        absenceType: isCompLeave ? 'إجازة تعويض إضافي' : '',
+        absenceType: absenceType,
         note: note,
-        auto: !isCompLeave,
-        checkIn: '',
-        checkOut: ''
+        auto: auto,
+        checkIn: null,
+        checkOut: null
       };
+      
       await RECDB.put(newRec);
       recs.push(newRec);
-      recDateSet.add(dStr);
+      recDateMap.set(dStr, newRec);
       modified = true;
     }
   }
@@ -831,11 +856,6 @@ window.toggleBiometricLock = async function() {
 async function fillAbsences(){
   let now=new Date(),y=now.getFullYear(),m=now.getMonth();
   let from=new Date(y,m,1); from.setMonth(from.getMonth()-6);
-  if(settings.lastAbsenceFill){
-    let iso = slashToISO(settings.lastAbsenceFill);
-    let lastFill=new Date(iso);
-    if(!isNaN(lastFill.getTime()) && lastFill>from) from=lastFill;
-  }
   let existingMap = new Map(); // date -> record
   let cur2 = new Date(from);
   let lastProcessedYM = '';
@@ -1411,6 +1431,10 @@ async function renderRecords(){
     let dayName = DAYS[d.getDay()];
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
+    let lateComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'late');
+    let earlyComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'early');
+    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+
     let rawLate = isPresent(r.status) ? lateMin(r.checkIn,sch.start) : 0;
     let rawEarly = r.checkOut ? earlyMin(r.checkOut,sch.end) : 0;
     let late = isLateComp ? 0 : rawLate;
@@ -1435,13 +1459,15 @@ async function renderRecords(){
 
     let timingArr = [];
     if(isLateComp) {
-      timingArr.push(`<span class="metric-chip metric-chip-compensated"><i class="fa-solid fa-check"></i> تعويض تأخير</span>`);
+      let srcTxt = lateComp && lateComp.sourceDate ? ` (من ${lateComp.sourceDate})` : '';
+      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض التأخير من رصيد يوم ${lateComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض تأخير${srcTxt}</span>`);
     } else if(late > 0) {
       timingArr.push(`<span class="metric-chip metric-chip-late"><i class="fa-solid fa-clock-rotate-left"></i> +${formatMin(late)} تأخير</span>`);
     }
 
     if(isEarlyComp) {
-      timingArr.push(`<span class="metric-chip metric-chip-compensated"><i class="fa-solid fa-check"></i> تعويض خروج</span>`);
+      let srcTxt = earlyComp && earlyComp.sourceDate ? ` (من ${earlyComp.sourceDate})` : '';
+      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض الخروج من رصيد يوم ${earlyComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض خروج${srcTxt}</span>`);
     } else if(early > 0) {
       timingArr.push(`<span class="metric-chip metric-chip-early"><i class="fa-solid fa-person-walking-arrow-right"></i> -${formatMin(early)} مبكر</span>`);
     }
@@ -1488,6 +1514,26 @@ async function renderRecords(){
       }
     }
 
+    let absenceTypeDisplay = r.status === `absent` ? esc(r.absenceType || ``) : (r.status === 'إجازة من الإضافي' ? esc(r.absenceType || 'إجازة تعويض إضافي') : '');
+    
+    let noteHTML = '';
+    if (leaveComp) {
+      let sourceDesc = formatCompSourceText(leaveComp, false);
+      let compNote = leaveComp.note ? esc(leaveComp.note) : '';
+      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+      let finalNoteText = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+      
+      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+        finalNoteText = `${esc(r.note)} | ${finalNoteText}`;
+      }
+      
+      noteHTML = `<div class="inline-block p-1.5 rounded-lg text-[11px] font-bold leading-normal bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
+        <i class="fa-solid fa-scissors ml-1 text-emerald-600 dark:text-emerald-400"></i> ${finalNoteText}
+      </div>`;
+    } else {
+      noteHTML = esc(r.note) || `<span class="opacity-30">-</span>`;
+    }
+
     return `<tr class="${rowClass}">
       <td class="font-bold text-xs opacity-90">${r.date}</td>
       ${settings.exportColumns.day ? `<td class="font-bold text-xs" style="color:var(--text2)">${esc(dayName)}</td>` : ''}
@@ -1496,8 +1542,8 @@ async function renderRecords(){
       <td>${statusBadgeHTML}</td>
       <td>${timingHTML}</td>
       <td>${extraHTML}</td>
-      <td class="text-[11px] opacity-80 break-words align-middle font-semibold">${r.status===`absent`&&esc(r.absenceType||``)||``}</td>
-      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:13px;" class="max-w-[180px] break-words align-middle leading-relaxed">${esc(r.note)||`<span class="opacity-30">-</span>`}</td>
+      <td class="text-[11px] opacity-80 break-words align-middle font-semibold">${absenceTypeDisplay}</td>
+      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:13px;" class="max-w-[200px] break-words align-middle leading-relaxed">${noteHTML}</td>
       <td style="text-align:center">
         <button onclick="openEdit('${r.id}', '${r.date}')" class="w-8 h-8 rounded-xl inline-flex items-center justify-center text-xs transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
           <i class="fa-solid fa-pen-to-square"></i>
@@ -1754,19 +1800,50 @@ window.delRec=async function(){
     }
     if (!deleted) { closeEdit(); return; }
     
-    await deleteRecord(deleted.date);
+    let d = new Date(slashToISO(deleted.date));
+    let restoredRec = {
+      id: uuid(),
+      date: deleted.date,
+      checkIn: null,
+      checkOut: null,
+      auto: true
+    };
+    
+    if (isHoliday(d)) {
+      restoredRec.status = 'إجازة';
+      restoredRec.absenceType = '';
+      restoredRec.note = getHolidayLabel(d);
+    } else if (!isWorkDay(d)) {
+      restoredRec.status = 'إجازة';
+      restoredRec.absenceType = '';
+      restoredRec.note = 'إجازة أسبوعية';
+    } else {
+      restoredRec.status = 'absent';
+      restoredRec.absenceType = '';
+      restoredRec.note = '';
+    }
+    
+    // Also remove any compensation records tied to this day
+    if (settings.compensations && settings.compensations.length > 0) {
+      settings.compensations = settings.compensations.filter(c => c.date !== deleted.date && c.sourceDate !== deleted.date);
+      saveSettings();
+    }
+    
+    await saveRecord(restoredRec);
     _monthCacheKey = '';
-    await fillAbsences();
     closeEdit();
     await renderRecords();
     renderHome();
     renderStats();
-    showUndoable('<i class="fa-solid fa-trash ml-1"></i> تم حذف السجل', async () => {
+    if (typeof renderCompensation === 'function') await renderCompensation();
+    
+    showUndoable('<i class="fa-solid fa-rotate-left ml-1"></i> تم إعادة ضبط السجل وإلغاء بيانات الدوام', async () => {
       await saveRecord(deleted);
       _monthCacheKey = '';
       await renderRecords();
       renderHome();
       renderStats();
+      if (typeof renderCompensation === 'function') await renderCompensation();
     });
   } finally {
     releaseActionLock('delRec');
@@ -1972,7 +2049,29 @@ window.deleteTravelAssignment = async function(assignmentId) {
         
         let rec = await RECDB.get(slashDate);
         if (rec && rec.status === 'تكليف سفر') {
-          await deleteRecord(slashDate);
+          let d = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+          if (isHoliday(d)) {
+            rec.status = 'إجازة';
+            rec.absenceType = '';
+            rec.note = getHolidayLabel(d);
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          } else if (!isWorkDay(d)) {
+            rec.status = 'إجازة';
+            rec.absenceType = '';
+            rec.note = 'إجازة أسبوعية';
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          } else {
+            rec.status = 'absent';
+            rec.absenceType = '';
+            rec.note = '';
+            rec.auto = true;
+            rec.travelAssignmentId = null;
+            await saveRecord(rec);
+          }
         }
       }
       
@@ -2432,6 +2531,29 @@ async function calcOvertimeBalance() {
 }
 window.calcOvertimeBalance = calcOvertimeBalance;
 
+function formatCompSourceText(comp, shortFormat = false) {
+  if (!comp) return '';
+  if (comp.sourceDate) {
+    return `من رصيد إضافي يوم ${comp.sourceDate}`;
+  }
+  if (Array.isArray(comp.sourceDetails) && comp.sourceDetails.length > 0) {
+    if (comp.sourceDetails.length === 1) {
+      let sd = comp.sourceDetails[0];
+      return `من رصيد إضافي يوم ${sd.date}${sd.minutes ? ` (${formatMin(sd.minutes)})` : ''}`;
+    }
+    let firstD = comp.sourceDetails[0].date;
+    let lastD = comp.sourceDetails[comp.sourceDetails.length - 1].date;
+    let breakdown = comp.sourceDetails.map(sd => `${sd.date} (${formatMin(sd.minutes)})`).join(' ، ');
+    
+    if (shortFormat) {
+      return `من إضافي (${firstD} إلى ${lastD})`;
+    }
+    return `من إضافي (${firstD} إلى ${lastD}) [${breakdown}]`;
+  }
+  return 'من رصيد الإضافي';
+}
+window.formatCompSourceText = formatCompSourceText;
+
 window.switchCompSubTab = function(tab) {
   currentCompSubTab = tab;
   document.querySelectorAll('.btn-sub-tab').forEach(btn => btn.classList.remove('active'));
@@ -2842,7 +2964,7 @@ window.saveOTLeave = async function() {
     
     let rec = await RECDB.get(slashDate);
     
-    settings.compensations.push({
+    let newComp = {
       id: uuid(),
       date: slashDate,
       type: 'leave',
@@ -2850,10 +2972,12 @@ window.saveOTLeave = async function() {
       sourceDetails: allocationDetails,
       note: note,
       createdAt: new Date().toISOString()
-    });
+    };
+    settings.compensations.push(newComp);
     saveSettings();
     
-    let noteText = note ? `${note} (خصم ${formatMin(totalMin)} من الإضافي)` : `خصم ${formatMin(totalMin)} من الإضافي`;
+    let sourceDesc = formatCompSourceText(newComp, false);
+    let noteText = note ? `${note} (خصم ${formatMin(totalMin)} ${sourceDesc})` : `خصم ${formatMin(totalMin)} ${sourceDesc}`;
     if(rec) {
       rec.status = 'إجازة من الإضافي';
       rec.checkIn = null;
@@ -2897,8 +3021,33 @@ window.undoCompensation = async function(id) {
     
     if(comp.type === 'leave') {
       let rec = await RECDB.get(comp.date);
-      if(rec && rec.status === 'إجازة من الإضافي') {
-        await deleteRecord(comp.date);
+      if(rec && (rec.status === 'إجازة من الإضافي' || rec.absenceType === 'إجازة تعويض إضافي')) {
+        let d = new Date(slashToISO(comp.date));
+        if (isHoliday(d)) {
+          rec.status = 'إجازة';
+          rec.absenceType = '';
+          rec.note = getHolidayLabel(d);
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        } else if (!isWorkDay(d)) {
+          rec.status = 'إجازة';
+          rec.absenceType = '';
+          rec.note = 'إجازة أسبوعية';
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        } else {
+          rec.status = 'absent';
+          rec.absenceType = '';
+          rec.note = '';
+          rec.auto = true;
+          rec.checkIn = null;
+          rec.checkOut = null;
+          await saveRecord(rec);
+        }
       }
     }
     
@@ -2908,10 +3057,10 @@ window.undoCompensation = async function(id) {
     _monthCacheKey = '';
     await fillAbsences();
     await renderCompensation();
-    renderRecords();
+    await renderRecords();
     renderHome();
     renderStats();
-    toast('تم التراجع عن التعويض وإلغاء الخصم بنجاح', 'ok');
+    toast('تم التراجع عن التعويض وإلغاء الخصم بنجاح واستعادة السجل', 'ok');
   } finally {
     releaseActionLock('undoCompensation');
   }
@@ -5101,6 +5250,18 @@ async function buildPDFCanvas(){
     let rowBg = r.status===`absent` ? `#fef2f2` : r.status===`تكليف سفر` ? `#f3e8ff` : (r.status===`إجازة رسمية` || r.status===`إجازة`) ? `#eff6ff` : (late>0 ? `#fffbeb` : `#ffffff`);
     let rowBorder = r.status==='absent' ? '#ef4444' : r.status===`تكليف سفر` ? '#a855f7' : (r.status===`إجازة رسمية` || r.status===`إجازة`) ? '#3b82f6' : (late>0 ? '#f59e0b' : themePri);
 
+    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+    let pdfNote = r.note || '';
+    if (leaveComp) {
+      let sourceDesc = formatCompSourceText(leaveComp, false);
+      let compNote = leaveComp.note ? leaveComp.note : '';
+      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+      pdfNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+        pdfNote = `${r.note} | ${pdfNote}`;
+      }
+    }
+
     allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0; border-right:4px solid ${rowBorder};">
       ${settings.exportColumns.date ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; border-right:none;" lang="en" dir="ltr">${r.date}</td>` : ''}
       ${settings.exportColumns.day ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#475569; border:1px solid #cbd5e1;">${DAYS[d.getDay()]}</td>` : ''}
@@ -5110,12 +5271,12 @@ async function buildPDFCanvas(){
       ${settings.exportColumns.late ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${lateDec}</td>` : ''}
       ${settings.exportColumns.early ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${earlyDec}</td>` : ''}
       ${settings.exportColumns.overtime ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${extra>0?'+'+formatMin(extra):'-'}</td>` : ''}
-      ${settings.exportColumns.absenceType ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):``}</td>` : ''}
-      ${settings.exportColumns.note ? `<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Cairo'}', serif; color:#111827; border:1px solid #cbd5e1; border-left:none; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(r.note)||``}</td>` : ''}
+      ${settings.exportColumns.absenceType ? `<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):(r.status==='إجازة من الإضافي'?'إجازة تعويض إضافي':'')}</td>` : ''}
+      ${settings.exportColumns.note ? `<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Cairo'}', serif; color:#111827; border:1px solid #cbd5e1; border-left:none; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(pdfNote)||``}</td>` : ''}
     </tr>`);
     
     // Dynamic weight for row height and notes
-    let noteText = settings.exportColumns.note && r.note ? String(r.note).trim() : "";
+    let noteText = settings.exportColumns.note && pdfNote ? String(pdfNote).trim() : "";
     let absText = settings.exportColumns.absenceType && r.absenceType && r.status === 'absent' ? String(r.absenceType).trim() : "";
     let noteLines = 1;
     if (noteText) {
@@ -5654,8 +5815,21 @@ window.exeExpExcel=async function(){
              else if(r.status === 'absent') val = 'غائب';
              else val = r.status;
           }
-          else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : '') || '-';
-          else if(c.key === 'note') val = r.note || '';
+          else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '')) || '-';
+          else if(c.key === 'note') {
+            let leaveComp = (settings.compensations || []).find(x => x.date === r.date && x.type === 'leave');
+            let exportNote = r.note || '';
+            if (leaveComp) {
+              let sourceDesc = formatCompSourceText(leaveComp, false);
+              let compNote = leaveComp.note ? leaveComp.note : '';
+              let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+              exportNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+              if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+                exportNote = `${r.note} | ${exportNote}`;
+              }
+            }
+            val = exportNote;
+          }
           
           let escCsv = (str) => `"${String(str).replace(/"/g, '""')}"`;
           rowData.push(escCsv(val));
@@ -6190,7 +6364,7 @@ async function initApp(){
     } catch(e) { console.warn("Clock Failed:", e); }
     
     // Step 4: Fill Absences (Logical step, usually safe)
-    try { fillAbsences(); } catch(e) { console.warn("FillAbsences Failed:", e); }
+    try { await fillAbsences(); } catch(e) { console.warn("FillAbsences Failed:", e); }
     
     // Step 5: Screen Rendering
     try {
