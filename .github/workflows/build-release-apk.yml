@@ -30,10 +30,10 @@ jobs:
 
       - name: Build APK
         run: |
+          ls -l android/gradlew
+          chmod +x android/gradlew
           cd android
-          chmod +x gradlew
           ./gradlew assembleRelease
-          cd ..
 
       - name: Find APK
         id: find_apk
