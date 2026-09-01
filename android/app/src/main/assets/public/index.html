@@ -20,6 +20,7 @@
   <script src="lib/chart.js"></script>
   <script src="lib/html2canvas.js"></script>
   <script src="lib/jspdf.js"></script>
+  <script src="capacitor.js"></script>
   <script>
     window.onerror = function (msg, url, line, col, error) {
       console.error("App Error:", msg, url, line, col, error);
@@ -430,8 +431,8 @@
       background: var(--c-surface-2);
       color: var(--c-text);
       font-weight: 800;
-      font-size: 0.75rem;
-      padding: 0.65rem 0.75rem;
+      font-size: 0.72rem;
+      padding: 0.5rem 0.55rem;
       border-bottom: 2px solid var(--c-border);
       border-left: 1px solid var(--c-border);
       white-space: nowrap;
@@ -442,12 +443,12 @@
     }
 
     .table-modern td {
-      padding: 0.6rem 0.75rem;
+      padding: 0.42rem 0.55rem;
       border-bottom: 1px solid var(--c-border);
       border-left: 1px solid var(--c-border);
       color: var(--c-text);
       vertical-align: middle;
-      font-size: 0.8125rem;
+      font-size: 0.78rem;
     }
 
     .table-modern td:last-child {
@@ -1773,27 +1774,36 @@
       background: rgba(15, 23, 42, 0.95);
     }
 
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-shake {
+      animation: shake 0.35s ease-in-out;
+    }
+
     /* ── Overtime Compensation & Records Sub-Navigation Custom UI ── */
     .records-nav-container {
-      padding: 0 0 16px;
+      padding: 0 0 10px;
       position: sticky;
       top: 0;
       z-index: 40;
-      background: linear-gradient(to bottom, var(--c-bg, #f8fafc) 70%, transparent);
+      background: linear-gradient(to bottom, var(--c-bg, #f8fafc) 75%, transparent);
     }
 
     .records-tabs {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px;
+      gap: 4px;
+      padding: 4px;
       background: var(--c-surface);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1.5px solid var(--c-border);
-      border-radius: 24px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-      max-width: 520px;
+      border: 1px solid var(--c-border);
+      border-radius: 20px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+      max-width: 480px;
       margin: 0 auto;
     }
 
@@ -1802,14 +1812,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 11px 14px;
-      min-height: 46px;
-      border-radius: 18px;
-      font-size: 12.5px;
+      gap: 6px;
+      padding: 8px 12px;
+      min-height: 38px;
+      border-radius: 14px;
+      font-size: 12px;
       font-weight: 800;
       cursor: pointer;
-      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.25s ease;
       background: transparent;
       color: var(--c-text-3);
       border: none;
@@ -1817,8 +1827,8 @@
     }
 
     .rec-tab i {
-      font-size: 15px;
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-size: 13px;
+      transition: transform 0.25s ease;
     }
 
     .rec-tab:hover {
@@ -1829,11 +1839,11 @@
     .rec-tab.active {
       background: var(--theme-grad-h, var(--pri));
       color: #ffffff !important;
-      box-shadow: 0 8px 20px var(--pri-lt);
+      box-shadow: 0 4px 14px var(--pri-lt);
     }
 
     .rec-tab.active i {
-      transform: scale(1.15);
+      transform: scale(1.1);
       color: #ffffff !important;
     }
 
@@ -2145,55 +2155,58 @@
 
   <main class="px-2 sm:px-4 lg:px-6 -mt-4 relative z-10 w-full max-w-6xl mx-auto pb-36">
 
-    <div id="pg-home" class="page active w-full space-y-3.5 pb-20">
+    <div id="pg-home" class="page active w-full space-y-3 pb-16">
       <div id="notifArea" class="space-y-2"></div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
-        <!-- Left / Primary Column: Actions, Live Timer & Attendance Registration -->
-        <div class="lg:col-span-7 space-y-3.5">
-          <div class="card p-0 overflow-hidden shadow-sm">
-            <div class="p-4" style="background: var(--c-surface2)">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+        <!-- Primary Dashboard Column: User Greeting, Live Timer & Quick Punch Action Console -->
+        <div class="lg:col-span-7 space-y-3">
+          <div class="card p-0 overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+            <!-- Compact Profile Header & Live Status -->
+            <div class="p-3.5 sm:p-4" style="background: var(--c-surface2)">
               <div class="flex items-center gap-3">
-                <div class="relative group">
-                  <div class="w-12 h-12 rounded-full tech-chip flex items-center justify-center text-xl font-black text-white" id="homeAvatar">
+                <div class="relative group shrink-0">
+                  <div class="w-11 h-11 rounded-full tech-chip flex items-center justify-center text-lg font-black text-white" id="homeAvatar">
                     <span class="relative z-10">أ</span>
                     <div class="absolute inset-0 circuit-bg opacity-30"></div>
                   </div>
-                  <!-- Outer Ring Decoration -->
                   <div class="absolute -inset-1 rounded-full border border-emerald-500/20 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                 </div>
-                <div class="flex-1">
-                  <div class="font-bold text-sm text-primary" id="homeGreeting">مرحباً</div>
-                  <div class="text-[11px] font-bold mt-0.5" style="color:var(--text2)" id="homeSchedule"></div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-black text-sm text-primary truncate" id="homeGreeting">مرحباً</div>
+                  <div class="text-[11px] font-bold mt-0.5 truncate" style="color:var(--text2)" id="homeSchedule"></div>
                 </div>
-                <div id="homeStatusBadge"></div>
+                <div id="homeStatusBadge" class="shrink-0"></div>
               </div>
-              <div id="homeTodayInfo" class="text-[11px] font-bold mt-3" style="color:var(--text2)"></div>
+              <!-- Compact Today Info Row -->
+              <div id="homeTodayInfo" class="text-[11px] font-bold mt-2.5 pt-2 border-t border-slate-200/40 dark:border-slate-700/40" style="color:var(--text2)"></div>
             </div>
 
-            <div class="p-4 pt-3 flex flex-col gap-3 border-t" style="border-color: var(--c-border)">
-              <div id="homeTimer" class="hidden text-center py-3 rounded-xl transition-all duration-500"
+            <!-- Controls & Punch Action Area -->
+            <div class="p-3.5 sm:p-4 flex flex-col gap-2.5 border-t" style="border-color: var(--c-border)">
+              <!-- Live Timer Display -->
+              <div id="homeTimer" class="hidden text-center py-2.5 px-4 rounded-xl transition-all duration-500 border border-emerald-500/20"
                 style="background:var(--theme-primary-bg)">
-                <span class="text-xs font-bold" style="color:var(--theme-primary)"><i
-                    class="fa-solid fa-stopwatch ml-1"></i></span>
-                <span class="text-2xl font-black mr-1 text-number tracking-wider" style="color:var(--theme-primary)"
-                  id="timerDisplay">00:00:00</span>
+                <div class="flex items-center justify-center gap-2">
+                  <span class="text-xs font-bold" style="color:var(--theme-primary)"><i class="fa-solid fa-stopwatch ml-1 animate-pulse"></i>وقت الحضور الحالي:</span>
+                  <span class="text-xl sm:text-2xl font-black text-number tracking-wider" style="color:var(--theme-primary)" id="timerDisplay">00:00:00</span>
+                </div>
               </div>
 
               <!-- Holiday Work Banner -->
-              <div id="holidayWorkBanner" class="hidden mb-3 rounded-2xl overflow-hidden" style="border:1.5px solid var(--c-info);background:var(--c-info-bg)">
-                <div class="flex items-center justify-between px-4 py-3">
+              <div id="holidayWorkBanner" class="hidden rounded-xl overflow-hidden" style="border:1.5px solid var(--c-info);background:var(--c-info-bg)">
+                <div class="flex items-center justify-between px-3.5 py-2.5">
                   <div class="flex items-center gap-2">
                     <i class="fa-solid fa-calendar-xmark text-sm" style="color:var(--c-info)"></i>
                     <span class="text-[11px] font-black" style="color:var(--c-info)" id="holidayBannerLabel">يوم إجازة</span>
                   </div>
                   <button onclick="toggleHolidayWork()" id="btnWorkOnHoliday"
-                    class="text-[10px] font-black px-3 py-1.5 rounded-xl transition-all duration-200 shadow-sm"
+                    class="text-[10px] font-black px-3 py-1.5 rounded-xl transition-all duration-200 shadow-xs"
                     style="background:var(--c-info);color:white">
                     <i class="fa-solid fa-unlock ml-1"></i>تفعيل التسجيل
                   </button>
                 </div>
-                <div id="holidayWorkActiveMsg" class="hidden px-4 pb-3">
+                <div id="holidayWorkActiveMsg" class="hidden px-3.5 pb-2.5">
                   <div class="flex items-center gap-1.5 text-[10px] font-bold" style="color:var(--c-info)">
                     <i class="fa-solid fa-circle-check"></i>
                     <span>مفعّل – دوام هذا اليوم سيُحسب كساعات إضافية</span>
@@ -2201,74 +2214,75 @@
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3 mt-1">
-                <button onclick="doCheckIn()" id="btnCheckIn" class="btn btn-primary w-full shadow-md">
-                  <i class="fa-solid fa-right-to-bracket text-lg"></i> تسجيل حضور
+              <!-- Sleek Quick Check-In / Check-Out Buttons -->
+              <div class="grid grid-cols-2 gap-2.5">
+                <button onclick="doCheckIn()" id="btnCheckIn" class="btn btn-primary w-full shadow-md py-2.5 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 rounded-xl transition-all">
+                  <i class="fa-solid fa-right-to-bracket text-base"></i><span>تسجيل حضور</span>
                 </button>
-                <button onclick="doCheckOut()" id="btnCheckOut" class="btn btn-error w-full disabled shadow-md" disabled>
-                  <i class="fa-solid fa-right-from-bracket text-lg"></i> تسجيل انصراف
+                <button onclick="doCheckOut()" id="btnCheckOut" class="btn btn-error w-full disabled shadow-md py-2.5 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 rounded-xl transition-all" disabled>
+                  <i class="fa-solid fa-right-from-bracket text-base"></i><span>تسجيل انصراف</span>
                 </button>
               </div>
 
-              <div class="form-group mt-2">
-                <label class="form-label">ملاحظة (اختياري)</label>
-                <textarea id="noteInput" rows="2" class="form-control"
-                  placeholder="أدخل ملاحظة للحضور أو الانصراف..."></textarea>
+              <!-- Compact Note Input -->
+              <div class="mt-0.5">
+                <textarea id="noteInput" rows="1" class="form-control text-xs rounded-xl py-2 px-3 resize-none focus:rows-2 transition-all"
+                  placeholder="ملاحظة للحضور أو الانصراف (اختياري)..."></textarea>
               </div>
             </div>
           </div>
 
           <!-- AI Smart Tip Card -->
-          <div id="aiHomeTip" class="hidden mb-3 ai-card transition-all duration-500 transform translate-y-2 opacity-0">
-            <div class="flex items-start gap-3 relative z-10">
-              <div
-                class="w-10 h-10 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-600 text-lg shadow-inner">
+          <div id="aiHomeTip" class="hidden ai-card transition-all duration-500 transform translate-y-2 opacity-0 rounded-2xl p-3">
+            <div class="flex items-start gap-2.5 relative z-10">
+              <div class="w-8 h-8 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 text-sm shrink-0 shadow-xs">
                 <i class="fa-solid fa-brain-circuit"></i>
               </div>
               <div class="flex-1">
-                <div class="flex justify-between items-center mb-1">
-                  <span class="ai-badge"><i class="fa-solid fa-bolt"></i> ذكاء البيانات</span>
+                <div class="flex justify-between items-center mb-0.5">
+                  <span class="ai-badge text-[10px]"><i class="fa-solid fa-bolt"></i> ذكاء البيانات</span>
                   <button onclick="this.closest('#aiHomeTip').classList.add('hidden')"
                     class="text-slate-400 hover:text-slate-600 transition">
                     <i class="fa-solid fa-xmark text-[10px]"></i>
                   </button>
                 </div>
-                <div id="aiTipContent" class="text-xs font-bold leading-relaxed" style="color:var(--text)"></div>
+                <div id="aiTipContent" class="text-xs font-bold leading-snug" style="color:var(--text)"></div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right / Secondary Column: Week Calendar & Fast Summary Stats -->
-        <div class="lg:col-span-5 space-y-3.5">
-          <div class="card p-4 shadow-sm">
-            <h2 class="font-bold text-sm mb-3" style="color:var(--pri)"><i class="fa-solid fa-calendar-week ml-1"></i> هذا الأسبوع</h2>
-            <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold mb-1" style="color:var(--text2)"
-              id="weekDayLabels"></div>
-            <div class="grid grid-cols-7 gap-1" id="weekDays"></div>
-          </div>
+        <!-- Secondary Overview Column: Weekly Calendar & Integrated Stats Bento Card -->
+        <div class="lg:col-span-5 space-y-3">
+          <div class="card p-3.5 sm:p-4 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-3">
+            <h2 class="font-bold text-xs sm:text-sm flex items-center justify-between" style="color:var(--pri)">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar-week text-indigo-500"></i> ملخص الأسبوع والإحصائيات
+              </span>
+            </h2>
 
-          <div class="stat-grid anim-up d3 !grid-cols-3">
-            <div class="stat-card" onclick="goToRecords('present')">
-              <div class="stat-icon" style="background:var(--c-success-bg);color:var(--stat-present-text)">
-                <i class="fa-solid fa-check"></i>
-              </div>
-              <div class="stat-num" style="color:var(--stat-present-text)" id="hsPresent">0</div>
-              <div class="stat-lbl">أيام حضور</div>
+            <!-- Week Days Grid -->
+            <div>
+              <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold mb-1 opacity-70" style="color:var(--text2)" id="weekDayLabels"></div>
+              <div class="grid grid-cols-7 gap-1" id="weekDays"></div>
             </div>
-            <div class="stat-card" onclick="goToRecords('absent')">
-              <div class="stat-icon" style="background:var(--c-danger-bg);color:var(--stat-absent-text)">
-                <i class="fa-solid fa-xmark"></i>
+
+            <!-- Integrated Fast Summary Stat Cards Strip -->
+            <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div class="grid grid-cols-3 gap-2">
+                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-emerald-500/15" style="background:var(--c-success-bg)" onclick="goToRecords('present')">
+                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-present-text)">أيام حضور</div>
+                  <div class="stat-num text-lg font-black" style="color:var(--stat-present-text)" id="hsPresent">0</div>
+                </div>
+                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-rose-500/15" style="background:var(--c-danger-bg)" onclick="goToRecords('absent')">
+                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-absent-text)">أيام غياب</div>
+                  <div class="stat-num text-lg font-black" style="color:var(--stat-absent-text)" id="hsAbsent">0</div>
+                </div>
+                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-amber-500/15" style="background:var(--c-warning-bg)" onclick="goToRecords('late')">
+                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-late-text)">أيام تأخير</div>
+                  <div class="stat-num text-lg font-black" style="color:var(--stat-late-text)" id="hsLate">0</div>
+                </div>
               </div>
-              <div class="stat-num" style="color:var(--stat-absent-text)" id="hsAbsent">0</div>
-              <div class="stat-lbl">أيام غياب</div>
-            </div>
-            <div class="stat-card" onclick="goToRecords('late')">
-              <div class="stat-icon" style="background:var(--c-warning-bg);color:var(--stat-late-text)">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-              </div>
-              <div class="stat-num" style="color:var(--stat-late-text)" id="hsLate">0</div>
-              <div class="stat-lbl">أيام تأخير</div>
             </div>
           </div>
         </div>
@@ -2291,19 +2305,19 @@
       </div>
 
       <!-- View 1: Attendance Records View -->
-      <div id="rv-attendance" class="rec-view space-y-3">
-        <!-- Unified Control & Action Card -->
-        <div class="card p-3 sm:p-4 shadow-xs border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-3">
-          <!-- Top Row: Search & Filters -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+      <div id="rv-attendance" class="rec-view space-y-2.5">
+        <!-- Unified Control & Action Card (Compact High-Density Toolbar) -->
+        <div class="card p-2.5 sm:p-3 shadow-xs border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-2">
+          <!-- Top Row: Search & Filter Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
             <!-- Search Bar -->
-            <div class="relative">
-              <input type="text" id="recSearch" class="form-control text-xs pr-8 text-right rounded-xl transition-all shadow-xs" placeholder="بحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
+            <div class="relative sm:col-span-5">
+              <input type="text" id="recSearch" class="form-control text-xs pr-8 py-1.5 text-right rounded-xl transition-all shadow-xs" placeholder="بحث باليوم، التاريخ، الملاحظات..." oninput="debouncedRenderRecords()">
               <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs" style="color:var(--text2)"></i>
             </div>
             <!-- Period Filter -->
-            <div>
-              <select id="periodFilter" class="form-control text-xs cursor-pointer text-center rounded-xl font-bold" onchange="togglePeriodFilter()">
+            <div class="sm:col-span-3.5">
+              <select id="periodFilter" class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-bold" onchange="togglePeriodFilter()">
                 <option value="current">الشهر الحالي</option>
                 <option value="prev">الشهر السابق</option>
                 <option value="specific">شهر محدد</option>
@@ -2311,8 +2325,8 @@
               </select>
             </div>
             <!-- Status Filter -->
-            <div>
-              <select id="statusFilter" class="form-control text-xs cursor-pointer text-center rounded-xl font-bold" onchange="renderRecords()">
+            <div class="sm:col-span-3.5">
+              <select id="statusFilter" class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-bold" onchange="renderRecords()">
                 <option value="">جميع الحالات</option>
                 <option value="present">حاضر / مخصص</option>
                 <option value="absent">غائب</option>
@@ -2326,34 +2340,34 @@
 
           <!-- Conditional Specific Month / Custom Date Range -->
           <div id="filterSpecific" class="hidden relative">
-            <input type="text" id="monthIn" readonly class="form-control text-xs cursor-pointer text-center rounded-xl font-black bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300" onclick="openCal()" placeholder="اختر الشهر">
+            <input type="text" id="monthIn" readonly class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-black bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300" onclick="openCal()" placeholder="اختر الشهر">
           </div>
           <div id="filterCustom" class="hidden grid grid-cols-2 gap-2">
-            <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
-            <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs text-center rounded-xl" onchange="renderRecords()">
+            <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs py-1.5 text-center rounded-xl" onchange="renderRecords()">
+            <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs py-1.5 text-center rounded-xl" onchange="renderRecords()">
           </div>
 
           <!-- Bottom Row: Action Buttons & Live Summary Strip -->
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
             <!-- Action Buttons Group -->
             <div class="flex items-center gap-1.5 flex-wrap">
-              <button onclick="openAddRecord()" class="btn btn-primary shadow-xs px-3 py-1.5 text-xs font-black flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plus ml-1.5"></i>إضافة سجل
+              <button onclick="openAddRecord()" class="btn btn-primary shadow-xs px-2.5 py-1 text-xs font-black flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plus ml-1 text-[11px]"></i>إضافة سجل
               </button>
-              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-3 py-1.5 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plane-departure ml-1.5"></i>تكليف سفر
+              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-plane-departure ml-1 text-[11px]"></i>تكليف سفر
               </button>
-              <button onclick="window.showExportModal('excel')" id="btnExcelExp" class="border border-transparent btn btn-success shadow-xs text-white px-3 py-1.5 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-excel ml-1.5"></i>Excel
+              <button onclick="window.showExportModal('excel')" id="btnExcelExp" class="border border-transparent btn btn-success shadow-xs text-white px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-excel ml-1 text-[11px]"></i>Excel
               </button>
-              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-3 py-1.5 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-pdf ml-1.5"></i>PDF
+              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
+                <i class="fa-solid fa-file-pdf ml-1 text-[11px]"></i>PDF
               </button>
             </div>
 
             <!-- Integrated Live Metric Badges Container -->
             <div id="monthSum" class="hidden flex-1 sm:flex-initial">
-              <div id="monthSumC" class="grid grid-cols-4 gap-1.5"></div>
+              <div id="monthSumC" class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end"></div>
             </div>
           </div>
         </div>
@@ -2361,25 +2375,25 @@
         <!-- Modern Table Card with Floating Zoom Controller -->
         <div class="card overflow-hidden relative group border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs" id="recordsZoomWrapper" style="isolation: isolate;">
           <!-- Floating Zoom Controller (Hidden by default, reveals on pinch/zoom gesture) -->
-          <div id="recordsZoomFloatingController" class="absolute top-3 left-3 z-20 flex items-center gap-1.5 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-700/80 opacity-0 pointer-events-none scale-95 transition-all duration-300">
-            <span id="zoomLevelIndicator" class="text-[11px] font-black text-indigo-600 dark:text-indigo-400 px-1 min-w-[38px] text-center">100%</span>
-            <button onclick="window.adjustZoom(-0.15)" class="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-xs" title="تصغير">
-              <i class="fa-solid fa-magnifying-glass-minus text-[11px]"></i>
+          <div id="recordsZoomFloatingController" class="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-2.5 py-1 rounded-xl shadow-md border border-slate-200/80 dark:border-slate-700/80 opacity-0 pointer-events-none scale-95 transition-all duration-300">
+            <span id="zoomLevelIndicator" class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 px-1 min-w-[34px] text-center">100%</span>
+            <button onclick="window.adjustZoom(-0.15)" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="تصغير">
+              <i class="fa-solid fa-magnifying-glass-minus text-[10px]"></i>
             </button>
-            <button onclick="window.adjustZoom(0.15)" class="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-xs" title="تكبير">
-              <i class="fa-solid fa-magnifying-glass-plus text-[11px]"></i>
+            <button onclick="window.adjustZoom(0.15)" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="تكبير">
+              <i class="fa-solid fa-magnifying-glass-plus text-[10px]"></i>
             </button>
-            <button onclick="window.resetZoom()" class="w-7 h-7 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-xs" title="إعادة ضبط">
-              <i class="fa-solid fa-rotate-left text-[11px]"></i>
+            <button onclick="window.resetZoom()" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="إعادة ضبط">
+              <i class="fa-solid fa-rotate-left text-[10px]"></i>
             </button>
           </div>
 
-          <div id="recordsPanViewport" class="overflow-auto relative cursor-grab active:cursor-grabbing select-none" style="max-height: 58vh; touch-action: pan-x pan-y;">
+          <div id="recordsPanViewport" class="overflow-auto relative cursor-grab active:cursor-grabbing select-none" style="max-height: 64vh; touch-action: pan-x pan-y;">
             <div id="recordsZoomContent" style="transform-origin: top right; transition: transform 0.08s ease-out;">
               <table class="table-modern" style="min-width:680px">
                 <thead>
                   <tr>
-                    <th class="p-2 text-center" style="width: 38px;"><input type="checkbox" id="selectAll" onclick="window.toggleSelectAll()"></th>
+                    <th class="p-1.5 text-center" style="width: 36px;"><input type="checkbox" id="selectAll" onclick="window.toggleSelectAll()"></th>
                     <th>التاريخ</th>
                     <th id="thDay">اليوم</th>
                     <th>الحضور</th>
@@ -2389,7 +2403,7 @@
                     <th id="thExtra">إضافي</th>
                     <th>نوع الغياب</th>
                     <th>ملاحظة</th>
-                    <th style="text-align: center; width: 44px;"></th>
+                    <th style="text-align: center; width: 40px;"></th>
                   </tr>
                 </thead>
                 <tbody id="recBody"></tbody>
@@ -3829,58 +3843,62 @@
   <div id="aboutM" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 backdrop-blur-md transition-all duration-300 opacity-0"
     style="background-color: var(--c-nav-bg, rgba(15, 23, 42, 0.8)); opacity: 0;"
     onclick="closeAboutM()">
-    <div id="aboutMContent" class="w-full max-w-[420px] relative rounded-[2.5rem] overflow-hidden shadow-2xl transition-all duration-300 transform scale-95 border" 
+    <div id="aboutMContent" class="w-full max-w-[440px] max-h-[90vh] overflow-y-auto custom-scrollbar relative rounded-[2rem] shadow-2xl transition-all duration-300 transform scale-95 border p-0 flex flex-col" 
       onclick="event.stopPropagation()"
       style="background-color: var(--c-surface); border-color: var(--c-border); color: var(--c-text);">
       
-      <!-- Premium Gold Accent Header Bar -->
-      <div class="h-1.5 w-full bg-gradient-to-r from-[#C9A227]/60 via-[#C9A227] to-[#C9A227]/60"></div>
+      <!-- Premium Theme Gradient Bar -->
+      <div class="h-2 w-full shrink-0" style="background: var(--theme-grad-h);"></div>
       
-      <div class="p-6 relative z-10 flex flex-col items-center text-center">
-        <!-- 1. Exclamation Mark Visual Element (App & Identity Icon - No App Logo) -->
-        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border relative group transition-transform hover:scale-105"
-             style="background-color: var(--c-surface-2); border-color: rgba(201, 162, 39, 0.35);">
-          <div class="absolute inset-[-4px] rounded-2xl border border-dashed border-[#C9A227]/25 pointer-events-none"></div>
-          <span class="text-3xl font-black italic select-none" style="color: #C9A227; font-family: 'Times New Roman', serif;">!</span>
-        </div>
-
-        <!-- 2. App Name (Dynamic) -->
-        <h2 id="aboutAppName" class="text-2xl font-black mb-1 text-center tracking-tight" style="color: var(--c-text);">سجل الحضور الشخصي</h2>
+      <div class="p-5 sm:p-6 relative z-10 flex flex-col items-center text-center space-y-4">
         
-        <!-- 3. App Version (Dynamic) -->
-        <p id="aboutAppVersion" class="text-[11px] font-bold text-center mb-3 tracking-[0.2em] uppercase" style="color: var(--c-text-2);">
-          الإصدار 1.2.0</p>
+        <!-- 1. App Icon & Title Header -->
+        <div class="flex flex-col items-center">
+          <div class="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 shadow-md border relative transition-transform hover:scale-105"
+               style="background-color: var(--c-blue-lt); border-color: var(--c-border);">
+            <div class="absolute inset-[-4px] rounded-2xl border border-dashed pointer-events-none" style="border-color: var(--theme-primary);"></div>
+            <i class="fa-solid fa-user-clock text-3xl" style="color: var(--theme-primary);"></i>
+          </div>
 
-        <!-- 4. Copyright -->
-        <div class="text-[12px] font-bold mb-4 text-center" style="color: var(--c-text-2);">
-          جميع الحقوق محفوظة &copy; 2026
+          <h2 id="aboutAppName" class="text-2xl font-black tracking-tight" style="color: var(--c-text);">سجل الحضور الشخصي</h2>
+          
+          <div class="flex items-center gap-2 mt-1 flex-wrap justify-center">
+            <span id="aboutAppVersion" class="px-3 py-0.5 rounded-full text-[11px] font-black tracking-wider uppercase border shadow-2xs" 
+                  style="background-color: var(--c-surface-2); border-color: var(--c-border); color: var(--theme-primary);">
+              الإصدار 1.2.0
+            </span>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 shadow-2xs" 
+                  style="background-color: var(--c-success-bg); border-color: rgba(16, 185, 129, 0.3); color: var(--c-success);">
+              <i class="fa-solid fa-circle-check text-[9px]"></i> نسخة مستقرة ومحمية
+            </span>
+          </div>
         </div>
 
-        <!-- 5. App Description (Dynamic) -->
-        <div class="w-full py-3 px-2 border-t" style="border-color: var(--c-border);">
-          <p id="aboutAppDesc" class="text-[12px] leading-relaxed text-center font-medium italic" style="color: var(--c-text-2);">
-            "نظام احترافي متكامل لإدارة وتنظيم ومتابعة عمليات الحضور والبيانات بكفاءة تقنية فائقة."
-          </p>
+        <!-- 2. App Mission / Description -->
+        <div class="w-full p-3 rounded-2xl text-xs font-semibold leading-relaxed text-center border"
+             style="background-color: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);">
+          <p id="aboutAppDesc">"نظام احترافي ذكي لإدارة ومتابعة الحضور والانصراف، حساب التأخير والساعات الإضافية، واستخرج التقارير بدقة عالية وسهولة فائقة."</p>
         </div>
 
-        <!-- 6. Powered by -->
-        <div class="mt-4 text-[10px] font-black uppercase tracking-[0.4em] mb-3" style="color: var(--c-text-3);">Powered by</div>
-        
-        <!-- 7. Digital Identity Area (Fingerprint Circle + Protected Lock Status + Developer Identity) -->
-        <div class="flex flex-col items-center w-full">
-          <div id="fpInteractiveBtn" class="relative w-24 h-24 flex items-center justify-center cursor-pointer group select-none"
+
+
+        <!-- 5. Digital Signature & Developer Section -->
+        <div class="w-full pt-2 border-t flex flex-col items-center" style="border-color: var(--c-border);">
+          <div class="text-[10px] font-black uppercase tracking-[0.3em] mb-2" style="color: var(--c-text-3);">POWERED BY DIGITAL IDENTITY</div>
+          
+          <div id="fpInteractiveBtn" class="relative w-20 h-20 flex items-center justify-center cursor-pointer group select-none"
                onclick="handleFingerprintTap()"
                aria-label="Abu Aghyad Digital Signature"
                role="button"
                tabindex="0">
             
-            <!-- Rotating Gold Ring -->
-            <div id="fpRing" class="absolute inset-0 rounded-full border border-[#C9A227]/20 border-dashed animate-[spin_20s_linear_infinite] transition-all duration-500"></div>
+            <!-- Rotating Ring -->
+            <div id="fpRing" class="absolute inset-0 rounded-full border border-dashed animate-[spin_20s_linear_infinite] transition-all duration-500" style="border-color: var(--c-blue-lt);"></div>
             
             <!-- SVG Progress Ring -->
-            <svg id="fpProgressRingSvg" class="absolute inset-[-4px] w-[104px] h-[104px] -rotate-90 pointer-events-none z-15" viewBox="0 0 104 104">
-              <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(201, 162, 39, 0.12)" stroke-width="2" />
-              <circle id="fpProgressCircle" cx="52" cy="52" r="48" fill="none" stroke="#C9A227" stroke-width="2.5"
+            <svg id="fpProgressRingSvg" class="absolute inset-[-4px] w-[88px] h-[88px] -rotate-90 pointer-events-none z-15" viewBox="0 0 104 104">
+              <circle cx="52" cy="52" r="48" fill="none" stroke="rgba(59, 130, 246, 0.15)" stroke-width="2" />
+              <circle id="fpProgressCircle" cx="52" cy="52" r="48" fill="none" stroke="var(--theme-primary)" stroke-width="2.5"
                       stroke-dasharray="301.6" stroke-dashoffset="301.6" stroke-linecap="round" class="transition-all duration-150" />
             </svg>
 
@@ -3888,35 +3906,41 @@
             <div id="fpOrbitRing" class="absolute inset-[-6px] rounded-full border border-dashed border-transparent transition-all duration-700 pointer-events-none"></div>
 
             <!-- Inner Circle Container -->
-            <div id="fpCircleContainer" class="logo-spin-container relative w-20 h-20 rounded-full flex items-center justify-center shadow-xl border transition-all duration-500 overflow-hidden group-hover:shadow-[#C9A227]/30 group-hover:scale-105"
-                 style="background-color: var(--c-surface-2); border-color: rgba(201, 162, 39, 0.3);">
+            <div id="fpCircleContainer" class="logo-spin-container relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg border transition-all duration-500 overflow-hidden group-hover:scale-105"
+                 style="background-color: var(--c-surface-2); border-color: var(--c-border);">
                
                <!-- Laser Scan Line -->
-               <div id="fpScanLine" class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#C9A227] to-transparent opacity-0 shadow-[0_0_12px_#C9A227] pointer-events-none z-20"></div>
+               <div id="fpScanLine" class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-0 shadow-[0_0_12px_#3b82f6] pointer-events-none z-20"></div>
 
                <!-- Fingerprint Vector Icon -->
-               <i id="fpIcon" class="fa-solid fa-fingerprint text-3xl transition-all duration-500 relative z-10" style="color: #C9A227;"></i>
+               <i id="fpIcon" class="fa-solid fa-fingerprint text-2xl transition-all duration-500 relative z-10" style="color: var(--theme-primary);"></i>
             </div>
           </div>
 
-          <!-- Lock Status Indicator Badge (LOCKED 🔒 -> UNLOCKED 🔓) -->
-          <div id="fpLockStatusBadge" class="mt-2.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-all duration-300 flex items-center gap-1.5 shadow-sm"
+          <!-- Lock Status Indicator Badge -->
+          <div id="fpLockStatusBadge" class="mt-2 px-3 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 flex items-center gap-1.5 shadow-2xs"
                style="background-color: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);">
-            <i id="fpLockIcon" class="fa-solid fa-lock text-xs text-amber-500 transition-transform duration-300"></i>
+            <i id="fpLockIcon" class="fa-solid fa-lock text-[10px] text-amber-500 transition-transform duration-300"></i>
             <span id="fpStatusText" class="tracking-wide">LOCKED • مقفل</span>
           </div>
 
-          <!-- 8. Developer Identity -->
-          <div id="fpDevSignature" class="text-[14px] font-black italic text-center mt-2 tracking-widest transition-all duration-500 select-none opacity-80" style="color: var(--c-text-2);">Aᵦᵤ AɢʰᵧₐD</div>
+          <!-- Developer Identity -->
+          <div id="fpDevSignature" class="text-[13px] font-black italic text-center mt-1.5 tracking-widest transition-all duration-500 select-none opacity-80" style="color: var(--c-text-2);">Aᵦᵤ AɢʰᵧₐD</div>
         </div>
+
+        <!-- 6. Bottom Copyright -->
+        <div class="text-[11px] font-bold opacity-60 pt-1" style="color: var(--c-text-3);">
+          جميع الحقوق محفوظة &copy; 2026
+        </div>
+
       </div>
 
-      <!-- Close Button (Linked directly to Protected Identity Panel State) -->
+      <!-- Close Button -->
       <button id="aboutMCloseBtn" onclick="handleAboutCloseBtn()"
-        class="absolute top-5 left-5 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300 border shadow-sm hover:scale-110 active:scale-95 z-20"
+        class="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-300 border shadow-2xs hover:scale-110 active:scale-95 z-20"
         style="background-color: var(--c-surface-2); color: var(--c-text-2); border-color: var(--c-border);"
         aria-label="إغلاق التبويب">
-        <i id="aboutMCloseIcon" class="fa-solid fa-xmark text-sm transition-all duration-300"></i>
+        <i id="aboutMCloseIcon" class="fa-solid fa-lock text-xs text-amber-500 transition-all duration-300"></i>
       </button>
     </div>
   </div>
@@ -4036,15 +4060,17 @@
 
 
   <div id="biometricLock"
-    class="fixed inset-0 z-[1000] lock-overlay hidden flex-col items-center justify-center p-8 text-center text-white">
-    <div class="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center mb-6 animate-pulse">
+    class="fixed inset-0 z-[99999] lock-overlay hidden flex-col items-center justify-center p-8 text-center text-white backdrop-blur-2xl">
+    <div class="w-24 h-24 rounded-3xl bg-purple-500/20 flex items-center justify-center mb-6 animate-pulse border border-purple-500/30 shadow-2xl">
       <i class="fa-solid fa-fingerprint text-5xl text-purple-400"></i>
     </div>
     <h2 class="text-2xl font-black mb-2">التطبيق مغلق</h2>
-    <p class="text-sm opacity-60 mb-8 font-bold">يرجى التحقق من بصمة الإصبع أو رمز الجهاز للمتابعة</p>
-    <button onclick="authBiometric()"
-      class="btn-act px-10 py-4 bg-purple-600 rounded-2xl font-black text-lg shadow-2xl shadow-purple-500/20">فتح القفل
-      <i class="fa-solid fa-unlock ml-2"></i></button>
+    <p class="text-sm opacity-80 mb-8 font-bold max-w-xs">يرجى التحقق من بصمة الإصبع أو رمز حماية الجهاز للمتابعة</p>
+    <button onclick="window.authBiometric()"
+      class="btn-act px-10 py-4 bg-purple-600 hover:bg-purple-500 active:scale-95 rounded-2xl font-black text-lg shadow-2xl shadow-purple-500/30 transition-all flex items-center justify-center gap-2">
+      <span>فتح القفل</span>
+      <i class="fa-solid fa-unlock text-base"></i>
+    </button>
   </div>
 
   <div id="exportModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">

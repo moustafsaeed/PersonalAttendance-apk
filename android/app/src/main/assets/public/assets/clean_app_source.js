@@ -1091,48 +1091,156 @@ function saveRecords(){
   // Kept for backward compatibility with undo/redo system.
 }
 
-// ── Biometric Authentication ──────────────────────────────
-window.toggleBiometricLock = async function() {
-  const bioCB = document.getElementById('biometricLockCB');
-  if(!bioCB) return;
-  const enable = bioCB.checked;
-  
-  if(!window.Capacitor || !window.Capacitor.Plugins.NativeBiometric) {
-    toast("هذه الميزة مدعومة فقط على الهواتف الذكية","err");
-    bioCB.checked = false;
+// ── Biometric Authentication & Lock System ─────────────────
+window.showLockScreen = function() {
+  let lock = document.getElementById('biometricLock');
+  if (lock) {
+    lock.classList.remove('hidden');
+    lock.classList.add('flex');
+    lock.style.display = 'flex';
+  }
+};
+
+window.hideLockScreen = function() {
+  let lock = document.getElementById('biometricLock');
+  if (lock) {
+    lock.classList.add('hidden');
+    lock.classList.remove('flex');
+    lock.style.display = 'none';
+  }
+};
+
+window.authBiometric = async function() {
+  if (!settings || !settings.enableBiometric) {
+    window.hideLockScreen();
     return;
   }
 
-  const NB = window.Capacitor.Plugins.NativeBiometric;
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const NB = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.NativeBiometric : null;
+
+  if (!isNative || !NB) {
+    console.warn("Biometric authentication is enforced on native app environment.");
+    window.hideLockScreen();
+    return;
+  }
+
   try {
-    const res = await NB.isAvailable();
-    if(!res.isAvailable) {
-      toast("جهازك لا يدعم المصادقة الحيوية","err");
-      bioCB.checked = false;
+    const avail = await NB.isAvailable({ useFallback: true }).catch(err => {
+      console.warn("isAvailable check error:", err);
+      return null;
+    });
+
+    if (!avail || !avail.isAvailable) {
+      toast("المصادقة الحيوية غير متاحة على جهازك حالياً، يرجى التأكد من ضبط القفل في إعدادات الهاتف", "err");
+      window.showLockScreen();
       return;
     }
 
-    if(enable) {
-      // Verify identity before enabling
-      try {
-        await NB.verifyIdentity({
-          reason: "لتفعيل قفل التطبيق، يرجى التحقق من هويتك",
-          title: "تأكيد الهوية",
-          subtitle: "المصادقة الحيوية"
-        });
-        settings.enableBiometric = true;
-        saveSettings();
-        toast(`<i class="fa-solid fa-shield-check ml-1"></i> تم تفعيل قفل البصمة بنجاح`,`ok`);
-      } catch(e) {
-        bioCB.checked = false;
-        toast("فشل التحقق من الهوية","err");
-      }
-    }
-  } catch(e) {
-    bioCB.checked = false;
-    toast("حدث خطأ ما","err");
+    await NB.verifyIdentity({
+      reason: "يرجى التحقق من بصمة الإصبع أو رمز حماية الجهاز للدخول للتطبيق",
+      title: "التطبيق مغلق",
+      subtitle: "المصادقة الحيوية",
+      description: "المصادقة للوصول إلى سجل الحضور",
+      useFallback: true
+    });
+
+    // Verification succeeded
+    window.hideLockScreen();
+    toast(`<i class="fa-solid fa-lock-open ml-1"></i> تم فتح القفل بنجاح`, "ok");
+  } catch (err) {
+    console.error("Biometric verification failed or cancelled:", err);
+    window.showLockScreen();
+    toast("فشل التحقق من الهوية. يرجى المحاولة مجدداً", "err");
   }
 };
+
+window.toggleBiometricLock = async function() {
+  const bioCB = document.getElementById('biometricLockCB');
+  if (!bioCB) return;
+  const targetState = bioCB.checked;
+
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const NB = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.NativeBiometric : null;
+
+  if (!isNative || !NB) {
+    toast("ميزة قفل البصمة متاحة فقط عند تشغيل التطبيق على الهاتف المحمول (Android/iOS)", "err");
+    bioCB.checked = !!(settings && settings.enableBiometric);
+    return;
+  }
+
+  try {
+    const avail = await NB.isAvailable({ useFallback: true }).catch(() => null);
+    if (!avail || !avail.isAvailable) {
+      toast("جهازك لا يدعم المصادقة الحيوية أو لم تقم بتسجيل بصمة/رمز في إعدادات الجهاز", "err");
+      bioCB.checked = !!(settings && settings.enableBiometric);
+      return;
+    }
+
+    const reasonMsg = targetState
+      ? "يرجى تأكيد هويتك لتفعيل قفل البصمة"
+      : "يرجى تأكيد هويتك لإلغاء قفل البصمة";
+
+    await NB.verifyIdentity({
+      reason: reasonMsg,
+      title: "تأكيد الهوية",
+      subtitle: "المصادقة الحيوية",
+      useFallback: true
+    });
+
+    settings.enableBiometric = targetState;
+    await saveSettings();
+    bioCB.checked = targetState;
+
+    if (targetState) {
+      toast(`<i class="fa-solid fa-shield-check ml-1"></i> تم تفعيل قفل البصمة بنجاح`, "ok");
+    } else {
+      toast("تم إلغاء قفل البصمة بنجاح", "ok");
+    }
+  } catch (e) {
+    console.error("Toggle biometric error:", e);
+    bioCB.checked = !!(settings && settings.enableBiometric);
+    toast("تعذر التحقق من الهوية، لم يتم تغيير القفل", "err");
+  }
+};
+
+function setupBiometricAppListeners() {
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    try {
+      window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+        if (!state.isActive) {
+          if (settings && settings.enableBiometric && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            window.showLockScreen();
+          }
+        } else {
+          if (settings && settings.enableBiometric && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            window.showLockScreen();
+            setTimeout(() => {
+              if (window.authBiometric) window.authBiometric();
+            }, 300);
+          }
+        }
+      });
+    } catch(e) { console.warn("App state listener setup failed:", e); }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (settings && settings.enableBiometric && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        window.showLockScreen();
+      }
+    } else {
+      if (settings && settings.enableBiometric && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        let lock = document.getElementById('biometricLock');
+        if (lock && !lock.classList.contains('hidden')) {
+          setTimeout(() => {
+            if (window.authBiometric) window.authBiometric();
+          }, 300);
+        }
+      }
+    }
+  });
+}
 
 async function fillAbsences(){
   let now=new Date(),y=now.getFullYear(),m=now.getMonth();
@@ -1770,7 +1878,7 @@ async function renderRecords(){
       timingArr.push(`<span class="metric-chip metric-chip-early"><i class="fa-solid fa-person-walking-arrow-right"></i> -${formatMin(early)} مبكر</span>`);
     }
 
-    let timingHTML = timingArr.length ? timingArr.join('<div class="h-1"></div>') : `<span class="opacity-30 font-bold">-</span>`;
+    let timingHTML = timingArr.length ? `<div class="flex flex-wrap gap-1 items-center">${timingArr.join('')}</div>` : `<span class="opacity-30 font-bold">-</span>`;
 
     let inDisplay = r.checkIn ? 
       (rawLate > 0 && !isLateComp ? 
@@ -1813,6 +1921,7 @@ async function renderRecords(){
     }
 
     let absenceTypeDisplay = r.status === `absent` ? esc(r.absenceType || ``) : (r.status === 'إجازة من الإضافي' ? esc(r.absenceType || 'إجازة تعويض إضافي') : '');
+    let absenceTypeHTML = absenceTypeDisplay ? `<span class="max-w-[110px] truncate inline-block align-middle" title="${absenceTypeDisplay}">${absenceTypeDisplay}</span>` : '';
     
     let noteHTML = '';
     if (leaveComp) {
@@ -1825,15 +1934,16 @@ async function renderRecords(){
         finalNoteText = `${esc(r.note)} | ${finalNoteText}`;
       }
       
-      noteHTML = `<div class="inline-block p-1.5 rounded-lg text-[11px] font-bold leading-normal bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
+      noteHTML = `<div class="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold max-w-[150px] sm:max-w-[190px] truncate bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
         <i class="fa-solid fa-scissors ml-1 text-emerald-600 dark:text-emerald-400"></i> ${finalNoteText}
       </div>`;
     } else {
-      noteHTML = esc(r.note) || `<span class="opacity-30">-</span>`;
+      let rawNote = esc(r.note);
+      noteHTML = rawNote ? `<span class="max-w-[150px] sm:max-w-[190px] truncate inline-block align-middle cursor-default" title="${rawNote}">${rawNote}</span>` : `<span class="opacity-30">-</span>`;
     }
 
     return `<tr class="${rowClass} cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" onclick="window.openEdit(null, '${r.date}')">
-      <td class="p-2">
+      <td class="p-1.5">
         <input type="checkbox" class="rec-check" ${window.selectedRecords.includes(r.date) ? 'checked' : ''} onclick="event.stopPropagation(); window.toggleRecordSelection('${r.date}')">
       </td>
       <td class="font-bold text-xs opacity-90">${r.date}</td>
@@ -1843,10 +1953,10 @@ async function renderRecords(){
       <td>${statusBadgeHTML}</td>
       <td>${timingHTML}</td>
       <td>${extraHTML}</td>
-      <td class="text-[11px] opacity-80 break-words align-middle font-semibold">${absenceTypeDisplay}</td>
-      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:13px;" class="max-w-[200px] break-words align-middle leading-relaxed">${noteHTML}</td>
+      <td class="text-[11px] opacity-80 align-middle font-semibold">${absenceTypeHTML}</td>
+      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:12px;" class="align-middle">${noteHTML}</td>
       <td style="text-align:center">
-        <button onclick="openEdit('${r.id}', '${r.date}')" class="w-8 h-8 rounded-xl inline-flex items-center justify-center text-xs transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
+        <button onclick="openEdit('${r.id}', '${r.date}')" class="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[11px] transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
           <i class="fa-solid fa-pen-to-square"></i>
         </button>
       </td>
@@ -1881,26 +1991,26 @@ function renderMonthSummary(recs){
   monthSummary={p,a,l,t};
   let total=p+a,pct=total?Math.round(p/total*100):0;
   if(cnt) cnt.innerHTML=`
-    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 flex flex-col justify-center min-w-[50px]">
-      <div class="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400">${p}</div>
-      <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-300">حضور</div>
+    <div class="px-2 py-0.5 rounded-lg text-center bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 flex items-center gap-1.5 shadow-2xs">
+      <span class="text-xs font-black text-emerald-600 dark:text-emerald-400">${p}</span>
+      <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">حضور</span>
     </div>
-    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 flex flex-col justify-center min-w-[50px]">
-      <div class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400">${a}</div>
-      <div class="text-[9px] sm:text-[10px] font-bold text-rose-700 dark:text-rose-300">غياب</div>
+    <div class="px-2 py-0.5 rounded-lg text-center bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 flex items-center gap-1.5 shadow-2xs">
+      <span class="text-xs font-black text-rose-600 dark:text-rose-400">${a}</span>
+      <span class="text-[10px] font-bold text-rose-700 dark:text-rose-300">غياب</span>
     </div>
     ${t>0 ? `
-    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-purple-500/10 dark:bg-purple-500/15 border border-purple-500/20 flex flex-col justify-center min-w-[50px]">
-      <div class="text-xs sm:text-sm font-black text-purple-600 dark:text-purple-400">${t}</div>
-      <div class="text-[9px] sm:text-[10px] font-bold text-purple-700 dark:text-purple-300">سفر</div>
+    <div class="px-2 py-0.5 rounded-lg text-center bg-purple-500/10 dark:bg-purple-500/15 border border-purple-500/20 flex items-center gap-1.5 shadow-2xs">
+      <span class="text-xs font-black text-purple-600 dark:text-purple-400">${t}</span>
+      <span class="text-[10px] font-bold text-purple-700 dark:text-purple-300">سفر</span>
     </div>` : `
-    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 flex flex-col justify-center min-w-[50px]">
-      <div class="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400">${l}</div>
-      <div class="text-[9px] sm:text-[10px] font-bold text-amber-700 dark:text-amber-300">تأخير</div>
+    <div class="px-2 py-0.5 rounded-lg text-center bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 flex items-center gap-1.5 shadow-2xs">
+      <span class="text-xs font-black text-amber-600 dark:text-amber-400">${l}</span>
+      <span class="text-[10px] font-bold text-amber-700 dark:text-amber-300">تأخير</span>
     </div>`}
-    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/20 flex flex-col justify-center min-w-[50px]">
-      <div class="text-xs sm:text-sm font-black ${pct>=80 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
-      <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400">الالتزام</div>
+    <div class="px-2 py-0.5 rounded-lg text-center bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/20 flex items-center gap-1.5 shadow-2xs">
+      <span class="text-xs font-black ${pct>=80 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</span>
+      <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400">التزام</span>
     </div>`;
 }
 window.renderMonthSum=renderMonthSummary;
@@ -6051,31 +6161,41 @@ async function buildPDFCanvas(){
   toast(`جارٍ معالجة التقرير...`,``);
   if(document.body && document.body.classList) document.body.classList.add(`printing`);
 
-  // Ensure fonts are loaded in browser memory before canvas rasterization
+  // Ensure fonts are loaded in browser memory before canvas rasterization (with safe timeout for offline resilience)
   if (document.fonts && document.fonts.ready) {
     try {
-      await document.fonts.ready;
-      await Promise.all([
-        document.fonts.load('900 24px Cairo'),
-        document.fonts.load('800 24px Cairo'),
-        document.fonts.load('700 22px Cairo'),
-        document.fonts.load('600 14px Cairo'),
-        document.fonts.load('500 14px Cairo'),
-        document.fonts.load('400 16px Cairo')
+      await Promise.race([
+        Promise.all([
+          document.fonts.ready,
+          document.fonts.load('900 24px Cairo'),
+          document.fonts.load('800 24px Cairo'),
+          document.fonts.load('700 22px Cairo'),
+          document.fonts.load('600 14px Cairo'),
+          document.fonts.load('500 14px Cairo'),
+          document.fonts.load('400 16px Cairo')
+        ]),
+        new Promise(resolve => setTimeout(resolve, 1500))
       ]);
     } catch(e) {
-      console.warn('PDF font preload:', e);
+      console.warn('PDF font preload warning (fallback fonts will be used):', e);
     }
   }
 
   // Safety: ensure exportColumns is always defined before building
   if(!settings.exportColumns) settings.exportColumns = { date:true, checkIn:true, checkOut:true, status:true, late:true, early:true, overtime:true, absenceType:true, note:true };
-  let container=document.getElementById(`pz`); if(!container) return null;
-  container.className=`fixed left-[-9999px] top-0 bg-white block pointer-events-none`;
+  let container=document.getElementById(`pz`);
+  if(!container) {
+    console.error("PDF_CONTAINER_MISSING", "Element #pz not found in DOM");
+    return null;
+  }
+
+  // Safe positioning inside document bounds (0,0) for Android WebView / Chromium layer compositor compatibility
+  container.className=`fixed left-0 top-0 bg-white block pointer-events-none`;
   container.style.position = 'fixed';
-  container.style.left = '-9999px';
+  container.style.left = '0';
   container.style.top = '0';
-  container.style.zIndex = '-9999';
+  container.style.opacity = '1';
+  container.style.zIndex = '-1000';
   container.style.pointerEvents = 'none';
   container.style.width=`1200px`;
   container.style.minWidth=`1200px`;
@@ -6272,24 +6392,20 @@ async function buildPDFCanvas(){
     let subAr = sanitizeReportText(settings.headerSubAr || `الموظف: ${settings.name} | الفترة: ${periodLabel}`);
     let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
 
-    // Default Professional Dual-Language Header (الترويسة الافتراضية القياسية ثنائية اللغة - بتصميم عالمي فاخر)
     let defaultDualLangHeader = `<!-- Professional Dual-Language PDF Header -->
       <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; margin:0; padding:0; background:transparent;">
           <tr>
-            <!-- Right Aligned Arabic Title -->
             <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
               <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
               <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
             </td>
-            <!-- Left Aligned English Title -->
             <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
               <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0;">${subEn}</div>
             </td>
           </tr>
         </table>
-        <!-- Metadata bar with border-top -->
         <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
           <tr>
             <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
@@ -6306,7 +6422,6 @@ async function buildPDFCanvas(){
       let h = getReportHeaderById(settings.activeHeaderId);
       if (h) {
         let customTop = sanitizeReportText(h.content.replace(/{{pageNumber}}/g, pageNumber).replace(/{{totalPages}}/g, totalPages));
-        // Mandatory include the standard dual-language default header underneath any custom header
         return `<div style="width:100%; margin-bottom:5px;">${customTop}</div>${defaultDualLangHeader}`;
       }
     } else if (settings.headerImage) {
@@ -6325,7 +6440,7 @@ async function buildPDFCanvas(){
     }
 
     if (customFooterContent) {
-      return `<!-- Custom User Footer (Full Width Edge-to-Edge 100%, Fixed at Absolute Bottom of Page Canvas) -->
+      return `<!-- Custom User Footer -->
         <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
           <div style="width:100%; box-sizing:border-box; margin:0; padding:0;">
             ${customFooterContent}
@@ -6342,7 +6457,7 @@ async function buildPDFCanvas(){
     let contactAr = sanitizeReportText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
     let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
-    return `<!-- Professional Footer Banner & Page Numbering (Attached to Page Bottom & Full Width Edge-to-Edge 100%) -->
+    return `<!-- Professional Footer Banner -->
       <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; background:#ffffff; color:#64748b; padding:8px 16px; margin:0;">
           <tr>
@@ -6425,6 +6540,13 @@ async function buildPDFCanvas(){
   let opts = { scale: 1.0, useCORS: true, allowTaint: true, logging: false, width: 1200, windowWidth: 1200, x: 0, y: 0, scrollY: 0, scrollX: 0 };
   let processCvs = [];
 
+  let getH2C = () => window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
+  let h2c = getH2C();
+  if(!h2c) {
+    console.error("PDF_HTML2CANVAS_MISSING", "html2canvas library is not loaded on window or scope");
+    return null;
+  }
+
   for(let i=0; i<chunks.length; i++) {
      let isLast = (i === chunks.length - 1);
      let sumBlock = "";
@@ -6440,14 +6562,24 @@ async function buildPDFCanvas(){
      }
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
      
-     // Minor delay between pages to allow UI thread to breath and avoid "Application hanging"
-     await new Promise(r => setTimeout(r, 5)); 
+     await new Promise(r => setTimeout(r, 15)); 
      
-     let h2c = typeof html2canvas !== 'undefined' ? html2canvas : (window.html2canvas || null);
-      if(!h2c) return null;
-      let cv = await h2c(container, opts);
-     processCvs.push(cv.toDataURL('image/jpeg', 0.8));
-     cv = null; // Free memory immediately
+     try {
+       let cv = await h2c(container, opts);
+       if(!cv || !cv.width || !cv.height || cv.width === 0 || cv.height === 0) {
+         console.error("PDF_CANVAS_EMPTY", `Page ${i+1} canvas generated empty or invalid dimensions`, cv);
+         return null;
+       }
+       processCvs.push(cv.toDataURL('image/jpeg', 0.8));
+       cv = null;
+     } catch(cvErr) {
+       console.error("PDF_HTML2CANVAS_PAGE_ERROR", `Failed generating canvas for page ${i+1}:`, {
+         name: cvErr && cvErr.name,
+         message: cvErr && cvErr.message,
+         stack: cvErr && cvErr.stack
+       });
+       return null;
+     }
   }
 
   // Last Page: Summary Statistics & Final Approval (Page chunks.length + 1 of chunks.length + 1)
@@ -6455,11 +6587,9 @@ async function buildPDFCanvas(){
   let finalPageHeader = renderHeaderHtml(totalPages, totalPages);
   let finalPageFooter = renderFooterHtml(totalPages, totalPages);
 
-  // Format report title cleanly without duplicating "تقرير"
   let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
   let displayRepType = cleanRepTitle || repTitle;
 
-  // Dynamic Signatures block
   let sigs = settings.signatures || {
     col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
     col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
@@ -6501,7 +6631,6 @@ async function buildPDFCanvas(){
         : `<span style="color:#94a3b8; font-weight:normal;">.......................................</span>`;
         
       return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:20px 24px; ${borderLeft} font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; direction:rtl; letter-spacing:0px !important;">
-        <!-- Field: Name -->
         <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
           <tr>
             <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
@@ -6512,7 +6641,6 @@ async function buildPDFCanvas(){
             </td>
           </tr>
         </table>
-        <!-- Field: Signature -->
         <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
           <tr>
             <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
@@ -6523,7 +6651,6 @@ async function buildPDFCanvas(){
             </td>
           </tr>
         </table>
-        <!-- Field: Date -->
         <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:4px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
           <tr>
             <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
@@ -6538,16 +6665,12 @@ async function buildPDFCanvas(){
     }).join('');
 
     signaturesHtml = `
-    <!-- Final Signatures & Approval Section (Corporate Standard Dynamic-Column) -->
     <div style="margin-top:35px; border:2px solid #cbd5e1; border-radius:12px; overflow:hidden; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-      <!-- Header Banner matching the grey layout of the corporate report -->
       <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#f1f5f9; border-bottom:2px solid #cbd5e1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
         <tr>
           ${headerCells}
         </tr>
       </table>
-
-      <!-- Signature Fields with Clean Alignments & Dots -->
       <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
         <tr>
           ${bodyCells}
@@ -6560,7 +6683,6 @@ async function buildPDFCanvas(){
     ${finalPageHeader}
     
     <div style="padding:10px 40px 0 40px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-      <!-- Title Section with elegant dual-line border -->
       <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
         <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
         <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
@@ -6572,23 +6694,19 @@ async function buildPDFCanvas(){
         </div>
       </div>
       
-      <!-- Stats Container (3 Columns x 2 Rows) -->
       <div style="border:2px solid #cbd5e1; border-radius:18px; padding:24px 20px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
         <table style="width:100%; border:none; border-collapse:separate; border-spacing:16px; margin:0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
           <tr>
-            <!-- Stat 1: Present Days -->
             <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الحضور</div>
               <div style="font-size:42px; font-weight:900; color:#16a34a; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.p}</div>
               <div style="font-size:13px; font-weight:700; color:#15803d; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم عمل</div>
             </td>
-            <!-- Stat 2: Absence Days -->
             <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الغياب</div>
               <div style="font-size:42px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.a}</div>
               <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم غياب</div>
             </td>
-            <!-- Stat 3: Late Days -->
             <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">أيام التأخير</div>
               <div style="font-size:42px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.l}</div>
@@ -6596,19 +6714,16 @@ async function buildPDFCanvas(){
             </td>
           </tr>
           <tr>
-            <!-- Stat 4: Total Late Hours -->
             <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي ساعات التأخير</div>
               <div style="font-size:38px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalLateDec}</div>
               <div style="font-size:13px; font-weight:700; color:#b45309; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
             </td>
-            <!-- Stat 5: Early Leave Hours -->
             <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعات الخروج المبكر</div>
               <div style="font-size:38px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalEarlyDec}</div>
               <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
             </td>
-            <!-- Stat 6: Overtime -->
             <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
               <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي العمل الإضافي</div>
               <div style="font-size:38px; font-weight:900; color:#059669; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalExtraDec}</div>
@@ -6624,9 +6739,22 @@ async function buildPDFCanvas(){
     ${finalPageFooter}
   </div>`;
 
-  let cvFinal = await html2canvas(container, opts);
-  processCvs.push(cvFinal.toDataURL('image/jpeg', 0.8));
-  cvFinal = null;
+  try {
+    let cvFinal = await h2c(container, opts);
+    if(!cvFinal || !cvFinal.width || !cvFinal.height || cvFinal.width === 0 || cvFinal.height === 0) {
+      console.error("PDF_CANVAS_EMPTY", "Final page canvas generated empty or zero dimensions", cvFinal);
+      return null;
+    }
+    processCvs.push(cvFinal.toDataURL('image/jpeg', 0.8));
+    cvFinal = null;
+  } catch(cvFinalErr) {
+    console.error("PDF_HTML2CANVAS_FINAL_PAGE_ERROR", "Failed generating final page canvas:", {
+      name: cvFinalErr && cvFinalErr.name,
+      message: cvFinalErr && cvFinalErr.message,
+      stack: cvFinalErr && cvFinalErr.stack
+    });
+    return null;
+  }
   
   pdfCanvasesCache = processCvs;
   return pdfCanvasesCache;
@@ -6636,6 +6764,8 @@ async function buildPDFCanvas(){
       container.innerHTML=``;
       container.style.position = '';
       container.style.left = '';
+      container.style.top = '';
+      container.style.opacity = '';
       container.style.zIndex = '';
       container.style.pointerEvents = '';
     }
@@ -6644,18 +6774,31 @@ async function buildPDFCanvas(){
 }
 
 async function buildPDF(){
-  let canvasesDataUrls=await buildPDFCanvas(); if(!canvasesDataUrls || !canvasesDataUrls.length) return null;
-  let doc=new jspdf.jsPDF(`p`,`mm`,`a4`);
-  let ps=doc.internal && doc.internal.pageSize ? doc.internal.pageSize : {};
-  let w=typeof ps.getWidth==='function' ? ps.getWidth() : (ps.width || 210);
-  let h=typeof ps.getHeight==='function' ? ps.getHeight() : (ps.height || 297);
-  
-  for(let i=0; i<canvasesDataUrls.length; i++) {
-     if(i>0) doc.addPage();
-     // We know ratio is exactly 1200x1697 which matches A4 ratio w/h, so we just use `h`
-     doc.addImage(canvasesDataUrls[i], `JPEG`, 0, 0, w, h);
+  try {
+    let canvasesDataUrls=await buildPDFCanvas(); if(!canvasesDataUrls || !canvasesDataUrls.length) return null;
+    let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+    if(!jspdfLib) {
+      console.error("PDF_JSPDF_MISSING", "jsPDF library is not available");
+      return null;
+    }
+    let doc=new jspdfLib(`p`,`mm`,`a4`);
+    let ps=doc.internal && doc.internal.pageSize ? doc.internal.pageSize : {};
+    let w=typeof ps.getWidth==='function' ? ps.getWidth() : (ps.width || 210);
+    let h=typeof ps.getHeight==='function' ? ps.getHeight() : (ps.height || 297);
+    
+    for(let i=0; i<canvasesDataUrls.length; i++) {
+       if(i>0) doc.addPage();
+       doc.addImage(canvasesDataUrls[i], `JPEG`, 0, 0, w, h);
+    }
+    return doc;
+  } catch(pdfErr) {
+    console.error("PDF_BUILD_EXCEPTION", "Exception inside buildPDF:", {
+      name: pdfErr && pdfErr.name,
+      message: pdfErr && pdfErr.message,
+      stack: pdfErr && pdfErr.stack
+    });
+    return null;
   }
-  return doc;
 }
 
 window.exeExpPreview=async function(){
@@ -6775,35 +6918,46 @@ window.exeExpDownload=function(){
   if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري الإنشاء والحفظ...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
   
   setTimeout(async () => {
-    let d = new Date();
-    let defaultName = `Attendance_Report_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
-    let uf = document.getElementById(`expFileName`);
-    let name = uf && uf.value.trim() ? uf.value.trim() : defaultName;
-    
-    // Check cache for download too
-    let canvasesUrls = pdfCanvasesCache;
-    let doc = null;
-    if(canvasesUrls) {
-      doc = new jspdf.jsPDF(`p`,`mm`,`a4`);
-      let w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
-      for(let i=0; i<canvasesUrls.length; i++) {
-        if(i>0) doc.addPage();
-        doc.addImage(canvasesUrls[i], `JPEG`, 0, 0, w, h);
-      }
-    } else {
-      doc = await buildPDF();
-    }
-
-    if(!doc) {
-      if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
-      toast('تعذر إنشاء ملف PDF', 'err');
-      return;
-    }
-
-    let blob = doc.output(`blob`);
-    let fileName = `${name}.pdf`;
-
     try {
+      let d = new Date();
+      let defaultName = `Attendance_Report_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+      let uf = document.getElementById(`expFileName`);
+      let name = uf && uf.value.trim() ? uf.value.trim() : defaultName;
+      
+      let canvasesUrls = pdfCanvasesCache;
+      let doc = null;
+      if(canvasesUrls) {
+        let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+        if(jspdfLib) {
+          doc = new jspdfLib(`p`,`mm`,`a4`);
+          let ps = doc.internal && doc.internal.pageSize ? doc.internal.pageSize : {};
+          let w = typeof ps.getWidth==='function' ? ps.getWidth() : (ps.width || 210);
+          let h = typeof ps.getHeight==='function' ? ps.getHeight() : (ps.height || 297);
+          for(let i=0; i<canvasesUrls.length; i++) {
+            if(i>0) doc.addPage();
+            doc.addImage(canvasesUrls[i], `JPEG`, 0, 0, w, h);
+          }
+        }
+      }
+      if(!doc) {
+        doc = await buildPDF();
+      }
+
+      if(!doc) {
+        console.error("PDF_EXPORT_FAILED", "PDF generation failed or buildPDF returned null");
+        toast('تعذر إنشاء ملف PDF', 'err');
+        return;
+      }
+
+      let blob = doc.output(`blob`);
+      if(!blob || blob.size === 0) {
+        console.error("PDF_BLOB_EMPTY", "PDF blob output is empty or null");
+        toast('تعذر إنشاء ملف PDF (محتوى فارغ)', 'err');
+        return;
+      }
+
+      let fileName = `${name}.pdf`;
+
       let saveRes = await window.ExportService.save({
         blob,
         fileName,
@@ -6821,11 +6975,15 @@ window.exeExpDownload=function(){
         toast('<i class="fa-solid fa-xmark ml-1"></i> تعذر حفظ الملف: ' + (saveRes.errorMessage || ''), 'err');
       }
     } catch(err) {
-      console.error('PDF export save error:', err);
+      console.error('PDF export process error:', {
+        name: err && err.name,
+        message: err && err.message,
+        stack: err && err.stack
+      });
       toast('<i class="fa-solid fa-xmark ml-1"></i> حدث خطأ أثناء التصدير: ' + (err.message || err), 'err');
+    } finally {
+      if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
     }
-    
-    if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
   }, 100);
 };
 
@@ -7265,6 +7423,7 @@ window.APP_INFO = {
 
 const FP_STATE = {
   IDLE: 'IDLE',
+  LOCKED: 'LOCKED',
   DETECTING: 'DETECTING',
   SCANNING: 'SCANNING',
   ANALYZING: 'ANALYZING',
@@ -7274,7 +7433,7 @@ const FP_STATE = {
   WARNING: 'WARNING'
 };
 
-let currentFpState = FP_STATE.IDLE;
+let currentFpState = FP_STATE.LOCKED;
 let fpTapCount = 0;
 let fpTapTimer = null;
 let fpActiveTimers = [];
@@ -7285,23 +7444,7 @@ function clearFpTimers() {
 }
 
 window.handleAboutCloseBtn = function() {
-  if (currentFpState === FP_STATE.IDLE || currentFpState === FP_STATE.SUCCESS) {
-    closeAboutM();
-  } else {
-    // Attempting to close while locked/scanning
-    playSignatureSound('warning');
-    triggerHaptic('warning');
-    const closeBtn = document.getElementById('aboutMCloseBtn');
-    const closeIcon = document.getElementById('aboutMCloseIcon');
-    if (closeBtn) {
-      closeBtn.classList.add('animate-shake');
-      setTimeout(() => closeBtn.classList.remove('animate-shake'), 400);
-    }
-    if (closeIcon) {
-      closeIcon.style.color = '#EF4444';
-      setTimeout(() => { closeIcon.style.color = 'var(--c-text-2)'; }, 500);
-    }
-  }
+  closeAboutM();
 };
 
 function morphTopButton(target) {
@@ -7314,14 +7457,17 @@ function morphTopButton(target) {
   setTimeout(() => {
     if (target === 'lock') {
       icon.className = 'fa-solid fa-lock text-xs text-amber-500 transition-all duration-300';
-      btn.style.borderColor = 'rgba(201, 162, 39, 0.5)';
-      btn.style.boxShadow = '0 0 12px rgba(201, 162, 39, 0.2)';
+      icon.style.color = '#f59e0b';
+      btn.style.borderColor = 'rgba(245, 158, 11, 0.6)';
+      btn.style.boxShadow = '0 0 15px rgba(245, 158, 11, 0.3)';
     } else if (target === 'unlock') {
-      icon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-all duration-300';
-      btn.style.borderColor = '#C9A227';
-      btn.style.boxShadow = '0 0 15px rgba(201, 162, 39, 0.4)';
+      icon.className = 'fa-solid fa-lock-open text-xs transition-all duration-300';
+      icon.style.color = 'var(--theme-primary)';
+      btn.style.borderColor = 'var(--theme-primary)';
+      btn.style.boxShadow = '0 0 15px var(--c-blue-lt)';
     } else if (target === 'close') {
       icon.className = 'fa-solid fa-xmark text-sm transition-all duration-300';
+      icon.style.color = 'var(--c-text-2)';
       btn.style.borderColor = 'var(--c-border)';
       btn.style.boxShadow = 'none';
     }
@@ -7337,10 +7483,40 @@ function updateFpProgress(percent) {
   circle.style.strokeDashoffset = offset;
 }
 
-window.handleFingerprintTap = function() {
-  if (currentFpState !== FP_STATE.IDLE) return;
+window.handleFingerprintTap = async function() {
+  if (currentFpState === FP_STATE.SUCCESS) {
+    closeAboutM();
+    return;
+  }
+  if (currentFpState !== FP_STATE.LOCKED && currentFpState !== FP_STATE.IDLE) return;
+
+  // Native Biometric integration if on mobile
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const NB = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.NativeBiometric : null;
+
+  if (isNative && NB) {
+    try {
+      const avail = await NB.isAvailable({ useFallback: true }).catch(() => null);
+      if (avail && avail.isAvailable) {
+        await NB.verifyIdentity({
+          reason: "التحقق من البصمة لفتح صفحة حول التطبيق وتأكيد الهوية",
+          title: "تأكيد الهوية",
+          subtitle: "حول التطبيق",
+          useFallback: true
+        });
+      }
+    } catch (e) {
+      console.warn("Native biometric on about page failed or cancelled:", e);
+      if (typeof toast === 'function') {
+        toast("تعذر التحقق من البصمة. يرجى المحاولة مجدداً لفتح القفل", "err");
+      }
+      playSignatureSound('warning');
+      triggerHaptic('warning');
+      return;
+    }
+  }
+
   fpTapCount++;
-  
   if (fpTapTimer) clearTimeout(fpTapTimer);
   
   fpTapTimer = setTimeout(() => {
@@ -7476,9 +7652,9 @@ function triggerSingleTapSignature() {
   
   if (circle) {
     circle.style.transform = 'scale(0.96)';
-    circle.style.boxShadow = '0 0 20px rgba(201, 162, 39, 0.4)';
+    circle.style.boxShadow = '0 0 20px var(--c-blue-lt)';
   }
-  if (ring) ring.style.borderColor = 'rgba(201, 162, 39, 0.8)';
+  if (ring) ring.style.borderColor = 'var(--theme-primary)';
   if (statusEl) {
     statusEl.innerHTML = `<span class="text-amber-500 font-bold">● DETECTING FINGERPRINT... • جاري الكشف</span>`;
   }
@@ -7511,7 +7687,7 @@ function triggerSingleTapSignature() {
     playSignatureSound('analyze');
     updateFpProgress(85);
     if (statusEl) {
-      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold">✓ PATTERN ANALYZED • تم تحليل البصمة</span>`;
+      statusEl.innerHTML = `<span class="font-bold" style="color:var(--theme-primary)">✓ PATTERN ANALYZED • تم تحليل البصمة</span>`;
     }
   }, 950);
   fpActiveTimers.push(t2);
@@ -7520,7 +7696,7 @@ function triggerSingleTapSignature() {
     currentFpState = FP_STATE.VERIFYING;
     updateFpProgress(100);
     if (statusEl) {
-      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold">◉ VERIFYING IDENTITY... • جاري التحقق</span>`;
+      statusEl.innerHTML = `<span class="font-bold" style="color:var(--theme-primary)">◉ VERIFYING IDENTITY... • جاري التحقق</span>`;
     }
   }, 1400);
   fpActiveTimers.push(t3);
@@ -7533,18 +7709,19 @@ function triggerSingleTapSignature() {
     
     if (scanLine) scanLine.style.opacity = '0';
     if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
+      lockIcon.style.color = 'var(--theme-primary)';
     }
     morphTopButton('unlock');
     
     if (statusEl) {
-      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-circle-check text-xs"></i> IDENTITY VERIFIED • تم التحقق</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-circle-check text-xs"></i> IDENTITY VERIFIED • تم التحقق</span>`;
     }
     if (sigEl) {
-      sigEl.style.color = '#C9A227';
+      sigEl.style.color = 'var(--theme-primary)';
       sigEl.style.opacity = '1';
       sigEl.style.transform = 'scale(1.06)';
-      sigEl.style.textShadow = '0 0 20px rgba(201, 162, 39, 0.85)';
+      sigEl.style.textShadow = '0 0 20px var(--c-blue-lt)';
     }
   }, 1900);
   fpActiveTimers.push(t4);
@@ -7572,7 +7749,7 @@ function triggerDoubleTapSignature() {
   
   if (circle) {
     circle.style.transform = 'scale(1.08)';
-    circle.style.boxShadow = '0 0 30px rgba(201, 162, 39, 0.5)';
+    circle.style.boxShadow = '0 0 30px var(--c-blue-lt)';
   }
   if (icon) icon.style.transform = 'rotate(180deg)';
   if (statusEl) {
@@ -7586,17 +7763,18 @@ function triggerDoubleTapSignature() {
     if (circle) circle.style.transform = 'scale(1)';
     if (icon) icon.style.transform = 'rotate(360deg)';
     if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
+      lockIcon.style.color = 'var(--theme-primary)';
     }
     morphTopButton('unlock');
     if (statusEl) {
-      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-lock-open text-xs"></i> IDENTITY UNLOCKED • تم فتح الهوية</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-lock-open text-xs"></i> IDENTITY UNLOCKED • تم فتح الهوية</span>`;
     }
     if (sigEl) {
-      sigEl.style.color = '#C9A227';
+      sigEl.style.color = 'var(--theme-primary)';
       sigEl.style.opacity = '1';
       sigEl.style.transform = 'scale(1.06)';
-      sigEl.style.textShadow = '0 0 20px rgba(201, 162, 39, 0.85)';
+      sigEl.style.textShadow = '0 0 20px var(--c-blue-lt)';
     }
   }, 600);
   fpActiveTimers.push(t1);
@@ -7622,7 +7800,7 @@ function triggerTripleTapSignature() {
   const icon = document.getElementById('fpIcon');
   
   if (orbitRing) {
-    orbitRing.style.borderColor = 'rgba(201, 162, 39, 0.8)';
+    orbitRing.style.borderColor = 'var(--theme-primary)';
     orbitRing.style.transform = 'rotate(720deg) scale(1.35)';
   }
   if (icon) icon.style.transform = 'scale(1.3) rotate(360deg)';
@@ -7635,17 +7813,18 @@ function triggerTripleTapSignature() {
     currentFpState = FP_STATE.SUCCESS;
     updateFpProgress(100);
     if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs text-[#C9A227] transition-transform duration-300 scale-110';
+      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
+      lockIcon.style.color = 'var(--theme-primary)';
     }
     morphTopButton('unlock');
     if (statusEl) {
-      statusEl.innerHTML = `<span class="text-[#C9A227] font-bold flex items-center gap-1 justify-center"><i class="fa-solid fa-sparkles text-xs"></i> Aᵦᵤ AɢʰᵧₐD DIGITAL SIGNATURE</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-sparkles text-xs"></i> Aᵦᵤ AɢʰᵧₐD DIGITAL SIGNATURE</span>`;
     }
     if (sigEl) {
-      sigEl.style.color = '#C9A227';
+      sigEl.style.color = 'var(--theme-primary)';
       sigEl.style.opacity = '1';
       sigEl.style.transform = 'scale(1.08)';
-      sigEl.style.textShadow = '0 0 25px rgba(201, 162, 39, 1)';
+      sigEl.style.textShadow = '0 0 25px var(--c-blue-lt)';
     }
   }, 800);
   fpActiveTimers.push(t1);
@@ -7658,7 +7837,7 @@ function triggerTripleTapSignature() {
 
 window.resetSignatureState = function() {
   clearFpTimers();
-  currentFpState = FP_STATE.IDLE;
+  currentFpState = FP_STATE.LOCKED;
   
   const circle = document.getElementById('fpCircleContainer');
   const scanLine = document.getElementById('fpScanLine');
@@ -7670,7 +7849,7 @@ window.resetSignatureState = function() {
   const icon = document.getElementById('fpIcon');
   
   updateFpProgress(0);
-  morphTopButton('close');
+  morphTopButton('lock');
   
   if (circle) {
     circle.style.transform = 'none';
@@ -7679,9 +7858,10 @@ window.resetSignatureState = function() {
   if (scanLine) scanLine.style.opacity = '0';
   if (lockIcon) {
     lockIcon.className = 'fa-solid fa-lock text-xs text-amber-500 transition-transform duration-300';
+    lockIcon.style.color = '';
   }
   if (statusEl) {
-    statusEl.innerHTML = 'LOCKED • مقفل';
+    statusEl.innerHTML = 'LOCKED • مقفل (انقر للبصمة بالأسفل)';
   }
   if (sigEl) {
     sigEl.style.color = 'var(--c-text-2)';
@@ -7689,7 +7869,7 @@ window.resetSignatureState = function() {
     sigEl.style.transform = 'none';
     sigEl.style.textShadow = 'none';
   }
-  if (ring) ring.style.borderColor = 'rgba(201, 162, 39, 0.2)';
+  if (ring) ring.style.borderColor = 'var(--c-blue-lt)';
   if (orbitRing) {
     orbitRing.style.borderColor = 'transparent';
     orbitRing.style.transform = 'none';
@@ -7710,6 +7890,11 @@ window.openAboutM = function() {
   
   const descEl = document.getElementById('aboutAppDesc');
   if (descEl) descEl.textContent = '"' + window.APP_INFO.description + '"';
+
+  const platSpec = document.getElementById('aboutPlatformSpec');
+  if (platSpec) {
+    platSpec.textContent = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? 'Android App' : 'Web App';
+  }
   
   window.resetSignatureState();
   
@@ -7724,7 +7909,36 @@ window.openAboutM = function() {
   }, 10);
 };
 
-window.closeAboutM = function() {
+window.closeAboutM = function(force = false) {
+  if (!force && currentFpState !== FP_STATE.SUCCESS) {
+    // Attempting to close while locked - IMPOSSIBLE to exit until fingerprint verified!
+    playSignatureSound('warning');
+    triggerHaptic('warning');
+    const contentEl = document.getElementById('aboutMContent');
+    const closeBtn = document.getElementById('aboutMCloseBtn');
+    const closeIcon = document.getElementById('aboutMCloseIcon');
+    if (contentEl) {
+      contentEl.classList.add('animate-shake');
+      setTimeout(() => contentEl.classList.remove('animate-shake'), 400);
+    }
+    if (closeBtn) {
+      closeBtn.classList.add('animate-shake');
+      setTimeout(() => closeBtn.classList.remove('animate-shake'), 400);
+    }
+    if (closeIcon) {
+      closeIcon.style.color = '#EF4444';
+      setTimeout(() => {
+        if (currentFpState !== FP_STATE.SUCCESS) {
+          closeIcon.style.color = '#f59e0b';
+        }
+      }, 500);
+    }
+    if (typeof toast === 'function') {
+      toast("🔒 الصفحة مقفلة! يرجى المسح على البصمة بالأسفل أولاً لإلغاء القفل والتمكن من الخروج", "err");
+    }
+    return;
+  }
+  
   const el = document.getElementById('aboutM');
   const contentEl = document.getElementById('aboutMContent');
   if (!el) return;
@@ -7938,15 +8152,13 @@ async function initApp(){
       await loadData(); 
       await initTrialSystem(); // Blocks app UI if trial expired
       
-      // Biometric Lock Check (v1.0.1 Priority)
-      if(settings.enableBiometric && window.Capacitor && window.Capacitor.isNativePlatform) {
-        let lock = document.getElementById('biometricLock');
-        if(lock) {
-          lock.classList.remove('hidden');
-          lock.classList.add('flex');
-          // Automatically trigger prompt
-          setTimeout(() => { if(window.authBiometric) authBiometric(); }, 500);
-        }
+      // Biometric Lock Check & Application setup
+      setupBiometricAppListeners();
+      if (settings && settings.enableBiometric && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        window.showLockScreen();
+        setTimeout(() => {
+          if (window.authBiometric) window.authBiometric();
+        }, 400);
       }
       
 
