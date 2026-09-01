@@ -30,10 +30,30 @@ var DEFAULT_SETTINGS={
   signatures: {
     col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
     col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
-    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
-  }
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
+  },
+  signatureDateType: 'today',
+  signatureCustomDate: ''
 };
 var DB_KEYS={S:`pa_s`,R:`pa_r`};
+
+window.getFormattedSignatureDate = function() {
+  let type = settings.signatureDateType || 'today';
+  if (type === 'none') {
+    return ''; // Return empty string to stop/pause the date
+  }
+  let d = new Date();
+  if (type === 'custom' && settings.signatureCustomDate) {
+    let parsed = new Date(settings.signatureCustomDate);
+    if (!isNaN(parsed.getTime())) {
+      d = parsed;
+    }
+  }
+  let y = d.getFullYear();
+  let m = String(d.getMonth() + 1).padStart(2, '0');
+  let day = String(d.getDate()).padStart(2, '0');
+  return `${day} / ${m} / ${y}م`;
+};
 var DAYS=[`الأحد`,`الاثنين`,`الثلاثاء`,`الأربعاء`,`الخميس`,`الجمعة`,`السبت`];
 var MONTHS=[`يناير`,`فبراير`,`مارس`,`أبريل`,`مايو`,`يونيو`,`يوليو`,`أغسطس`,`سبتمبر`,`أكتوبر`,`نوفمبر`,`ديسمبر`];
 var settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), records = [], viewYear, viewMonth, calYear, calMonth, periodMode=`current`;
@@ -4223,16 +4243,40 @@ function renderSettingsPage(){
     settings.signatures = {
       col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
       col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
-      col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+      col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
     };
   }
+  // Sanitize stored dots if any exist in the database from prior versions
+  const sanitizeDots = (str) => {
+    if (!str) return '';
+    return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
+  };
   for (let i = 1; i <= 3; i++) {
     let col = settings.signatures['col' + i] || {};
+    col.title = sanitizeDots(col.title || '');
+    col.label1 = sanitizeDots(col.label1 || '');
+    col.label2 = sanitizeDots(col.label2 || '');
+    col.label3 = sanitizeDots(col.label3 || '');
+    col.value1 = sanitizeDots(col.value1 || '');
+    if (col.value1 === 'NAME_PLACEHOLDER' || col.value1 === 'MANAGER_PLACEHOLDER') {
+      // keep placeholder
+    } else {
+      col.value1 = sanitizeDots(col.value1 || '');
+    }
+    
     let showEl = document.getElementById('sig_show' + i); if (showEl) showEl.checked = col.show !== false;
     let titleEl = document.getElementById('sig_title' + i); if (titleEl) titleEl.value = col.title || '';
     let lblEl = document.getElementById('sig_lbl' + i); if (lblEl) lblEl.value = col.label1 || '';
     let valEl = document.getElementById('sig_val' + i); if (valEl) valEl.value = col.value1 || '';
   }
+
+  // Populate Signature Date Settings
+  settings.signatureDateType = settings.signatureDateType || 'today';
+  settings.signatureCustomDate = settings.signatureCustomDate || '';
+  let sdtEl = document.getElementById('sig_date_type'); if (sdtEl) sdtEl.value = settings.signatureDateType;
+  let scdEl = document.getElementById('sig_custom_date'); if (scdEl) scdEl.value = settings.signatureCustomDate;
+  if (window.updateSigDateFields) window.updateSigDateFields();
+
   if(window.updateGoogleUI) window.updateGoogleUI(); // Ensure cloud account status is shown
   
   if (typeof renderSigPreviews === 'function') renderSigPreviews();
@@ -4282,6 +4326,28 @@ window.saveBackupSettings=function(){
   toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعدادات النسخ`,`ok`);
 };
 window.saveName=function(){let el=document.getElementById(`setName`);if(el){settings.name=el.value.trim()||``;saveSettings();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
+window.editEmployeeName = function() {
+  let modal = document.getElementById('nameEditModal');
+  let inp = document.getElementById('modalEmployeeName');
+  if (modal && inp) {
+    inp.value = settings.name || '';
+    modal.classList.remove('hidden');
+    inp.focus();
+  }
+};
+window.saveModalEmployeeName = function() {
+  let inp = document.getElementById('modalEmployeeName');
+  if (inp) {
+    let newName = inp.value.trim();
+    settings.name = newName;
+    saveSettings();
+    renderHome();
+    let sn = document.getElementById('setName');
+    if (sn) sn.value = newName;
+    document.getElementById('nameEditModal').classList.add('hidden');
+    toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ الاسم بنجاح`, 'ok');
+  }
+};
 window.saveDepartment=function(){let el=document.getElementById(`setDepartment`);if(el){settings.department=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveManagerName=function(){let el=document.getElementById(`setManagerName`);if(el){settings.managerName=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveAlertSettings=function(){settings.alertOffset=parseInt(document.getElementById(`alertOffsetIn`).value)||0;saveSettings();if(settings.alertOffset>0&&Notification.permission!==`granted`)Notification.requestPermission();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);};
@@ -4302,6 +4368,10 @@ window.saveSignatureSettings = function() {
   if (!settings.signatures) {
     settings.signatures = { col1: {}, col2: {}, col3: {} };
   }
+  const cleanDots = (str) => {
+    if (!str) return '';
+    return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
+  };
   for (let i = 1; i <= 3; i++) {
     let showEl = document.getElementById('sig_show' + i);
     let titleEl = document.getElementById('sig_title' + i);
@@ -4309,18 +4379,41 @@ window.saveSignatureSettings = function() {
     let valEl = document.getElementById('sig_val' + i);
     let oldImg = (settings.signatures['col' + i] && settings.signatures['col' + i].signatureImage) || null;
     
+    let rawVal = valEl ? valEl.value.trim() : '';
+    if (rawVal !== 'NAME_PLACEHOLDER' && rawVal !== 'MANAGER_PLACEHOLDER') {
+      rawVal = cleanDots(rawVal);
+    }
+
     settings.signatures['col' + i] = {
       show: showEl ? showEl.checked : true,
-      title: titleEl ? titleEl.value.trim() : '',
-      label1: lblEl ? lblEl.value.trim() : '',
-      value1: valEl ? valEl.value.trim() : '',
+      title: titleEl ? cleanDots(titleEl.value) : '',
+      label1: lblEl ? cleanDots(lblEl.value) : '',
+      value1: rawVal,
       label2: "التوقيع:",
       label3: "التاريخ:",
       signatureImage: oldImg
     };
   }
+
+  let sdtEl = document.getElementById('sig_date_type');
+  if (sdtEl) settings.signatureDateType = sdtEl.value;
+  let scdEl = document.getElementById('sig_custom_date');
+  if (scdEl) settings.signatureCustomDate = scdEl.value;
+
   saveSettings();
   toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعدادات التواقيع والاعتماد`, `ok`);
+};
+
+window.updateSigDateFields = function() {
+  let sdtEl = document.getElementById('sig_date_type');
+  let wrap = document.getElementById('sig_custom_date_wrap');
+  if (sdtEl && wrap) {
+    if (sdtEl.value === 'custom') {
+      wrap.classList.remove('hidden');
+    } else {
+      wrap.classList.add('hidden');
+    }
+  }
 };
 
 // --- Electronic Signature Pad Logic ---
@@ -6729,7 +6822,7 @@ async function buildPDFCanvas(){
   let sigs = settings.signatures || {
     col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
     col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
-    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
   };
 
   let activeCols = [];
@@ -6739,81 +6832,81 @@ async function buildPDFCanvas(){
     }
   });
 
-  let signaturesHtml = '';
-  if (activeCols.length > 0) {
-    let colWidth = (100 / activeCols.length).toFixed(2) + '%';
-    let headerCells = activeCols.map((col, idx) => {
-      let borderLeft = idx < activeCols.length - 1 ? 'border-left:2px solid #cbd5e1;' : '';
-      return `<td style="width:${colWidth}; text-align:center; padding:12px; font-size:16px; font-weight:800; color:#1e293b; border:none; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; ${borderLeft}">
-        ${esc(col.title)}
-      </td>`;
-    }).join('');
-
-    let bodyCells = activeCols.map((col, idx) => {
-      let borderLeft = idx < activeCols.length - 1 ? 'border-left:2px solid #cbd5e1;' : '';
+    let signaturesHtml = '';
+    if (activeCols.length > 0) {
+      let colWidth = (100 / activeCols.length).toFixed(2) + '%';
       
-      let resolvedValue = col.value1 || '';
-      if (resolvedValue === 'NAME_PLACEHOLDER') {
-        resolvedValue = settings.name || '.......................................';
-      } else if (resolvedValue === 'MANAGER_PLACEHOLDER') {
-        resolvedValue = settings.managerName || '.......................................';
-      }
-      if (!resolvedValue.trim()) {
-        resolvedValue = '.......................................';
-      }
+      const cleanDotsHTML = (str) => {
+        if (!str) return '';
+        return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
+      };
 
-      let sigHtml = col.signatureImage 
-        ? `<div style="text-align: center;"><img src="${col.signatureImage}" style="max-height: 40px; object-fit: contain; margin-top:-5px; margin-bottom:-5px;" /></div>` 
-        : `<span style="color:#94a3b8; font-weight:normal;">.......................................</span>`;
-        
-      return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:20px 24px; ${borderLeft} font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; direction:rtl; letter-spacing:0px !important;">
-        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-          <tr>
-            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-              ${esc(col.label1 || 'الاسم:')}
-            </td>
-            <td style="border:none; padding:4px 0; border-bottom:1px dotted #94a3b8; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:8px; letter-spacing:0px !important;">
-              ${esc(resolvedValue)}
-            </td>
-          </tr>
-        </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-          <tr>
-            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-              ${esc(col.label2 || 'التوقيع:')}
-            </td>
-            <td style="border:none; padding:4px 0; border-bottom:${col.signatureImage ? 'none' : '1px dotted #94a3b8'}; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; height:24px; position:relative; letter-spacing:0px !important;">
-              ${sigHtml}
-            </td>
-          </tr>
-        </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:4px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-          <tr>
-            <td style="width:85px; font-size:14px; font-weight:800; color:#475569; text-align:right; border:none; padding:4px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-              ${esc(col.label3 || 'التاريخ:')}
-            </td>
-            <td style="border:none; padding:4px 0; border-bottom:1px dotted #94a3b8; font-size:14px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:8px; height:24px; letter-spacing:0px !important;">
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;2026م
-            </td>
-          </tr>
-        </table>
-      </td>`;
-    }).join('');
+      let bodyCells = activeCols.map((col, idx) => {
+        let resolvedValue = col.value1 || '';
+        if (resolvedValue === 'NAME_PLACEHOLDER') {
+          resolvedValue = settings.name || '';
+        } else if (resolvedValue === 'MANAGER_PLACEHOLDER') {
+          resolvedValue = settings.managerName || '';
+        }
+        resolvedValue = cleanDotsHTML(resolvedValue);
+  
+        let sigHtml = col.signatureImage 
+          ? `<div style="text-align: center;"><img src="${col.signatureImage}" style="max-height: 42px; object-fit: contain; margin-top:-3px; margin-bottom:-3px;" /></div>` 
+          : `&nbsp;`;
+          
+        let cTitle = cleanDotsHTML(col.title || 'اعتماد');
+        let cLabel1 = cleanDotsHTML(col.label1 || 'الاسم:');
+        let cLabel2 = cleanDotsHTML(col.label2 || 'التوقيع:');
+        let cLabel3 = cleanDotsHTML(col.label3 || 'التاريخ:');
 
-    signaturesHtml = `
-    <div style="margin-top:35px; border:2px solid #cbd5e1; border-radius:12px; overflow:hidden; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-      <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#f1f5f9; border-bottom:2px solid #cbd5e1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-        <tr>
-          ${headerCells}
-        </tr>
-      </table>
-      <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-        <tr>
-          ${bodyCells}
-        </tr>
-      </table>
-    </div>`;
-  }
+        return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:10px 14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; direction:rtl; letter-spacing:0px !important;">
+          <div style="border:1.5px solid #cbd5e1; border-radius:12px; background-color:#f8fafc; padding:16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">
+            <div style="font-size:14px; font-weight:800; color:#1B3D6D; text-align:center; padding-bottom:10px; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              ${esc(cTitle)}
+            </div>
+            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:10px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <tr>
+                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+                  ${esc(cLabel1)}
+                </td>
+                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:6px; height:22px; letter-spacing:0px !important;">
+                  ${esc(resolvedValue)}
+                </td>
+              </tr>
+            </table>
+            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:10px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <tr>
+                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+                  ${esc(cLabel2)}
+                </td>
+                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; height:22px; position:relative; letter-spacing:0px !important;">
+                  ${sigHtml}
+                </td>
+              </tr>
+            </table>
+            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:2px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+              <tr>
+                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
+                  ${esc(cLabel3)}
+                </td>
+                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:6px; height:22px; letter-spacing:0px !important;">
+                  ${esc(window.getFormattedSignatureDate())}
+                </td>
+              </tr>
+            </table>
+          </div>
+        </td>`;
+      }).join('');
+  
+      signaturesHtml = `
+      <div style="margin-top:40px; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+          <tr>
+            ${bodyCells}
+          </tr>
+        </table>
+      </div>`;
+    }
 
   container.innerHTML = `<div style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
     ${finalPageHeader}
@@ -7167,6 +7260,18 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
   let headerImgObj = await loadCanvasImage(effectiveHeaderImage);
   let footerImgObj = await loadCanvasImage(effectiveFooterImage);
+
+  let sigImgObjs = {};
+  let sigsToPreload = settings.signatures || {
+    col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
+  };
+  for (let k of ['col1', 'col2', 'col3']) {
+    if (sigsToPreload[k] && sigsToPreload[k].signatureImage) {
+      sigImgObjs[k] = await loadCanvasImage(sigsToPreload[k].signatureImage);
+    }
+  }
 
   let sumLate = 0, sumEarly = 0, sumExtra = 0;
   let calcP = 0, calcA = 0, calcL = 0;
@@ -7719,66 +7824,108 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   let sigs = settings.signatures || {
     col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
     col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
-    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
   };
 
   let activeCols = [];
   ['col1', 'col2', 'col3'].forEach(k => {
-    if (sigs[k] && sigs[k].show !== false) activeCols.push(sigs[k]);
+    if (sigs[k] && sigs[k].show !== false) activeCols.push({ key: k, data: sigs[k] });
   });
 
   if (activeCols.length > 0) {
     let sigBoxH = 220;
-    drawCanvasRoundRect(ctx, 40, sigsY, 1120, sigBoxH, 12, '#ffffff', '#cbd5e1', 2);
-
-    // Header bar of signatures
-    drawCanvasRoundRect(ctx, 40, sigsY, 1120, 48, 12, '#f1f5f9', '#cbd5e1', 1);
-
     let sigColW = 1120 / activeCols.length;
 
-    activeCols.forEach((col, idx) => {
+    activeCols.forEach((colObj, idx) => {
+      let col = colObj.data;
+      let colKey = colObj.key;
       let scx = 1160 - (idx + 1) * sigColW;
+
+      const cleanDotsCanvas = (str) => {
+        if (!str) return '';
+        return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
+      };
+
+      let cTitle = cleanDotsCanvas(col.title || 'اعتماد');
+      let cLabel1 = cleanDotsCanvas(col.label1 || 'الاسم:');
+      let cLabel2 = cleanDotsCanvas(col.label2 || 'التوقيع:');
+      let cLabel3 = cleanDotsCanvas(col.label3 || 'التاريخ:');
+
+      // Draw beautifully bordered card frame for each signature box
+      let cardX = scx + 12;
+      let cardW = sigColW - 24;
+      let cardY = sigsY;
+      let cardH = sigBoxH;
+
+      // Draw soft official background fill
+      ctx.fillStyle = '#f8fafc';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 12);
+        ctx.fill();
+      } else {
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+      }
+
+      // Draw elegant solid border line
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.5;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 12);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
+      }
+
+      // Draw neat header separator line inside each card
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cardX + 15, cardY + 50);
+      ctx.lineTo(cardX + cardW - 15, cardY + 50);
+      ctx.stroke();
 
       ctx.direction = 'rtl';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#1e293b';
-      ctx.font = 'bold 17px sans-serif';
-      ctx.fillText(col.title || 'اعتماد', scx + sigColW / 2, sigsY + 32);
+      ctx.fillStyle = '#1B3D6D';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(cTitle, scx + sigColW / 2, sigsY + 34);
 
       let resolvedVal = col.value1 || '';
-      if (resolvedVal === 'NAME_PLACEHOLDER') resolvedVal = settings.name || '.......................................';
-      else if (resolvedVal === 'MANAGER_PLACEHOLDER') resolvedVal = settings.managerName || '.......................................';
-      if (!resolvedVal.trim()) resolvedVal = '.......................................';
+      if (resolvedVal === 'NAME_PLACEHOLDER') resolvedVal = settings.name || '';
+      else if (resolvedVal === 'MANAGER_PLACEHOLDER') resolvedVal = settings.managerName || '';
+      resolvedVal = cleanDotsCanvas(resolvedVal);
 
       ctx.textAlign = 'right';
-      ctx.font = 'bold 14px sans-serif';
       
       // Label 1: Name
+      ctx.font = 'bold 13px sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(col.label1 || 'الاسم:', scx + sigColW - 20, sigsY + 88);
+      ctx.fillText(cLabel1, scx + sigColW - 32, sigsY + 92);
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(resolvedVal, scx + sigColW - 100, sigsY + 88);
+      ctx.fillText(resolvedVal, scx + sigColW - 105, sigsY + 92);
 
       // Label 2: Signature
+      ctx.font = 'bold 13px sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(col.label2 || 'التوقيع:', scx + sigColW - 20, sigsY + 138);
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('.......................................', scx + sigColW - 100, sigsY + 138);
+      ctx.fillText(cLabel2, scx + sigColW - 32, sigsY + 145);
+      
+      // Draw electronic signature image if it exists
+      if (sigImgObjs && sigImgObjs[colKey]) {
+        let imgW = 130;
+        let imgH = 40;
+        let imgX = scx + (sigColW - imgW) / 2;
+        let imgY = sigsY + 112; // Beautifully centered overlay
+        ctx.drawImage(sigImgObjs[colKey], imgX, imgY, imgW, imgH);
+      }
 
       // Label 3: Date
+      ctx.font = 'bold 13px sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(col.label3 || 'التاريخ:', scx + sigColW - 20, sigsY + 188);
+      ctx.fillText(cLabel3, scx + sigColW - 32, sigsY + 195);
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(' ... / ... / 2026م', scx + sigColW - 100, sigsY + 188);
-
-      if (idx < activeCols.length - 1) {
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(scx, sigsY);
-        ctx.lineTo(scx, sigsY + sigBoxH);
-        ctx.stroke();
-      }
+      ctx.fillText(window.getFormattedSignatureDate(), scx + sigColW - 105, sigsY + 195);
     });
   }
 

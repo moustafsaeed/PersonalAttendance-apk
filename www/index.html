@@ -2173,7 +2173,12 @@
                   <div class="absolute -inset-1 rounded-full border border-emerald-500/20 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-black text-sm text-primary truncate" id="homeGreeting">مرحباً</div>
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <div class="font-black text-sm text-primary truncate" id="homeGreeting">مرحباً</div>
+                    <button onclick="window.editEmployeeName()" class="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center transition-all shrink-0 cursor-pointer" title="تعديل اسم الموظف">
+                      <i class="fa-solid fa-pen text-[10px]"></i>
+                    </button>
+                  </div>
                   <div class="text-[11px] font-bold mt-0.5 truncate" style="color:var(--text2)" id="homeSchedule"></div>
                 </div>
                 <div id="homeStatusBadge" class="shrink-0"></div>
@@ -2833,6 +2838,31 @@
                 </div>
               </div>
             </div>
+
+            <!-- Signature Date Options -->
+            <div class="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/10 space-y-3 mt-3">
+              <div class="flex items-center gap-2 mb-1">
+                <div class="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-calendar-day"></i>
+                </div>
+                <span class="text-xs font-black text-slate-800 dark:text-slate-200">تاريخ التوقيع والاعتماد للتقارير</span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">تحديد صيغة التاريخ</label>
+                  <select id="sig_date_type" onchange="window.updateSigDateFields()" class="form-control text-xs rounded-xl py-2.5">
+                    <option value="today">تاريخ التصدير التلقائي (تاريخ اليوم)</option>
+                    <option value="custom">تاريخ مخصص من التقويم</option>
+                    <option value="none">توقيف / إخفاء التاريخ بالكامل</option>
+                  </select>
+                </div>
+                <div id="sig_custom_date_wrap" class="hidden">
+                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">اختر التاريخ المطلوب</label>
+                  <input type="date" id="sig_custom_date" class="form-control text-xs rounded-xl py-2.5">
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <!-- Custom Statuses & PDF Columns Grid -->
@@ -4145,6 +4175,35 @@
   </div>
   <div id="toast"
     class="fixed bottom-24 left-0 right-0 mx-auto w-max text-center px-5 py-3 rounded-xl text-sm font-bold shadow-xl z-[150] opacity-0 translate-y-4 transition-all duration-300 pointer-events-none whitespace-nowrap">
+  </div>
+
+  <!-- Modal for editing/adding employee name -->
+  <div id="nameEditModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1001] flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 transition-all">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg font-bold">
+          <i class="fa-solid fa-user-pen"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-black text-slate-800 dark:text-slate-100">اسم الموظف</h3>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">عرض أو تعديل اسم الموظف المسجل في التطبيق</p>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 mb-1 block">الاسم بالكامل</label>
+          <input type="text" id="modalEmployeeName" placeholder="مثال: مصطفى المقاطري..." class="form-control text-xs rounded-xl py-2.5">
+        </div>
+      </div>
+      <div class="mt-5 flex gap-2 justify-end">
+        <button onclick="document.getElementById('nameEditModal').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors">
+          إلغاء
+        </button>
+        <button onclick="window.saveModalEmployeeName()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-sm shadow-indigo-200 dark:shadow-none">
+          حفظ التغييرات
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="pz" class="hidden"></div>
