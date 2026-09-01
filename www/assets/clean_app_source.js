@@ -8274,13 +8274,23 @@ window.exeExpExcel=async function(mode){
   let originalHtml = btn ? btn.innerHTML : '<i class="fa-solid fa-file-excel ml-2"></i>تصدير Excel';
   if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري التحميل...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
   
+  let sanitizeText = function(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    return str.replace(/unisoft/gi, '')
+              .replace(/UniSoft/gi, '')
+              .replace(/www\.[a-z0-9-]+\.[a-z]{2,}/gi, '')
+              .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, '')
+              .trim();
+  };
+  
   setTimeout(async () => {
     try {
       let d = new Date();
-      let defaultName = `Attendance_Report_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.csv`;
+      let defaultName = `Attendance_Report_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.xls`;
       let uf = document.getElementById(`expFileName`);
-      let name = (uf && uf.value.trim() ? uf.value.trim() : defaultName) + (uf && uf.value.trim().endsWith('.csv') ? '' : (uf && uf.value.trim() ? '.csv' : ''));
-      if(!name.endsWith('.csv')) name += '.csv';
+      let name = (uf && uf.value.trim() ? uf.value.trim() : defaultName);
+      name = name.replace(/\.csv$/i, '');
+      if(!name.endsWith('.xls')) name += '.xls';
 
       let filtered=[];
       if (mode === 'selected') {
@@ -8333,75 +8343,282 @@ window.exeExpExcel=async function(mode){
         periodLabel = document.getElementById(`monthIn`) ? document.getElementById(`monthIn`).value : (MONTHS[viewMonth] + ` ` + viewYear);
       }
 
-      let headerText = getPlainTextHeader(repTitle, periodLabel);
-      let footerText = getPlainTextFooter();
+      let colSpan = columns.length;
+      let xlsContent = "\uFEFF";
+      xlsContent += `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]>
+  <xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>تقرير الحضور والغياب</x:Name>
+          <x:WorksheetOptions>
+            <x:DisplayGridlines/>
+            <x:LayoutDirection>RTL</x:LayoutDirection>
+          </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml>
+  <![endif]-->
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; }
+    .report-title { font-size: 18pt; font-weight: bold; color: #1B3D6D; text-align: center; }
+    .report-sub { font-size: 11pt; color: #475569; text-align: center; }
+    .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .meta-table td { font-size: 11pt; padding: 6px; border: none; text-align: right; }
+    .meta-label { font-weight: bold; color: #1B3D6D; }
+    .main-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+    .main-table th { background-color: #1B3D6D; color: #ffffff; font-weight: bold; font-size: 11pt; border: 1px solid #cbd5e1; padding: 10px; text-align: center; }
+    .main-table td { font-size: 10pt; border: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+    .row-even { background-color: #f8fafc; }
+    .row-odd { background-color: #ffffff; }
+    .row-holiday { background-color: #fef08a; color: #854d0e; }
+    .row-weekend { background-color: #f1f5f9; color: #475569; }
+    .status-present { color: #166534; font-weight: bold; }
+    .status-absent { color: #991b1b; font-weight: bold; }
+    .status-late { color: #b45309; font-weight: bold; }
+    .status-holiday { color: #1d4ed8; font-weight: bold; }
+    .summary-table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 30px; }
+    .summary-title { font-size: 14pt; font-weight: bold; color: #1B3D6D; padding: 8px 0; border-bottom: 2px solid #1B3D6D; }
+    .summary-cell { background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; font-weight: bold; font-size: 10pt; text-align: right; }
+    .summary-val { background-color: #ffffff; border: 1px solid #cbd5e1; padding: 10px; font-weight: bold; font-size: 10pt; text-align: center; }
+    .signature-table { width: 100%; border-collapse: collapse; margin-top: 40px; margin-bottom: 20px; }
+    .signature-cell { border: none; font-size: 11pt; font-weight: bold; padding: 20px; text-align: center; width: 50%; }
+    .footer-text { font-size: 9.5pt; color: #64748b; text-align: center; padding-top: 20px; border-top: 1px solid #cbd5e1; }
+  </style>
+</head>
+<body dir="rtl">
+`;
 
-      let csvContent = "\uFEFF";
-      if (headerText) {
-        csvContent += `"${headerText.replace(/"/g, '""')}"\n\n`;
+      // 1. Render Custom Active Header if any
+      if (settings.activeHeaderId && settings.activeHeaderId !== 'none') {
+        let activeH = getReportHeaderById(settings.activeHeaderId);
+        if (activeH && activeH.content) {
+          xlsContent += `<div style="margin-bottom: 20px; text-align: center; padding-bottom: 10px;">${activeH.content}</div>`;
+        } else if (settings.headerImage) {
+          xlsContent += `<div style="margin-bottom: 20px; text-align: center;"><img src="${settings.headerImage}" style="max-height: 85px;" alt="Header Image"></div>`;
+        }
       }
-      csvContent += columns.map(c => c.label).join(",") + "\n";
+
+      // Default bilingual text title
+      let repTitleAr = sanitizeText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
+      let repTitleEn = sanitizeText(settings.headerTitleEn || 'Personal Attendance System');
+      let repSubAr = sanitizeText(settings.headerSubAr || 'تقرير الحضور والغياب التفصيلي للموظف');
+      let repSubEn = sanitizeText(settings.headerSubEn || 'Detailed Personal Attendance Report');
+
+      xlsContent += `<table style="width:100%; border:none; margin-bottom: 15px;">
+        <tr>
+          <td style="text-align: right; border:none;">
+            <span style="font-size: 18pt; font-weight: bold; color: #1B3D6D;">${repTitleAr}</span><br/>
+            <span style="font-size: 10pt; color: #475569;">${repSubAr}</span>
+          </td>
+          <td style="text-align: left; border:none;">
+            <span style="font-size: 16pt; font-weight: bold; color: #1B3D6D;">${repTitleEn}</span><br/>
+            <span style="font-size: 9pt; color: #475569;">${repSubEn}</span>
+          </td>
+        </tr>
+      </table>`;
+
+      // 2. Metadata details
+      xlsContent += `
+      <table class="meta-table">
+        <tr>
+          <td style="width: 15%;" class="meta-label">اسم الموظف:</td>
+          <td style="width: 35%;">${settings.name || '-'}</td>
+          <td style="width: 15%;" class="meta-label">المسمى الوظيفي:</td>
+          <td style="width: 35%;">${settings.jobTitle || '-'}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">الفترة:</td>
+          <td>${periodLabel}</td>
+          <td class="meta-label">تاريخ التقرير:</td>
+          <td>${todayKey()}</td>
+        </tr>
+      </table>
+      `;
+
+      // 3. Main Data Table
+      xlsContent += `<table class="main-table"><thead><tr>`;
+      columns.forEach(c => {
+        xlsContent += `<th>${c.label}</th>`;
+      });
+      xlsContent += `</tr></thead><tbody>`;
+
+      let sumLate = 0, sumEarly = 0, sumExtra = 0;
+      let calcP = 0, calcA = 0, calcL = 0;
 
       for (let r of filtered) {
         let dt = new Date(slashToISO(r.date));
-        let sch = getSchedule(dt.getFullYear(),dt.getMonth(),dt);
-        let late = isPresent(r.status)?lateMin(r.checkIn, sch.start):0;
-        let early = r.checkOut?earlyMin(r.checkOut, sch.end):0;
+        let sch = getSchedule(dt.getFullYear(), dt.getMonth(), dt);
+        
+        let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
+        let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
+        
+        let late = isPresent(r.status) ? (isLateComp ? 0 : lateMin(r.checkIn, sch.start)) : 0;
+        let early = r.checkOut ? (isEarlyComp ? 0 : earlyMin(r.checkOut, sch.end)) : 0;
         let isHol = isHoliday(dt) || !isWorkDay(dt);
+        
         let extra = 0;
         if (isHol && r.checkIn && r.checkOut) {
-          let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
-          extra = (eh*60+em) - (sh*60+sm);
+          let [sh, sm] = (r.checkIn && r.checkIn.includes(':') ? r.checkIn : '00:00').split(':').map(Number);
+          let [eh, em] = (r.checkOut && r.checkOut.includes(':') ? r.checkOut : '00:00').split(':').map(Number);
+          extra = (eh * 60 + em) - (sh * 60 + sm);
           if (extra < 0) extra += 1440;
         } else if (r.checkOut) {
           extra = extraMin(r.checkOut, sch.overtimeStart);
         }
-        let rowData = [];
+
+        sumLate += late; 
+        sumEarly += early; 
+        sumExtra += extra;
+
+        if (isPresent(r.status)) {
+          calcP++;
+          if (late > 0) calcL++;
+        } else if (r.status === 'absent') {
+          calcA++;
+        }
+
+        let rowClass = "row-odd";
+        if (isHol) {
+          rowClass = "row-holiday";
+        } else if (dt.getDay() === 5 || dt.getDay() === 6) {
+          rowClass = "row-weekend";
+        }
+
+        let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+        let exportNote = r.note || '';
+        if (leaveComp) {
+          let sourceDesc = formatCompSourceText(leaveComp, false);
+          let compNote = leaveComp.note ? leaveComp.note : '';
+          let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+          exportNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+          if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+            exportNote = `${r.note} | ${exportNote}`;
+          }
+        }
+
+        xlsContent += `<tr class="${rowClass}">`;
         columns.forEach(c => {
           let val = "";
-          if(c.key === 'day') val = DAYS[dt.getDay()];
-          else if(c.key === 'date') val = r.date;
-          else if(c.key === 'checkIn') val = r.checkIn || '-';
-          else if(c.key === 'checkOut') val = r.checkOut || '-';
-          else if(c.key === 'late') val = late > 0 ? formatMin(late) : '-';
-          else if(c.key === 'early') val = early > 0 ? formatMin(early) : '-';
-          else if(c.key === 'overtime') val = extra > 0 ? formatMin(extra) : '-';
-          else if(c.key === 'status') {
-             if(r.status === 'present') val = late > 0 ? 'حاضر (متأخر)' : 'حاضر';
-             else if(r.status === 'absent') val = 'غائب';
-             else val = r.status;
+          let cellStyle = "";
+          
+          if(c.key === 'day') {
+            val = DAYS[dt.getDay()];
           }
-          else if(c.key === 'absenceType') val = (r.status === 'absent' ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '')) || '-';
+          else if(c.key === 'date') {
+            val = r.date;
+          }
+          else if(c.key === 'checkIn') {
+            val = r.checkIn || '-';
+          }
+          else if(c.key === 'checkOut') {
+            val = r.checkOut || '-';
+          }
+          else if(c.key === 'late') {
+            val = isLateComp ? 'معوّض' : (late > 0 ? formatMin(late) : '-');
+            if (late > 0 && !isLateComp) cellStyle = ' class="status-late"';
+          }
+          else if(c.key === 'early') {
+            val = isEarlyComp ? 'معوّض' : (early > 0 ? formatMin(early) : '-');
+            if (early > 0 && !isEarlyComp) cellStyle = ' class="status-absent"';
+          }
+          else if(c.key === 'overtime') {
+            val = extra > 0 ? formatMin(extra) : '-';
+            if (extra > 0) cellStyle = ' class="status-present"';
+          }
+          else if(c.key === 'status') {
+             if(r.status === 'present') {
+               val = late > 0 ? 'حاضر (متأخر)' : 'حاضر';
+               cellStyle = late > 0 ? ' class="status-late"' : ' class="status-present"';
+             } else if(r.status === 'absent') {
+               val = 'غائب';
+               cellStyle = ' class="status-absent"';
+             } else {
+               val = r.status;
+               if (val.includes('إجازة') || val.includes('رسمية')) {
+                 cellStyle = ' class="status-holiday"';
+               }
+             }
+          }
+          else if(c.key === 'absenceType') {
+            val = (r.status === 'absent' ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '')) || '-';
+          }
           else if(c.key === 'note') {
-            let leaveComp = (settings.compensations || []).find(x => x.date === r.date && x.type === 'leave');
-            let exportNote = r.note || '';
-            if (leaveComp) {
-              let sourceDesc = formatCompSourceText(leaveComp, false);
-              let compNote = leaveComp.note ? leaveComp.note : '';
-              let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
-              exportNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
-              if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
-                exportNote = `${r.note} | ${exportNote}`;
-              }
-            }
-            val = exportNote;
+            val = exportNote || '-';
           }
           
-          let escCsv = (str) => `"${String(str).replace(/"/g, '""')}"`;
-          rowData.push(escCsv(val));
+          xlsContent += `<td${cellStyle}>${val}</td>`;
         });
-        csvContent += rowData.join(",") + "\n";
+        xlsContent += `</tr>`;
+      }
+      xlsContent += `</tbody></table>`;
+
+      // 4. Statistical Summary section (Zebra styling like the PDF card)
+      xlsContent += `
+      <div style="margin-top: 25px;">
+        <h3 class="summary-title">ملخص الإحصائيات والاعتماد النهائي</h3>
+        <table class="summary-table">
+          <tr>
+            <td class="summary-cell" style="width: 25%;">إجمالي أيام الحضور:</td>
+            <td class="summary-val" style="width: 25%; color: #166534;">${calcP} يوم عمل</td>
+            <td class="summary-cell" style="width: 25%;">إجمالي أيام الغياب:</td>
+            <td class="summary-val" style="width: 25%; color: #991b1b;">${calcA} يوم غياب</td>
+          </tr>
+          <tr>
+            <td class="summary-cell">أيام التأخير:</td>
+            <td class="summary-val" style="color: #b45309;">${calcL} يوم به تأخير</td>
+            <td class="summary-cell">إجمالي ساعات التأخير:</td>
+            <td class="summary-val" style="color: #b45309;">${sumLate > 0 ? formatMin(sumLate) : '00:00'}</td>
+          </tr>
+          <tr>
+            <td class="summary-cell">ساعات الخروج المبكر:</td>
+            <td class="summary-val" style="color: #991b1b;">${sumEarly > 0 ? formatMin(sumEarly) : '00:00'}</td>
+            <td class="summary-cell">إجمالي العمل الإضافي:</td>
+            <td class="summary-val" style="color: #166534;">${sumExtra > 0 ? formatMin(sumExtra) : '00:00'}</td>
+          </tr>
+        </table>
+      </div>
+      `;
+
+      // 5. Signature table
+      xlsContent += `
+      <table class="signature-table">
+        <tr>
+          <td class="signature-cell">
+            <p style="margin-bottom: 35px;">توقيع الموظف:</p>
+            <p>_______________________</p>
+          </td>
+          <td class="signature-cell">
+            <p style="margin-bottom: 35px;">توقيع المدير المسؤول:</p>
+            <p>_______________________</p>
+          </td>
+        </tr>
+      </table>
+      `;
+
+      // 6. Footer section
+      let activeF = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
+      if (activeF && activeF.content) {
+        xlsContent += `<div class="footer-text">${activeF.content}</div>`;
+      } else if (settings.footerImage) {
+        xlsContent += `<div style="text-align: center; margin-top: 20px;"><img src="${settings.footerImage}" style="max-height: 55px;" alt="Footer Image"></div>`;
+      } else {
+        xlsContent += `<div class="footer-text">تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي - تاريخ التصدير: ${todayKey()}</div>`;
       }
 
-      if (footerText) {
-        csvContent += `\n"${footerText.replace(/"/g, '""')}"\n`;
-      }
-      let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      xlsContent += `</body></html>`;
+
+      let blob = new Blob([xlsContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       
       let saveRes = await window.ExportService.save({
         blob,
         fileName: name,
-        mimeType: 'text/csv',
+        mimeType: 'application/vnd.ms-excel',
         subDir: 'Personal Attendance'
       });
 
