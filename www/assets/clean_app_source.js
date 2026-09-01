@@ -7154,11 +7154,38 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     currentX -= col.actualWidth;
   });
 
-  // Page Chunking logic matching buildPDFCanvas
-  let PAGE_MAX_UNITS = 31;
-  let totalUnits = allRowsUnits.reduce((a, b) => a + b, 0);
-  let numChunks = Math.max(1, Math.ceil(totalUnits / PAGE_MAX_UNITS));
-  let targetUnitsPerChunk = totalUnits / numChunks;
+  // Header & Footer Dynamic Layout Geometry
+  let headerImgH = 70;
+  if (headerImgObj && headerImgObj.naturalWidth && headerImgObj.naturalHeight) {
+    let aspect = headerImgObj.naturalHeight / headerImgObj.naturalWidth;
+    headerImgH = Math.round(1120 * aspect);
+  }
+
+  let footerImgH = 50;
+  if (footerImgObj && footerImgObj.naturalWidth && footerImgObj.naturalHeight) {
+    let aspect = footerImgObj.naturalHeight / footerImgObj.naturalWidth;
+    footerImgH = Math.round(1120 * aspect);
+  }
+
+  let headerBottom = 120;
+  if (headerImgObj) {
+    headerBottom = 15 + headerImgH + 35;
+  } else {
+    headerBottom = 120;
+  }
+  let tableY = headerBottom + 10;
+
+  let footerTop = 1630;
+  if (footerImgObj) {
+    footerTop = 1697 - 20 - footerImgH - 10;
+  } else {
+    footerTop = 1630;
+  }
+  let maxContentY = footerTop - 10;
+
+  let availableRowHeight = maxContentY - (tableY + 42);
+  let pageMaxUnits = Math.max(10, Math.floor(availableRowHeight / 42));
+  let lastPageMaxUnits = Math.max(8, Math.floor((availableRowHeight - 78) / 42));
 
   let pageChunks = [];
   let currentChunk = [];
@@ -7166,11 +7193,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
   for (let j = 0; j < rowDataList.length; j++) {
     let u = allRowsUnits[j];
-    if (pageChunks.length < numChunks - 1 && (currentUnits >= targetUnitsPerChunk || currentUnits + u > PAGE_MAX_UNITS) && currentChunk.length > 0) {
-      pageChunks.push(currentChunk);
-      currentChunk = [];
-      currentUnits = 0;
-    } else if (currentUnits + u > PAGE_MAX_UNITS && currentChunk.length > 0) {
+    if (currentUnits + u > pageMaxUnits && currentChunk.length > 0) {
       pageChunks.push(currentChunk);
       currentChunk = [];
       currentUnits = 0;
@@ -7179,6 +7202,30 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     currentUnits += u;
   }
   if (currentChunk.length > 0) pageChunks.push(currentChunk);
+
+  if (pageChunks.length > 0) {
+    let lastChunk = pageChunks[pageChunks.length - 1];
+    let lastChunkUnits = lastChunk.reduce((s, r) => s + r.rowWeight, 0);
+    if (lastChunkUnits > lastPageMaxUnits && lastChunk.length > 1) {
+      let keptChunk = [];
+      let spilledChunk = [];
+      let keptUnits = 0;
+      for (let k = 0; k < lastChunk.length; k++) {
+        let u = lastChunk[k].rowWeight;
+        if (keptUnits + u <= lastPageMaxUnits || keptChunk.length === 0) {
+          keptChunk.push(lastChunk[k]);
+          keptUnits += u;
+        } else {
+          spilledChunk.push(lastChunk[k]);
+        }
+      }
+      if (spilledChunk.length > 0) {
+        pageChunks[pageChunks.length - 1] = keptChunk;
+        pageChunks.push(spilledChunk);
+      }
+    }
+  }
+
   if (pageChunks.length === 0) pageChunks.push([]);
 
   let totalPages = pageChunks.length + 1; // Last page is summary + signatures
@@ -7189,7 +7236,24 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.fillRect(0, 0, 1200, 6);
 
     if (headerImgObj) {
-      ctx.drawImage(headerImgObj, 40, 15, 1120, 70);
+      ctx.drawImage(headerImgObj, 40, 15, 1120, headerImgH);
+      let lineY = 15 + headerImgH + 8;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, lineY);
+      ctx.lineTo(1160, lineY);
+      ctx.stroke();
+
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
+
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
     } else {
       ctx.direction = 'rtl';
       ctx.textAlign = 'right';
@@ -7210,29 +7274,30 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       ctx.fillStyle = '#475569';
       ctx.font = 'bold 13px sans-serif';
       ctx.fillText(headerSubEn, 40, 74);
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, 92);
+      ctx.lineTo(1160, 92);
+      ctx.stroke();
+
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
+
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
     }
-
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(40, 92);
-    ctx.lineTo(1160, 92);
-    ctx.stroke();
-
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#475569';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
-
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
   };
 
   let renderFooterOnCanvas = function(ctx, pageNum, totalPgs) {
     if (footerImgObj) {
-      ctx.drawImage(footerImgObj, 40, 1620, 1120, 50);
+      let fy = 1697 - 20 - footerImgH;
+      ctx.drawImage(footerImgObj, 40, fy, 1120, footerImgH);
       return;
     }
     ctx.strokeStyle = '#e2e8f0';
@@ -7276,7 +7341,6 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     renderHeaderOnCanvas(ctx, currentNum, totalPages);
 
     // Table Header Bar
-    let tableY = 130;
     ctx.fillStyle = themePri;
     ctx.fillRect(40, tableY, 1120, 42);
 
@@ -7362,7 +7426,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     // Inline Summary Box on last records page
     if (p === pageChunks.length - 1) {
       let sumY = currentY + 20;
-      if (sumY + 60 <= 1610) {
+      if (sumY + 58 <= maxContentY) {
         drawCanvasRoundRect(ctx, 40, sumY, 1120, 58, 12, '#f8fafc', '#cbd5e1', 2, [6, 4]);
 
         ctx.direction = 'rtl';
@@ -7404,7 +7468,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   renderHeaderOnCanvas(ctx, totalPages, totalPages);
 
   // Summary Title Card
-  let cardTopY = 130;
+  let cardTopY = tableY;
   drawCanvasRoundRect(ctx, 40, cardTopY, 1120, 100, 14, '#f8fafc', '#cbd5e1', 2);
   ctx.fillStyle = '#1B3D6D';
   ctx.fillRect(40, cardTopY, 1120, 6);
