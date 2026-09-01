@@ -6157,12 +6157,23 @@ window.saveExportColSettings = function(col, val) {
 
 var pdfCanvasesCache=null;
 async function buildPDFCanvas(){
-  if(pdfCanvasesCache) return pdfCanvasesCache;
+  console.log('[PDF DEBUG] buildPDFCanvas START');
+  if(pdfCanvasesCache) {
+    console.log('[PDF DEBUG] Returning pdfCanvasesCache:', pdfCanvasesCache.length);
+    return pdfCanvasesCache;
+  }
   toast(`جارٍ معالجة التقرير...`,``);
   if(document.body && document.body.classList) document.body.classList.add(`printing`);
 
+  console.log('[PDF DEBUG] checking libraries availability:', {
+    html2canvas: typeof window.html2canvas,
+    jspdf: typeof window.jspdf,
+    jsPDFConstructor: !!(window.jspdf && (window.jspdf.jsPDF || window.jspdf))
+  });
+
   // Ensure fonts are loaded in browser memory before canvas rasterization (with safe timeout for offline resilience)
   if (document.fonts && document.fonts.ready) {
+    console.log('[PDF DEBUG] document.fonts status:', document.fonts.status);
     try {
       await Promise.race([
         Promise.all([
@@ -6176,8 +6187,9 @@ async function buildPDFCanvas(){
         ]),
         new Promise(resolve => setTimeout(resolve, 1500))
       ]);
+      console.log('[PDF DEBUG] fonts loaded successfully');
     } catch(e) {
-      console.warn('PDF font preload warning (fallback fonts will be used):', e);
+      console.warn('[PDF DEBUG] PDF font preload warning (fallback fonts will be used):', e);
     }
   }
 
@@ -6185,21 +6197,23 @@ async function buildPDFCanvas(){
   if(!settings.exportColumns) settings.exportColumns = { date:true, checkIn:true, checkOut:true, status:true, late:true, early:true, overtime:true, absenceType:true, note:true };
   let container=document.getElementById(`pz`);
   if(!container) {
-    console.error("PDF_CONTAINER_MISSING", "Element #pz not found in DOM");
+    console.error("[PDF DEBUG] PDF_CONTAINER_MISSING", "Element #pz not found in DOM");
     return null;
   }
 
-  // Safe positioning inside document bounds (0,0) for Android WebView / Chromium layer compositor compatibility
+  console.log('[PDF DEBUG] Container found. Initializing container styles');
+  // Safe positioning inside document bounds (0,0) with opacity 0.01 for Android WebView / Chromium layer compositor compatibility
   container.className=`fixed left-0 top-0 bg-white block pointer-events-none`;
   container.style.position = 'fixed';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.opacity = '1';
-  container.style.zIndex = '-1000';
+  container.style.left = '0px';
+  container.style.top = '0px';
+  container.style.width = '1200px';
+  container.style.minWidth = '1200px';
+  container.style.maxWidth = '1200px';
+  container.style.minHeight = '1700px';
+  container.style.opacity = '0.01';
   container.style.pointerEvents = 'none';
-  container.style.width=`1200px`;
-  container.style.minWidth=`1200px`;
-  container.style.maxWidth=`1200px`;
+  container.style.zIndex = '999999';
   container.style.fontFamily=`'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif`;
   container.style.letterSpacing=`normal`;
   container.style.wordSpacing=`normal`;
@@ -6229,6 +6243,8 @@ async function buildPDFCanvas(){
     periodLabel=document.getElementById(`monthIn`)?document.getElementById(`monthIn`).value:MONTHS[viewMonth]+` `+viewYear;
     filtered = await RECDB.getMonth(viewYear, viewMonth);
   }
+
+  console.log('[PDF DEBUG] Filtered records count:', filtered ? filtered.length : 0);
 
   if(window.exportMode !== 'selected' && window.exportMode !== 'all') {
     let sf=document.getElementById(`statusFilter`) ? document.getElementById(`statusFilter`).value : '';
@@ -6537,15 +6553,37 @@ async function buildPDFCanvas(){
     </div>`;
   };
 
-  let opts = { scale: 1.0, useCORS: true, allowTaint: true, logging: false, width: 1200, windowWidth: 1200, x: 0, y: 0, scrollY: 0, scrollX: 0 };
+  let opts = {
+    backgroundColor: '#ffffff',
+    scale: 1,
+    useCORS: false,
+    allowTaint: true,
+    logging: false,
+    imageTimeout: 5000,
+    removeContainer: false,
+    width: container.scrollWidth || 1200,
+    height: container.scrollHeight || 1700,
+    windowWidth: Math.max(container.scrollWidth || 0, 1200),
+    windowHeight: Math.max(container.scrollHeight || 0, 1700),
+    x: 0,
+    y: 0
+  };
   let processCvs = [];
 
-  let getH2C = () => window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
-  let h2c = getH2C();
-  if(!h2c) {
-    console.error("PDF_HTML2CANVAS_MISSING", "html2canvas library is not loaded on window or scope");
-    return null;
+  const h2c = window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
+  if (typeof h2c !== 'function') {
+    console.error('[PDF DEBUG] html2canvas library is NOT available in window or scope');
+    throw new Error('html2canvas غير متوفر داخل Android WebView');
   }
+
+  console.log('[PDF DEBUG] REAL REPORT START');
+  console.log('[PDF DEBUG] REPORT CONTAINER:', {
+    exists: !!container,
+    width: container.offsetWidth,
+    height: container.offsetHeight,
+    scrollWidth: container.scrollWidth,
+    scrollHeight: container.scrollHeight
+  });
 
   for(let i=0; i<chunks.length; i++) {
      let isLast = (i === chunks.length - 1);
@@ -6562,23 +6600,54 @@ async function buildPDFCanvas(){
      }
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
      
-     await new Promise(r => setTimeout(r, 15)); 
+     await new Promise(r => setTimeout(r, 20)); 
      
+     console.log('[PDF DEBUG] PAGE START:', i+1);
+     console.log('[PDF DEBUG] PAGE DOM SIZE:', {
+       width: container.offsetWidth,
+       height: container.offsetHeight,
+       scrollWidth: container.scrollWidth,
+       scrollHeight: container.scrollHeight
+     });
+
+     const images = [...container.querySelectorAll('img')];
+     console.log(`[PDF DEBUG] IMAGES (PAGE ${i+1}):`, images.map(img => ({
+       src: img.src ? img.src.substring(0, 60) : '',
+       complete: img.complete,
+       naturalWidth: img.naturalWidth,
+       naturalHeight: img.naturalHeight
+     })));
+     console.log(`[PDF DEBUG] SVG COUNT (PAGE ${i+1}):`, container.querySelectorAll('svg').length);
+
+     console.log('[PDF DEBUG] H2C START:', i+1);
      try {
        let cv = await h2c(container, opts);
        if(!cv || !cv.width || !cv.height || cv.width === 0 || cv.height === 0) {
-         console.error("PDF_CANVAS_EMPTY", `Page ${i+1} canvas generated empty or invalid dimensions`, cv);
-         return null;
+         let err = new Error(`Page ${i+1} canvas generated with zero dimensions`);
+         console.error('[PDF ROOT CAUSE] INVALID CANVAS:', {
+           page: i+1,
+           width: cv?.width,
+           height: cv?.height
+         });
+         console.error('[PDF ROOT CAUSE]', err);
+         throw err;
        }
+       console.log('[PDF DEBUG] H2C SUCCESS:', {
+         page: i+1,
+         width: cv.width,
+         height: cv.height
+       });
        processCvs.push(cv.toDataURL('image/jpeg', 0.8));
        cv = null;
      } catch(cvErr) {
-       console.error("PDF_HTML2CANVAS_PAGE_ERROR", `Failed generating canvas for page ${i+1}:`, {
-         name: cvErr && cvErr.name,
-         message: cvErr && cvErr.message,
-         stack: cvErr && cvErr.stack
+       console.error('[PDF ROOT CAUSE] html2canvas ERROR on Page ' + (i+1) + ':', {
+         page: i+1,
+         name: cvErr?.name,
+         message: cvErr?.message,
+         stack: cvErr?.stack
        });
-       return null;
+       console.error('[PDF ROOT CAUSE]', cvErr);
+       throw cvErr;
      }
   }
 
@@ -6739,24 +6808,47 @@ async function buildPDFCanvas(){
     ${finalPageFooter}
   </div>`;
 
+  console.log('[PDF DEBUG] H2C START (FINAL PAGE)');
+  const finalImages = [...container.querySelectorAll('img')];
+  console.log('[PDF DEBUG] IMAGES (FINAL PAGE):', finalImages.map(img => ({
+    src: img.src ? img.src.substring(0, 60) : '',
+    complete: img.complete,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight
+  })));
+  console.log('[PDF DEBUG] SVG COUNT (FINAL PAGE):', container.querySelectorAll('svg').length);
+
   try {
     let cvFinal = await h2c(container, opts);
     if(!cvFinal || !cvFinal.width || !cvFinal.height || cvFinal.width === 0 || cvFinal.height === 0) {
-      console.error("PDF_CANVAS_EMPTY", "Final page canvas generated empty or zero dimensions", cvFinal);
-      return null;
+      let err = new Error("Final page canvas generated with zero dimensions");
+      console.error('[PDF ROOT CAUSE] INVALID CANVAS (FINAL PAGE):', {
+        width: cvFinal?.width,
+        height: cvFinal?.height
+      });
+      console.error('[PDF ROOT CAUSE]', err);
+      throw err;
     }
+    console.log('[PDF DEBUG] H2C SUCCESS (FINAL PAGE):', {
+      page: totalPages,
+      width: cvFinal.width,
+      height: cvFinal.height
+    });
     processCvs.push(cvFinal.toDataURL('image/jpeg', 0.8));
     cvFinal = null;
   } catch(cvFinalErr) {
-    console.error("PDF_HTML2CANVAS_FINAL_PAGE_ERROR", "Failed generating final page canvas:", {
-      name: cvFinalErr && cvFinalErr.name,
-      message: cvFinalErr && cvFinalErr.message,
-      stack: cvFinalErr && cvFinalErr.stack
+    console.error('[PDF ROOT CAUSE] html2canvas ERROR (FINAL PAGE):', {
+      page: totalPages,
+      name: cvFinalErr?.name,
+      message: cvFinalErr?.message,
+      stack: cvFinalErr?.stack
     });
-    return null;
+    console.error('[PDF ROOT CAUSE]', cvFinalErr);
+    throw cvFinalErr;
   }
   
   pdfCanvasesCache = processCvs;
+  console.log('[PDF DEBUG] buildPDFCanvas COMPLETE SUCCESS. Total canvases generated:', processCvs.length);
   return pdfCanvasesCache;
   } finally {
     if(container) {
@@ -6774,13 +6866,21 @@ async function buildPDFCanvas(){
 }
 
 async function buildPDF(){
+  console.log('[PDF DEBUG] buildPDF START');
   try {
-    let canvasesDataUrls=await buildPDFCanvas(); if(!canvasesDataUrls || !canvasesDataUrls.length) return null;
+    let canvasesDataUrls=await buildPDFCanvas();
+    if(!canvasesDataUrls || !canvasesDataUrls.length) {
+      let err = new Error('buildPDFCanvas returned null or empty array');
+      console.error('[PDF ROOT CAUSE]', err);
+      throw err;
+    }
     let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
     if(!jspdfLib) {
-      console.error("PDF_JSPDF_MISSING", "jsPDF library is not available");
-      return null;
+      let err = new Error("jsPDF library is not available");
+      console.error("[PDF ROOT CAUSE] PDF_JSPDF_MISSING", err);
+      throw err;
     }
+    console.log('[PDF DEBUG] Constructing jsPDF document');
     let doc=new jspdfLib(`p`,`mm`,`a4`);
     let ps=doc.internal && doc.internal.pageSize ? doc.internal.pageSize : {};
     let w=typeof ps.getWidth==='function' ? ps.getWidth() : (ps.width || 210);
@@ -6790,16 +6890,471 @@ async function buildPDF(){
        if(i>0) doc.addPage();
        doc.addImage(canvasesDataUrls[i], `JPEG`, 0, 0, w, h);
     }
+    console.log('[PDF DEBUG] buildPDF SUCCESS');
     return doc;
   } catch(pdfErr) {
-    console.error("PDF_BUILD_EXCEPTION", "Exception inside buildPDF:", {
+    console.error("[PDF ROOT CAUSE] Exception inside buildPDF:", {
       name: pdfErr && pdfErr.name,
       message: pdfErr && pdfErr.message,
       stack: pdfErr && pdfErr.stack
     });
-    return null;
+    console.error('[PDF ROOT CAUSE]', pdfErr);
+    throw pdfErr;
   }
 }
+
+// PDF Export Adapter (Phase 11 Architectural Fix)
+window.PDFExportAdapter = {
+  async generate(options) {
+    options = options || {};
+    if (options.forceDirect || this.isAndroidAPK()) {
+      console.log('[PDF ADAPTER] Android APK / Direct mode detected. Executing direct PDF renderer...');
+      return await this.generatePDFDirect(options);
+    } else {
+      console.log('[PDF ADAPTER] Standard browser/preview detected. Executing canvas PDF renderer...');
+      return await this.generatePDFViaCanvas(options);
+    }
+  },
+  isAndroidAPK() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  },
+  async generatePDFViaCanvas(options) {
+    return await buildPDF();
+  },
+  async generatePDFDirect(options) {
+    console.log('[DIRECT PDF] Starting generatePDFDirect');
+    let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+    if (!jspdfLib) {
+      let err = new Error("jsPDF library not available for direct PDF generation");
+      console.error("[DIRECT PDF] ERROR:", err);
+      throw err;
+    }
+    return await generateDirectRealReportPDF(jspdfLib, options);
+  }
+};
+
+async function generateDirectRealReportPDF(jspdfLib, options) {
+  console.log('[DIRECT PDF] Starting real report PDF generation');
+  
+  let doc = new jspdfLib('p', 'mm', 'a4');
+  console.log('[DIRECT PDF] jsPDF available');
+  
+  let periodLabel = '';
+  let filtered = [];
+  if (window.exportMode === 'selected') {
+    periodLabel = 'السجلات المحددة';
+    let allRecs = await RECDB.getAll();
+    filtered = allRecs.filter(r => window.selectedRecords.includes(r.date));
+  } else if (window.exportMode === 'all') {
+    periodLabel = 'جميع السجلات';
+    filtered = await RECDB.getAll();
+  } else if (typeof periodMode !== 'undefined' && periodMode === 'custom') {
+    let dsEl = document.getElementById('dateStart'), deEl = document.getElementById('dateEnd');
+    let ds = dsEl ? dsEl.value : '', de = deEl ? deEl.value : '';
+    if (ds && de) {
+      periodLabel = 'من ' + isoToSlash(ds) + ' إلى ' + isoToSlash(de);
+      filtered = await RECDB.getRange(ds, de);
+    }
+  } else {
+    periodLabel = document.getElementById('monthIn') ? document.getElementById('monthIn').value : (MONTHS[viewMonth] + ' ' + viewYear);
+    filtered = await RECDB.getMonth(viewYear, viewMonth);
+  }
+  
+  if (window.exportMode !== 'selected' && window.exportMode !== 'all') {
+    let sf = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : '';
+    if (sf === 'present') filtered = filtered.filter(r => isPresent(r.status));
+    else if (sf === 'absent') filtered = filtered.filter(r => r.status === 'absent');
+    else if (sf === 'holiday') filtered = filtered.filter(r => r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'تكليف سفر');
+    else if (sf === 'travel') filtered = filtered.filter(r => r.status === 'تكليف سفر');
+    else if (sf === 'late') filtered = filtered.filter(r => { if (!isPresent(r.status)) return false; let d = new Date(slashToISO(r.date)); return lateMin(r.checkIn, getSchedule(d.getFullYear(), d.getMonth(), d).start) > 0; });
+    else if (sf === 'overtime') filtered = filtered.filter(r => hasOvertime(r));
+  }
+  filtered.sort((a, b) => slashToISO(b.date).localeCompare(slashToISO(a.date)));
+  console.log(`[DIRECT PDF] Data loaded: ${filtered.length} records`);
+
+  // Render report pages directly onto lightweight 2D HTML5 Canvas
+  let canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 1700;
+  let ctx = canvas.getContext('2d');
+  
+  let pageNum = 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 1200, 1700);
+  
+  ctx.fillStyle = '#1e3a8a';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.fillText('سجل الحضور والغياب تفصيلي', 1140, 70);
+  
+  ctx.fillStyle = '#334155';
+  ctx.font = '20px sans-serif';
+  ctx.fillText(`الموظف: ${settings.name || 'غير محدد'} | المسمى: ${settings.jobTitle || 'غير محدد'}`, 1140, 120);
+  ctx.fillText(`الفترة: ${periodLabel} | تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-EG')}`, 1140, 155);
+  
+  // Header Table Bar
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(50, 180, 1100, 45);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('التاريخ واليوم', 1120, 208);
+  ctx.fillText('الحضور', 880, 208);
+  ctx.fillText('الانصراف', 730, 208);
+  ctx.fillText('العمل', 580, 208);
+  ctx.fillText('التأخير', 450, 208);
+  ctx.fillText('الإضافي', 330, 208);
+  ctx.fillText('الحالة والملاحظات', 220, 208);
+  
+  let startY = 240;
+  let rowHeight = 42;
+  let maxRowsPerPage = 31;
+  let currentRowsOnPage = 0;
+
+  for (let i = 0; i < filtered.length; i++) {
+    let r = filtered[i];
+    let d = new Date(slashToISO(r.date));
+    let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
+    let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
+    let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
+    let late = isPresent(r.status) ? (isLateComp ? 0 : lateMin(r.checkIn, sch.start)) : 0;
+    let extra = r.checkOut ? extraMin(r.checkOut, sch.overtimeStart) : 0;
+    
+    let dayName = d.toLocaleDateString('ar-EG', { weekday: 'short' });
+    let dateStr = `${r.date} (${dayName})`;
+    let checkInStr = r.checkIn || '-';
+    let checkOutStr = r.checkOut || '-';
+    let workStr = (r.checkIn && r.checkOut) ? `${calcWorkHours(r.checkIn, r.checkOut)} س` : '-';
+    let lateStr = late > 0 ? `${formatMin(late)}` : '-';
+    let extraStr = extra > 0 ? `${formatMin(extra)}` : '-';
+    let statusStr = r.status || 'حاضر';
+    if (r.note) statusStr += ` - ${r.note}`;
+
+    if (currentRowsOnPage >= maxRowsPerPage) {
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+      console.log(`[DIRECT PDF] Page ${pageNum} created`);
+      
+      pageNum++;
+      doc.addPage();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 1200, 1700);
+      startY = 80;
+      currentRowsOnPage = 0;
+      
+      // Header Table Bar on new page
+      ctx.fillStyle = '#1e3a8a';
+      ctx.fillRect(50, 20, 1100, 45);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('التاريخ واليوم', 1120, 48);
+      ctx.fillText('الحضور', 880, 48);
+      ctx.fillText('الانصراف', 730, 48);
+      ctx.fillText('العمل', 580, 48);
+      ctx.fillText('التأخير', 450, 48);
+      ctx.fillText('الإضافي', 330, 48);
+      ctx.fillText('الحالة والملاحظات', 220, 48);
+    }
+
+    let y = startY + (currentRowsOnPage * rowHeight);
+    ctx.fillStyle = (i % 2 === 0) ? '#f8fafc' : '#ffffff';
+    ctx.fillRect(50, y - 28, 1100, rowHeight);
+    
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(dateStr, 1120, y);
+    ctx.fillText(checkInStr, 880, y);
+    ctx.fillText(checkOutStr, 730, y);
+    ctx.fillText(workStr, 580, y);
+    ctx.fillText(lateStr, 450, y);
+    ctx.fillText(extraStr, 330, y);
+    ctx.fillText(statusStr.substring(0, 30), 220, y);
+
+    currentRowsOnPage++;
+  }
+
+  // Footer / Page Number
+  ctx.fillStyle = '#64748b';
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`صفحة ${pageNum} من ${pageNum}`, 600, 1660);
+
+  let dataUrlFinal = canvas.toDataURL('image/jpeg', 0.85);
+  doc.addImage(dataUrlFinal, 'JPEG', 0, 0, 210, 297);
+  console.log(`[DIRECT PDF] Page ${pageNum} created`);
+  console.log('[DIRECT PDF] Tables rendered');
+  
+  let blob = doc.output('blob');
+  console.log(`[DIRECT PDF] Blob size: ${blob ? blob.size : 0}`);
+  if (blob && blob.size > 0) {
+    console.log('[DIRECT PDF] SUCCESS');
+    return doc;
+  } else {
+    throw new Error('Generated PDF blob size is 0');
+  }
+}
+
+// Direct PDF Diagnostic Test
+window.debugDirectPDF = async function() {
+  console.log('[DIRECT PDF] Starting debugDirectPDF');
+  try {
+    let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+    if (!jspdfLib) {
+      console.error('[DIRECT PDF] FAILURE: jsPDF not available');
+      return false;
+    }
+    console.log('[DIRECT PDF] jsPDF available');
+    
+    let doc = new jspdfLib('p', 'mm', 'a4');
+    console.log('[DIRECT PDF] Page 1 created');
+
+    let canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1600;
+    let ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1200, 1600);
+    
+    ctx.fillStyle = '#1e3a8a';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillText('تقرير حضور وانصراف - اختبار مباشر', 1140, 80);
+    
+    ctx.fillStyle = '#334155';
+    ctx.font = '22px sans-serif';
+    ctx.fillText('اسم الموظف: مصطفى علي | الشهر: أغسطس 2026', 1140, 140);
+    
+    let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+    
+    let blob = doc.output('blob');
+    console.log('[DIRECT PDF] PDF generated');
+    console.log(`[DIRECT PDF] Blob size: ${blob ? blob.size : 0} bytes`);
+    if (blob && blob.size > 0) {
+      console.log('[DIRECT PDF] SUCCESS');
+      return true;
+    } else {
+      console.error('[DIRECT PDF] FAILURE: Blob size is 0');
+      return false;
+    }
+  } catch(e) {
+    console.error('[DIRECT PDF] FAILURE', e);
+    return false;
+  }
+};
+
+// Direct Real Report Diagnostic Test
+window.debugDirectRealReport = async function() {
+  console.log('[DIRECT PDF] Starting debugDirectRealReport');
+  try {
+    let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+    if (!jspdfLib) {
+      console.error('[DIRECT PDF] FAILURE: jsPDF not available');
+      return false;
+    }
+    console.log('[DIRECT PDF] jsPDF available');
+    
+    let doc = await window.PDFExportAdapter.generate({ forceDirect: true });
+    if (!doc) {
+      console.error('[DIRECT PDF] FAILURE: PDFExportAdapter returned null');
+      return false;
+    }
+    
+    let blob = doc.output('blob');
+    console.log('[DIRECT PDF] PDF generated');
+    console.log(`[DIRECT PDF] Blob size: ${blob ? blob.size : 0} bytes`);
+    if (blob && blob.size > 0) {
+      console.log('[DIRECT PDF] SUCCESS');
+      return true;
+    } else {
+      console.error('[DIRECT PDF] FAILURE: Blob size is 0');
+      return false;
+    }
+  } catch(e) {
+    console.error('[DIRECT PDF] FAILURE', e);
+    return false;
+  }
+};
+
+// Simple PDF Diagnostic Test (Point 2 of Phase 9 protocol)
+window.debugSimplePDF = async function() {
+  console.log('[PDF TEST] SIMPLE TEST START');
+  let testElem = null;
+  try {
+    let h2c = window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
+    if (!h2c || typeof h2c !== 'function') {
+      console.error('[PDF TEST] FAILURE: html2canvas is not available');
+      return false;
+    }
+    console.log('[PDF TEST] html2canvas available');
+
+    testElem = document.createElement('div');
+    testElem.style.position = 'fixed';
+    testElem.style.left = '0px';
+    testElem.style.top = '0px';
+    testElem.style.width = '600px';
+    testElem.style.height = '400px';
+    testElem.style.backgroundColor = '#1E3A8A';
+    testElem.style.color = '#FFFFFF';
+    testElem.style.padding = '24px';
+    testElem.style.fontSize = '20px';
+    testElem.style.direction = 'rtl';
+    testElem.style.zIndex = '999999';
+    testElem.style.opacity = '0.01';
+    
+    let nowStr = new Date().toLocaleString();
+    let randNum = Math.floor(Math.random() * 899999) + 100000;
+    testElem.innerHTML = `
+      <div style="font-weight:bold; margin-bottom:12px;">اختبار إنشاء ملف PDF من تطبيق سجل الحضور</div>
+      <div>التاريخ والوقت: ${nowStr}</div>
+      <div>رقم الفحص: ${randNum}</div>
+    `;
+    document.body.appendChild(testElem);
+
+    let cv = await h2c(testElem);
+    if (testElem && testElem.parentNode) testElem.parentNode.removeChild(testElem);
+
+    if (!cv || !cv.width || cv.width === 0 || cv.height === 0) {
+      console.error('[PDF TEST] FAILURE: canvas created with zero dimensions', cv);
+      return false;
+    }
+    console.log('[PDF TEST] canvas created');
+    console.log(`[PDF TEST] canvas dimensions: ${cv.width} x ${cv.height}`);
+
+    let dataUrl = cv.toDataURL('image/jpeg', 0.85);
+    console.log(`[PDF TEST] canvas dataURL length: ${dataUrl ? dataUrl.length : 0}`);
+
+    let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+    if (!jspdfLib) {
+      console.error('[PDF TEST] FAILURE: jsPDF library not available');
+      return false;
+    }
+    console.log('[PDF TEST] jsPDF available');
+
+    let doc = new jspdfLib('p', 'mm', 'a4');
+    doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+    let blob = doc.output('blob');
+
+    if (!blob || blob.size === 0) {
+      console.error('[PDF TEST] FAILURE: PDF blob size is 0');
+      return false;
+    }
+    console.log(`[PDF TEST] PDF blob size: ${blob.size}`);
+    console.log('[PDF TEST] SUCCESS');
+    return true;
+  } catch(e) {
+    if (testElem && testElem.parentNode) testElem.parentNode.removeChild(testElem);
+    console.error('[PDF TEST] FAILURE', {
+      name: e?.name,
+      message: e?.message,
+      stack: e?.stack
+    });
+    return false;
+  }
+};
+
+// Incremental Diagnostic Tests A to F (Point 4 of Phase 9 protocol)
+window.debugReportIncrementalTest = async function() {
+  console.log('[PDF TEST INCREMENTAL] STARTING TESTS A -> F');
+  let h2c = window.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
+  if (!h2c) {
+    console.error('[PDF TEST] html2canvas missing!');
+    return;
+  }
+  
+  let createContainer = () => {
+    let c = document.createElement('div');
+    c.style.position = 'fixed';
+    c.style.left = '0px';
+    c.style.top = '0px';
+    c.style.width = '1200px';
+    c.style.height = '1700px';
+    c.style.backgroundColor = '#ffffff';
+    c.style.zIndex = '999999';
+    c.style.opacity = '0.01';
+    c.style.direction = 'rtl';
+    document.body.appendChild(c);
+    return c;
+  };
+
+  // TEST A: Title only
+  try {
+    let c = createContainer();
+    c.innerHTML = `<div style="padding:40px; font-size:32px; font-weight:bold; color:#1B3D6D;">تقرير الحضور والغياب</div>`;
+    let cvA = await h2c(c);
+    document.body.removeChild(c);
+    if (cvA && cvA.width > 0) console.log('[PDF TEST A] PASS');
+    else console.error('[PDF TEST A] FAIL');
+  } catch(e) { console.error('[PDF TEST A] FAIL', e); }
+
+  // TEST B: Title + Employee Info
+  try {
+    let c = createContainer();
+    c.innerHTML = `
+      <div style="padding:40px; font-size:32px; font-weight:bold; color:#1B3D6D;">تقرير الحضور والغياب</div>
+      <div style="padding:0 40px; font-size:18px; color:#334155;">اسم الموظف: أحمد علي | القسم: الموارد البشرية</div>
+    `;
+    let cvB = await h2c(c);
+    document.body.removeChild(c);
+    if (cvB && cvB.width > 0) console.log('[PDF TEST B] PASS');
+    else console.error('[PDF TEST B] FAIL');
+  } catch(e) { console.error('[PDF TEST B] FAIL', e); }
+
+  // TEST C: Title + Employee Info + Small Table
+  try {
+    let c = createContainer();
+    c.innerHTML = `
+      <div style="padding:40px; font-size:32px; font-weight:bold; color:#1B3D6D;">تقرير الحضور والغياب</div>
+      <div style="padding:0 40px; font-size:18px; color:#334155;">اسم الموظف: أحمد علي</div>
+      <div style="padding:20px 40px;">
+        <table style="width:100%; border-collapse:collapse; border:1px solid #cbd5e1;">
+          <thead><tr style="background:#1B3D6D; color:#fff;"><th>التاريخ</th><th>اليوم</th><th>الحضور</th></tr></thead>
+          <tbody><tr><td>2026-09-01</td><td>الثلاثاء</td><td>08:00 ص</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    let cvC = await h2c(c);
+    document.body.removeChild(c);
+    if (cvC && cvC.width > 0) console.log('[PDF TEST C] PASS');
+    else console.error('[PDF TEST C] FAIL');
+  } catch(e) { console.error('[PDF TEST C] FAIL', e); }
+
+  // TEST D: Full Report without SVG
+  try {
+    let c = createContainer();
+    let sampleHtml = document.getElementById('pz') ? document.getElementById('pz').innerHTML : '';
+    let noSvgHtml = sampleHtml.replace(/<svg[\s\S]*?<\/svg>/gi, '');
+    c.innerHTML = noSvgHtml || '<div style="padding:40px;">Test D Sample</div>';
+    let cvD = await h2c(c);
+    document.body.removeChild(c);
+    if (cvD && cvD.width > 0) console.log('[PDF TEST D] PASS');
+    else console.error('[PDF TEST D] FAIL');
+  } catch(e) { console.error('[PDF TEST D] FAIL', e); }
+
+  // TEST E: Full Report without FontAwesome
+  try {
+    let c = createContainer();
+    let sampleHtml = document.getElementById('pz') ? document.getElementById('pz').innerHTML : '';
+    let noFaHtml = sampleHtml.replace(/<i\s+class="[^"]*fa[^"]*"[\s\S]*?<\/i>/gi, '');
+    c.innerHTML = noFaHtml || '<div style="padding:40px;">Test E Sample</div>';
+    let cvE = await h2c(c);
+    document.body.removeChild(c);
+    if (cvE && cvE.width > 0) console.log('[PDF TEST E] PASS');
+    else console.error('[PDF TEST E] FAIL');
+  } catch(e) { console.error('[PDF TEST E] FAIL', e); }
+
+  // TEST F: Full Report complete
+  try {
+    let c = createContainer();
+    let sampleHtml = document.getElementById('pz') ? document.getElementById('pz').innerHTML : '';
+    c.innerHTML = sampleHtml || '<div style="padding:40px;">Test F Sample</div>';
+    let cvF = await h2c(c);
+    document.body.removeChild(c);
+    if (cvF && cvF.width > 0) console.log('[PDF TEST F] PASS');
+    else console.error('[PDF TEST F] FAIL');
+  } catch(e) { console.error('[PDF TEST F] FAIL', e); }
+};
 
 window.exeExpPreview=async function(){
   let area=document.getElementById(`expPreviewArea`);
@@ -6940,7 +7495,7 @@ window.exeExpDownload=function(){
         }
       }
       if(!doc) {
-        doc = await buildPDF();
+        doc = await window.PDFExportAdapter.generate();
       }
 
       if(!doc) {
