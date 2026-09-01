@@ -7113,17 +7113,60 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   let footerContactAr = sanitizeText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
   let footerContactEn = sanitizeText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
+  let cleanHtmlToTextLines = function(html) {
+    if (!html) return [];
+    let cleaned = html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    return cleaned.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  };
+
   let activeH = getReportHeaderById(settings.activeHeaderId);
   let effectiveHeaderImage = null;
+  let customHeaderLines = [];
 
-  if (activeH && activeH.image) {
-    effectiveHeaderImage = activeH.image;
+  if (activeH) {
+    if (activeH.image) {
+      effectiveHeaderImage = activeH.image;
+    } else if (activeH.content) {
+      let match = activeH.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (match) {
+        effectiveHeaderImage = match[1];
+      }
+      let rawText = activeH.content.replace(/<img[^>]+>/gi, '');
+      customHeaderLines = cleanHtmlToTextLines(rawText);
+    }
   } else if (settings.activeHeaderId === 'custom_image' || settings.activeHeaderId === 'default' || !settings.activeHeaderId) {
     effectiveHeaderImage = settings.headerImage || null;
   }
 
+  let activeF = (settings.reportFooters || []).find(x => x.id === settings.activeFooterId);
+  let effectiveFooterImage = null;
+  let customFooterLines = [];
+
+  if (activeF) {
+    if (activeF.image) {
+      effectiveFooterImage = activeF.image;
+    } else if (activeF.content) {
+      let match = activeF.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (match) {
+        effectiveFooterImage = match[1];
+      }
+      let rawText = activeF.content.replace(/<img[^>]+>/gi, '');
+      customFooterLines = cleanHtmlToTextLines(rawText);
+    }
+  } else {
+    effectiveFooterImage = settings.footerImage || null;
+  }
+
   let headerImgObj = await loadCanvasImage(effectiveHeaderImage);
-  let footerImgObj = await loadCanvasImage(settings.footerImage);
+  let footerImgObj = await loadCanvasImage(effectiveFooterImage);
 
   let sumLate = 0, sumEarly = 0, sumExtra = 0;
   let calcP = 0, calcA = 0, calcL = 0;
@@ -7241,31 +7284,55 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   });
 
   // Header & Footer Dynamic Layout Geometry
-  let headerImgH = 70;
+  let headerImgH = 0;
   if (headerImgObj && headerImgObj.naturalWidth && headerImgObj.naturalHeight) {
     let aspect = headerImgObj.naturalHeight / headerImgObj.naturalWidth;
     headerImgH = Math.round(1120 * aspect);
   }
 
-  let footerImgH = 50;
+  let footerImgH = 0;
   if (footerImgObj && footerImgObj.naturalWidth && footerImgObj.naturalHeight) {
     let aspect = footerImgObj.naturalHeight / footerImgObj.naturalWidth;
     footerImgH = Math.round(1120 * aspect);
   }
 
   let headerBottom = 120;
-  if (headerImgObj) {
-    headerBottom = 15 + headerImgH + 35;
+  if (activeH) {
+    if (headerImgObj && customHeaderLines.length > 0) {
+      headerBottom = 15 + headerImgH + 15 + (customHeaderLines.length * 30) + 35;
+    } else if (headerImgObj) {
+      headerBottom = 15 + headerImgH + 35;
+    } else if (customHeaderLines.length > 0) {
+      headerBottom = 20 + (customHeaderLines.length * 30) + 35;
+    } else {
+      headerBottom = 120;
+    }
   } else {
-    headerBottom = 120;
+    if (headerImgObj) {
+      headerBottom = 15 + headerImgH + 35;
+    } else {
+      headerBottom = 120;
+    }
   }
   let tableY = headerBottom + 10;
 
   let footerTop = 1630;
-  if (footerImgObj) {
-    footerTop = 1697 - 20 - footerImgH - 10;
+  if (activeF) {
+    if (footerImgObj && customFooterLines.length > 0) {
+      footerTop = 1697 - 20 - footerImgH - 15 - (customFooterLines.length * 25) - 10;
+    } else if (footerImgObj) {
+      footerTop = 1697 - 20 - footerImgH - 10;
+    } else if (customFooterLines.length > 0) {
+      footerTop = 1697 - 20 - (customFooterLines.length * 25) - 15;
+    } else {
+      footerTop = 1630;
+    }
   } else {
-    footerTop = 1630;
+    if (footerImgObj) {
+      footerTop = 1697 - 20 - footerImgH - 10;
+    } else {
+      footerTop = 1630;
+    }
   }
   let maxContentY = footerTop - 10;
 
@@ -7321,9 +7388,24 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.fillStyle = '#1B3D6D';
     ctx.fillRect(0, 0, 1200, 6);
 
-    if (headerImgObj) {
-      ctx.drawImage(headerImgObj, 40, 15, 1120, headerImgH);
-      let lineY = 15 + headerImgH + 8;
+    if (activeH) {
+      let currentY = 25;
+      if (headerImgObj) {
+        ctx.drawImage(headerImgObj, 40, currentY, 1120, headerImgH);
+        currentY += headerImgH + 15;
+      }
+      if (customHeaderLines.length > 0) {
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#1B3D6D';
+        ctx.font = 'bold 22px sans-serif';
+        customHeaderLines.forEach(line => {
+          ctx.fillText(line, 600, currentY + 18);
+          currentY += 30;
+        });
+      }
+      
+      let lineY = currentY + 8;
       ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -7341,46 +7423,97 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       ctx.textAlign = 'left';
       ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
     } else {
-      ctx.direction = 'rtl';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#1B3D6D';
-      ctx.font = 'bold 30px sans-serif';
-      ctx.fillText(headerTitleAr, 1160, 48);
+      if (headerImgObj) {
+        ctx.drawImage(headerImgObj, 40, 15, 1120, headerImgH);
+        let lineY = 15 + headerImgH + 8;
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(40, lineY);
+        ctx.lineTo(1160, lineY);
+        ctx.stroke();
 
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(headerSubAr, 1160, 74);
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
 
-      ctx.direction = 'ltr';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#1B3D6D';
-      ctx.font = 'bold 24px sans-serif';
-      ctx.fillText(headerTitleEn, 40, 48);
+        ctx.direction = 'ltr';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
+      } else {
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#1B3D6D';
+        ctx.font = 'bold 30px sans-serif';
+        ctx.fillText(headerTitleAr, 1160, 48);
 
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText(headerSubEn, 40, 74);
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(headerSubAr, 1160, 74);
 
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(40, 92);
-      ctx.lineTo(1160, 92);
-      ctx.stroke();
+        ctx.direction = 'ltr';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#1B3D6D';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText(headerTitleEn, 40, 48);
 
-      ctx.direction = 'rtl';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(headerSubEn, 40, 74);
 
-      ctx.direction = 'ltr';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(40, 92);
+        ctx.lineTo(1160, 92);
+        ctx.stroke();
+
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
+
+        ctx.direction = 'ltr';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
+      }
     }
   };
 
   let renderFooterOnCanvas = function(ctx, pageNum, totalPgs) {
+    if (activeF) {
+      let currentY = footerTop + 10;
+      
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, currentY);
+      ctx.lineTo(1160, currentY);
+      ctx.stroke();
+      
+      currentY += 15;
+      
+      if (footerImgObj) {
+        ctx.drawImage(footerImgObj, 40, currentY, 1120, footerImgH);
+        currentY += footerImgH + 15;
+      }
+      
+      if (customFooterLines.length > 0) {
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 14px sans-serif';
+        customFooterLines.forEach(line => {
+          ctx.fillText(line, 600, currentY + 12);
+          currentY += 25;
+        });
+      }
+      return;
+    }
+
     if (footerImgObj) {
       let fy = 1697 - 20 - footerImgH;
       ctx.drawImage(footerImgObj, 40, fy, 1120, footerImgH);
