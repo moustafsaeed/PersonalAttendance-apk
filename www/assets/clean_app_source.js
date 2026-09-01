@@ -1435,6 +1435,7 @@ async function renderRecords(){
 
   // Sort newest first
   filtered.sort((a,b)=>slashToISO(b.date).localeCompare(slashToISO(a.date)));
+  window.currentlyFilteredRecords = filtered;
 
   if(!filtered.length){
     if(body) body.innerHTML=``;
@@ -1552,7 +1553,10 @@ async function renderRecords(){
       noteHTML = esc(r.note) || `<span class="opacity-30">-</span>`;
     }
 
-    return `<tr class="${rowClass}">
+    return `<tr class="${rowClass} cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" onclick="window.openEdit(null, '${r.date}')">
+      <td class="p-2">
+        <input type="checkbox" class="rec-check" ${window.selectedRecords.includes(r.date) ? 'checked' : ''} onclick="event.stopPropagation(); window.toggleRecordSelection('${r.date}')">
+      </td>
       <td class="font-bold text-xs opacity-90">${r.date}</td>
       ${settings.exportColumns.day ? `<td class="font-bold text-xs" style="color:var(--text2)">${esc(dayName)}</td>` : ''}
       <td>${inDisplay}</td>
@@ -1797,6 +1801,46 @@ window.saveEdit=async function(){
   } finally {
     releaseActionLock('saveEdit');
   }
+};
+
+window.selectedRecords = [];
+window.toggleRecordSelection = function(date) {
+    if (window.selectedRecords.includes(date)) {
+        window.selectedRecords = window.selectedRecords.filter(d => d !== date);
+    } else {
+        window.selectedRecords.push(date);
+    }
+};
+window.toggleSelectAll = function() {
+    let selectAll = document.getElementById('selectAll');
+    if (selectAll.checked) {
+        window.selectedRecords = (window.currentlyFilteredRecords || []).map(r => r.date);
+    } else {
+        window.selectedRecords = [];
+    }
+    window.renderRecords();
+};
+
+window.showExportModal = function(type) {
+    document.getElementById('exportModal').classList.remove('hidden');
+    window.pendingExportType = type;
+};
+
+window.confirmExport = function(mode) {
+    document.getElementById('exportModal').classList.add('hidden');
+    window.exportMode = mode;
+    if (mode === 'selected' && (!window.selectedRecords || window.selectedRecords.length === 0)) {
+        toast('الرجاء تحديد سجل واحد على الأقل للتصدير', 'err');
+        return;
+    }
+    pdfCanvasesCache = null;
+    if (window.pendingExportType === 'pdf') {
+        window.exeExpDownload();
+    } else if (window.pendingExportType === 'share') {
+        window.exeExpShare();
+    } else {
+        window.exeExpExcel(mode);
+    }
 };
 
 window.delRec=async function(){
@@ -5581,7 +5625,14 @@ async function buildPDFCanvas(){
   
   let periodLabel=``;
   let filtered=[];
-  if(periodMode===`custom`){
+  if(window.exportMode === 'selected') {
+    periodLabel = 'السجلات المحددة';
+    let allRecs = await RECDB.getAll();
+    filtered = allRecs.filter(r => window.selectedRecords.includes(r.date));
+  } else if(window.exportMode === 'all') {
+    periodLabel = 'جميع السجلات';
+    filtered = await RECDB.getAll();
+  } else if(periodMode===`custom`){
     let dsEl=document.getElementById(`dateStart`),deEl=document.getElementById(`dateEnd`); let ds=dsEl?dsEl.value:'',de=deEl?deEl.value:'';
     if(ds&&de){
       periodLabel=`من `+isoToSlash(ds)+` إلى `+isoToSlash(de);
@@ -5592,13 +5643,15 @@ async function buildPDFCanvas(){
     filtered = await RECDB.getMonth(viewYear, viewMonth);
   }
 
-  let sf=document.getElementById(`statusFilter`).value;
-  if(sf===`present`) filtered=filtered.filter(r=>isPresent(r.status));
-  else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
-  else if(sf===`holiday`) filtered=filtered.filter(r=>r.status===`إجازة رسمية`||r.status===`إجازة`||r.status===`تكليف سفر`);
-  else if(sf===`travel`) filtered=filtered.filter(r=>r.status===`تكليف سفر`);
-  else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let d=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(d.getFullYear(),d.getMonth(),d).start)>0;});
-  else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
+  if(window.exportMode !== 'selected' && window.exportMode !== 'all') {
+    let sf=document.getElementById(`statusFilter`) ? document.getElementById(`statusFilter`).value : '';
+    if(sf===`present`) filtered=filtered.filter(r=>isPresent(r.status));
+    else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
+    else if(sf===`holiday`) filtered=filtered.filter(r=>r.status===`إجازة رسمية`||r.status===`إجازة`||r.status===`تكليف سفر`);
+    else if(sf===`travel`) filtered=filtered.filter(r=>r.status===`تكليف سفر`);
+    else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let d=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(d.getFullYear(),d.getMonth(),d).start)>0;});
+    else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
+  }
   filtered.sort((a,b)=>slashToISO(b.date).localeCompare(slashToISO(a.date)));
 
   let themePri = settings.themeColor===`green`?`#10b981` : `#3b82f6`;
@@ -6350,7 +6403,7 @@ function getPlainTextFooter() {
   return `تاريخ التقرير: ${todayKey()}`;
 }
 
-window.exeExpExcel=async function(){
+window.exeExpExcel=async function(mode){
   let btn = document.getElementById('btnExcelExp');
   let originalHtml = btn ? btn.innerHTML : '<i class="fa-solid fa-file-excel ml-2"></i>تصدير Excel';
   if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري التحميل...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
@@ -6364,7 +6417,11 @@ window.exeExpExcel=async function(){
       if(!name.endsWith('.csv')) name += '.csv';
 
       let filtered=[];
-      if(periodMode===`custom`){
+      if (mode === 'selected') {
+          filtered = (await RECDB.getAll()).filter(r => window.selectedRecords.includes(r.date));
+      } else if (mode === 'all') {
+          filtered = await RECDB.getAll();
+      } else if(periodMode===`custom`){
         let dsEl=document.getElementById(`dateStart`),deEl=document.getElementById(`dateEnd`); let ds=dsEl?dsEl.value:'',de=deEl?deEl.value:'';
         if(ds&&de){
           filtered = await RECDB.getRange(ds, de);
@@ -6373,16 +6430,18 @@ window.exeExpExcel=async function(){
         filtered = await RECDB.getMonth(viewYear, viewMonth);
       }
       
-      let q=document.getElementById(`recSearch`) ? document.getElementById(`recSearch`).value.toLowerCase().trim() : ``;
-      if(q) {
-        filtered = filtered.filter(r => searchMatch(r, q));
+      if (mode !== 'selected' && mode !== 'all') {
+          let q=document.getElementById(`recSearch`) ? document.getElementById(`recSearch`).value.toLowerCase().trim() : ``;
+          if(q) {
+            filtered = filtered.filter(r => searchMatch(r, q));
+          }
+          
+          let sf=document.getElementById(`statusFilter`) ? document.getElementById(`statusFilter`).value : '';
+          if(sf===`present`) filtered=filtered.filter(r=>isPresent(r.status));
+          else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
+          else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let dt=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(dt.getFullYear(),dt.getMonth(),dt).start)>0;});
+          else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
       }
-      
-      let sf=document.getElementById(`statusFilter`) ? document.getElementById(`statusFilter`).value : '';
-      if(sf===`present`) filtered=filtered.filter(r=>isPresent(r.status));
-      else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
-      else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let dt=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(dt.getFullYear(),dt.getMonth(),dt).start)>0;});
-      else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
       
       filtered.sort((a,b)=>slashToISO(a.date).localeCompare(slashToISO(b.date)));
 
@@ -7752,53 +7811,66 @@ window.saveVoiceSettings = function() {
   }
 };
 window.playActionVoice = function(type) {
-  // Always play the beep first if setting is not "none"
   let voiceSetting = settings.voiceFeedback || 'female';
   if (voiceSetting === 'none') return;
   
-  // Play Fingerprint beep
+  // 1. 1000000% Reliable Offline Audio Feedback via Web Audio API (Chime Melodies)
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (AudioCtx) {
       const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
+      let now = ctx.currentTime;
+      let baseFreq = voiceSetting === 'male' ? 320 : 640;
+      
+      // Play a pleasant multi-note chime sequence
+      let notes = type === 'in' ? [baseFreq, baseFreq * 1.25, baseFreq * 1.5] : [baseFreq * 1.5, baseFreq * 1.25, baseFreq];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = voiceSetting === 'male' ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq, now + (i * 0.08));
+        
+        gain.gain.setValueAtTime(0, now + (i * 0.08));
+        gain.gain.linearRampToValueAtTime(0.3, now + (i * 0.08) + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.08) + 0.25);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(now + (i * 0.08));
+        osc.stop(now + (i * 0.08) + 0.25);
+      });
     }
   } catch(e) {}
   
-  // Text to speech
-  if ('speechSynthesis' in window) {
-    let text = type === 'in' ? "تَمَّ بَصْمَةُ الدُّخُول" : "تَمَّ بَصْمَةُ الْخُرُوج";
-    let msg = new SpeechSynthesisUtterance(text);
-    msg.lang = 'ar-SA';
-    // Modify pitch based on gender
-    if (voiceSetting === 'male') {
-      msg.pitch = 0.6;
-      msg.rate = 0.9;
-    } else {
-      msg.pitch = 1.3;
-      msg.rate = 1.0;
+  // 2. Offline Text-to-Speech with cancel & robust fallback
+  try {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Clear any pending speech queue
+      let text = type === 'in' ? "تم تسجيل الدخول بنجاح" : "تم تسجيل الخروج بنجاح";
+      let msg = new SpeechSynthesisUtterance(text);
+      msg.lang = 'ar-SA';
+      
+      if (voiceSetting === 'male') {
+        msg.pitch = 0.7;
+        msg.rate = 0.95;
+      } else {
+        msg.pitch = 1.25;
+        msg.rate = 1.0;
+      }
+      
+      let voices = window.speechSynthesis.getVoices();
+      if(voices && voices.length > 0) {
+        let arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().includes('ar'));
+        if(arVoices.length > 0) {
+          msg.voice = arVoices[0];
+        }
+      }
+      
+      window.speechSynthesis.speak(msg);
     }
-    
-    // Optional: Try to find a matching voice if possible
-    let voices = window.speechSynthesis.getVoices();
-    if(voices.length > 0) {
-       // Just a best effort to find an Arabic voice, browser might not support gender specific
-       let arVoices = voices.filter(v => v.lang.startsWith('ar'));
-       if(arVoices.length > 0) msg.voice = arVoices[0];
-    }
-    
-    window.speechSynthesis.speak(msg);
+  } catch(err) {
+    console.log("Speech synthesis offline fallback active:", err);
   }
 };
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
