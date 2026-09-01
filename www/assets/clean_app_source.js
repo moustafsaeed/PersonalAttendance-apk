@@ -2850,23 +2850,21 @@ async function renderStats(){
   let sc = document.getElementById('statsSumCards');
   if(sc) {
     sc.innerHTML = `
-      <div class="flex flex-wrap justify-center gap-3 w-full">
-        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
-          <div class="text-xl font-black mb-0.5 text-emerald-600 dark:text-emerald-400">${p}</div>
-          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">حضور</div>
-        </div>
-        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
-          <div class="text-xl font-black mb-0.5 text-rose-600 dark:text-rose-400">${a}</div>
-          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">غياب</div>
-        </div>
-        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
-          <div class="text-xl font-black mb-0.5 text-amber-600 dark:text-amber-400">${l}</div>
-          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">تأخير</div>
-        </div>
-        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
-          <div class="text-xl font-black mb-0.5 ${pct >= 85 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
-          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">التزام</div>
-        </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-emerald-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-emerald-600 dark:text-emerald-400">${p}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الحضور</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-rose-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-rose-600 dark:text-rose-400">${a}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الغياب</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-amber-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-amber-600 dark:text-amber-400">${l}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">مرات التأخير</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 ${pct >= 85 ? 'border-r-indigo-500' : 'border-r-rose-500'} hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 ${pct >= 85 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">نسبة الالتزام</div>
       </div>
     `;
   }
@@ -4763,6 +4761,36 @@ function getReportHeaderById(id) {
   return (settings.reportHeaders || []).find(x => x.id === id) || null;
 }
 
+window.uploadCustomHeaderImage = function() {
+  let input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function(e) {
+    let file = e.target.files[0];
+    if(!file) return;
+    let reader = new FileReader();
+    reader.onload = function(evt) {
+      settings.headerImage = evt.target.result;
+      settings.activeHeaderId = 'custom_image';
+      saveSettings();
+      renderReportHeaders();
+      toast('تم رفع صورة الترويسة وتفعيلها بنجاح', 'ok');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+};
+
+window.removeCustomHeaderImage = function() {
+  settings.headerImage = '';
+  if(settings.activeHeaderId === 'custom_image') {
+    settings.activeHeaderId = 'default';
+  }
+  saveSettings();
+  renderReportHeaders();
+  toast('تم إزالة صورة الترويسة المخصصة', 'ok');
+};
+
 window.openHeaderModal = function(id = null) {
   let hId = document.getElementById('headerIdIn');
   let hName = document.getElementById('headerNameIn');
@@ -4831,8 +4859,8 @@ window.renderReportHeaders = function() {
   let list = document.getElementById('reportHeadersList');
   if(!list) return;
   
-  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_') || settings.activeHeaderId === 'custom_image') {
-    settings.activeHeaderId = 'default';
+  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_')) {
+    settings.activeHeaderId = settings.headerImage ? 'custom_image' : 'default';
     saveSettings();
   }
 
@@ -4851,6 +4879,31 @@ window.renderReportHeaders = function() {
       </div>
     </div>
   `;
+
+
+  // Custom Uploaded Header Image
+  if (settings.headerImage) {
+    let custImgChecked = settings.activeHeaderId === 'custom_image' ? 'checked' : '';
+    html += `
+      <div class="flex flex-col gap-2 p-3 rounded-xl border ${custImgChecked ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-800'} transition-all cursor-pointer" onclick="setActiveHeader('custom_image')">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <input type="radio" name="active_header" ${custImgChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+            <div>
+              <div class="font-bold text-sm text-slate-800 dark:text-slate-100">صورة ترويسة مخصصة (مرفوعة)</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 font-medium">الصورة المحملة من جهازك</div>
+            </div>
+          </div>
+          <button onclick="removeCustomHeaderImage(); event.stopPropagation();" class="text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1 rounded bg-red-50 dark:bg-red-950/30">
+            <i class="fa-solid fa-trash ml-1"></i>حذف
+          </button>
+        </div>
+        <div class="mt-1 bg-white p-2 rounded-lg border border-slate-100 dark:border-slate-700 flex justify-center items-center overflow-hidden">
+          <img src="${settings.headerImage}" class="max-h-12 object-contain w-auto" />
+        </div>
+      </div>
+    `;
+  }
 
   // Custom User Headers
   (settings.reportHeaders || []).forEach(h => {

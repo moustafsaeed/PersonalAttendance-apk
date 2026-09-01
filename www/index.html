@@ -2509,7 +2509,7 @@
       </div>
 
       <!-- KPI Summary Cards Grid -->
-      <div id="statsSumCards" class="flex flex-wrap justify-center gap-2.5"></div>
+      <div id="statsSumCards" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5"></div>
 
       <!-- Charts Row: Doughnut Distribution & Trend / Comparison -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2727,9 +2727,14 @@
                 <h3 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                   <i class="fa-solid fa-heading text-indigo-500"></i> ترويسات التقارير
                 </h3>
-                <button onclick="openHeaderModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg">
-                  <i class="fa-solid fa-plus ml-1"></i>جديد
-                </button>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="uploadCustomHeaderImage()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" style="display: none;">
+                    <i class="fa-solid fa-image ml-1"></i>رفع صورة
+                  </button>
+                  <button onclick="openHeaderModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg">
+                    <i class="fa-solid fa-plus ml-1"></i>جديد
+                  </button>
+                </div>
               </div>
               <div id="reportHeadersList" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto"></div>
             </div>
