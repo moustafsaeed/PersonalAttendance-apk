@@ -155,6 +155,282 @@ async function requestStoragePermission(){
   } catch(e){ return true; }
 }
 
+// ── Production-Grade Unified ExportService ────────────────────────────────────
+window.ExportService = {
+  sanitizeFileName(name, defaultExt = '') {
+    if (!name || typeof name !== 'string') {
+      name = 'Export_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    }
+    // Strip forbidden characters in Android/Linux/Windows: \ / : * ? " < > |
+    let clean = name.replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').trim();
+    clean = clean.replace(/^[.\s]+|[.\s]+$/g, '');
+    if (!clean) clean = 'Export_' + Date.now();
+    if (defaultExt) {
+      if (!defaultExt.startsWith('.')) defaultExt = '.' + defaultExt;
+      if (!clean.toLowerCase().endsWith(defaultExt.toLowerCase())) {
+        clean += defaultExt;
+      }
+    }
+    return clean;
+  },
+
+  async blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      let reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          let parts = reader.result.split(',');
+          resolve(parts.length > 1 ? parts[1] : parts[0]);
+        } else {
+          reject(new Error('فشل قراءة الملف كـ Base64'));
+        }
+      };
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(blob);
+    });
+  },
+
+  isNative() {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  },
+
+  async save({ blob, fileName, mimeType, subDir = 'Personal Attendance' }) {
+    fileName = this.sanitizeFileName(fileName);
+    mimeType = mimeType || blob.type || 'application/octet-stream';
+
+    // 1. Android Native via NativeExport MediaStore Plugin
+    if (this.isNative()) {
+      try {
+        let base64Data = await this.blobToBase64(blob);
+        let NativeExport = window.Capacitor?.Plugins?.NativeExport;
+        if (NativeExport && typeof NativeExport.saveToMediaStore === 'function') {
+          let res = await NativeExport.saveToMediaStore({
+            fileName,
+            mimeType,
+            base64Data,
+            subDir
+          });
+          if (res && res.success && res.uri) {
+            return {
+              success: true,
+              action: 'save',
+              fileName: res.fileName || fileName,
+              mimeType: res.mimeType || mimeType,
+              uri: res.uri,
+              displayPath: res.displayPath || `التنزيلات / ${subDir} / ${fileName}`,
+              sizeBytes: res.sizeBytes || blob.size
+            };
+          }
+        }
+        throw new Error('تعذر إتمام الحفظ عبر نظام آندرويد');
+      } catch (nativeErr) {
+        console.error('Native save error:', nativeErr);
+        return {
+          success: false,
+          action: 'save',
+          fileName,
+          mimeType,
+          errorCode: 'SAVE_FAILED',
+          errorMessage: nativeErr.message || 'فشل حفظ الملف في ذاكرة الجهاز',
+          rawError: nativeErr
+        };
+      }
+    }
+
+    // 2. Browser Preview Environment
+    try {
+      let isInIframe = false;
+      try { isInIframe = window.self !== window.top; } catch (e) { isInIframe = true; }
+
+      // showSaveFilePicker if available and not in iframe
+      if (!isInIframe && typeof window.showSaveFilePicker === 'function') {
+        try {
+          let ext = fileName.substring(fileName.lastIndexOf('.'));
+          let handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: 'Document', accept: { [mimeType]: [ext] } }]
+          });
+          let writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return {
+            success: true,
+            action: 'save',
+            fileName,
+            mimeType,
+            displayPath: 'المكان الذي حددته في جهازك',
+            sizeBytes: blob.size
+          };
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            return {
+              success: false,
+              action: 'save',
+              fileName,
+              mimeType,
+              errorCode: 'CANCELLED',
+              errorMessage: 'تم إلغاء الحفظ'
+            };
+          }
+          // Fallback to standard browser download below
+        }
+      }
+
+      // Standard browser download
+      let url = URL.createObjectURL(blob);
+      let a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      return {
+        success: true,
+        action: 'save',
+        fileName,
+        mimeType,
+        displayPath: 'مجلد التنزيلات الخاص بمتصفحك',
+        sizeBytes: blob.size
+      };
+    } catch (browserErr) {
+      console.error('Browser save error:', browserErr);
+      return {
+        success: false,
+        action: 'save',
+        fileName,
+        mimeType,
+        errorCode: 'SAVE_FAILED',
+        errorMessage: browserErr.message || 'فشل تحميل الملف',
+        rawError: browserErr
+      };
+    }
+  },
+
+  async share({ blob, fileName, mimeType, title = 'مشاركة الملف' }) {
+    fileName = this.sanitizeFileName(fileName);
+    mimeType = mimeType || blob.type || 'application/octet-stream';
+
+    // 1. Android Native via Capacitor Share + Cache FileProvider
+    if (this.isNative() && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+      try {
+        let base64Data = await this.blobToBase64(blob);
+        let tmpName = `tmp_share_${Date.now()}_${fileName}`;
+        let written = await window.Capacitor.Plugins.Filesystem.writeFile({
+          path: tmpName,
+          data: base64Data,
+          directory: 'CACHE'
+        });
+
+        if (window.Capacitor.Plugins.Share) {
+          await window.Capacitor.Plugins.Share.share({
+            title: title,
+            text: title,
+            url: written.uri,
+            dialogTitle: title
+          });
+          return {
+            success: true,
+            action: 'share',
+            fileName,
+            mimeType,
+            uri: written.uri
+          };
+        } else {
+          throw new Error('خدمة المشاركة غير متوفرة في هذا النظام');
+        }
+      } catch (nativeShareErr) {
+        if (nativeShareErr.name === 'AbortError' || String(nativeShareErr.message).toLowerCase().includes('cancel')) {
+          return {
+            success: false,
+            action: 'share',
+            fileName,
+            mimeType,
+            errorCode: 'CANCELLED',
+            errorMessage: 'تم إلغاء المشاركة'
+          };
+        }
+        console.error('Native share error:', nativeShareErr);
+        return {
+          success: false,
+          action: 'share',
+          fileName,
+          mimeType,
+          errorCode: 'SHARE_FAILED',
+          errorMessage: nativeShareErr.message || 'تعذر إتمام المشاركة',
+          rawError: nativeShareErr
+        };
+      }
+    }
+
+    // 2. Browser Web Share API
+    try {
+      let file = (typeof File !== 'undefined') ? new File([blob], fileName, { type: mimeType }) : null;
+      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: title, files: [file] });
+          return {
+            success: true,
+            action: 'share',
+            fileName,
+            mimeType
+          };
+        } catch (shareErr) {
+          if (shareErr.name === 'AbortError') {
+            return {
+              success: false,
+              action: 'share',
+              fileName,
+              mimeType,
+              errorCode: 'CANCELLED',
+              errorMessage: 'تم إلغاء المشاركة'
+            };
+          }
+        }
+      }
+
+      // Browser fallback: download
+      let saveRes = await this.save({ blob, fileName, mimeType });
+      return saveRes;
+    } catch (browserShareErr) {
+      return {
+        success: false,
+        action: 'share',
+        fileName,
+        mimeType,
+        errorCode: 'SHARE_FAILED',
+        errorMessage: browserShareErr.message || 'فشلت المشاركة',
+        rawError: browserShareErr
+      };
+    }
+  },
+
+  async open({ uri, mimeType }) {
+    if (!uri) {
+      toast('مسار الملف غير متوفر للفتح', 'err');
+      return false;
+    }
+
+    if (this.isNative()) {
+      try {
+        let NativeExport = window.Capacitor?.Plugins?.NativeExport;
+        if (NativeExport && typeof NativeExport.openFile === 'function') {
+          let res = await NativeExport.openFile({ uri, mimeType });
+          return !!(res && res.success);
+        }
+      } catch (err) {
+        console.error('Open file error:', err);
+        toast(err.message || 'تعذر فتح الملف (تأكد من وجود تطبيق مناسب)', 'err');
+        return false;
+      }
+    }
+
+    toast('الملف تم حفظه في جهازك', 'ok');
+    return true;
+  }
+};
+
 function normalizeSlashDate(d){
   if(!d||typeof d!==`string`) return `00/00/0000`;
   let s=d.trim().split(`/`).map(Number);
@@ -1012,6 +1288,9 @@ function go(page){
   if(page===`stats`) renderStats();
   if(page===`settings`) renderSettingsPage();
   pdfCanvasesCache = null; // Reset PDF cache on navigation/data change
+  let pz = document.getElementById('pz');
+  if(pz) { pz.className = 'hidden'; pz.innerHTML = ''; pz.style.position = ''; pz.style.left = ''; pz.style.zIndex = ''; pz.style.pointerEvents = ''; }
+  if(document.body && document.body.classList) document.body.classList.remove('printing');
   if(typeof window.scrollTo === 'function') window.scrollTo(0,0);
 }
 
@@ -1602,10 +1881,27 @@ function renderMonthSummary(recs){
   monthSummary={p,a,l,t};
   let total=p+a,pct=total?Math.round(p/total*100):0;
   if(cnt) cnt.innerHTML=`
-    <div class="p-3 rounded-xl text-center" style="background:var(--stat-present-bg)"><div class="text-xl font-black" style="color:var(--stat-present-text)">${p}</div><div class="text-[10px]" style="color:var(--stat-present-text)">حضور</div></div>
-    <div class="p-3 rounded-xl text-center" style="background:var(--stat-absent-bg)"><div class="text-xl font-black" style="color:var(--stat-absent-text)">${a}</div><div class="text-[10px]" style="color:var(--stat-absent-text)">غياب</div></div>
-    ${t>0 ? `<div class="p-3 rounded-xl text-center" style="background:#f3e8ff"><div class="text-xl font-black" style="color:#a855f7">${t}</div><div class="text-[10px]" style="color:#a855f7">تكليف سفر</div></div>` : `<div class="p-3 rounded-xl text-center" style="background:var(--stat-late-bg)"><div class="text-xl font-black" style="color:var(--stat-late-text)">${l}</div><div class="text-[10px]" style="color:var(--stat-late-text)">تأخير</div></div>`}
-    <div class="p-3 rounded-xl text-center" style="background:var(--c-surface2)"><div class="text-xl font-black" style="color:${pct>=80?`var(--stat-present-text)`:`var(--stat-absent-text)`}">${pct}%</div><div class="text-[10px]" style="color:var(--text2)">النسبة</div></div>`;
+    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 flex flex-col justify-center min-w-[50px]">
+      <div class="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400">${p}</div>
+      <div class="text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-300">حضور</div>
+    </div>
+    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 flex flex-col justify-center min-w-[50px]">
+      <div class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400">${a}</div>
+      <div class="text-[9px] sm:text-[10px] font-bold text-rose-700 dark:text-rose-300">غياب</div>
+    </div>
+    ${t>0 ? `
+    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-purple-500/10 dark:bg-purple-500/15 border border-purple-500/20 flex flex-col justify-center min-w-[50px]">
+      <div class="text-xs sm:text-sm font-black text-purple-600 dark:text-purple-400">${t}</div>
+      <div class="text-[9px] sm:text-[10px] font-bold text-purple-700 dark:text-purple-300">سفر</div>
+    </div>` : `
+    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 flex flex-col justify-center min-w-[50px]">
+      <div class="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400">${l}</div>
+      <div class="text-[9px] sm:text-[10px] font-bold text-amber-700 dark:text-amber-300">تأخير</div>
+    </div>`}
+    <div class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl text-center bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/20 flex flex-col justify-center min-w-[50px]">
+      <div class="text-xs sm:text-sm font-black ${pct>=80 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
+      <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400">الالتزام</div>
+    </div>`;
 }
 window.renderMonthSum=renderMonthSummary;
 
@@ -2326,149 +2622,359 @@ async function renderTravelStats() {
 
 
 // ── Stats page ────────────────────────────────────────────
+var statsScope = 'month'; // 'month' or 'year'
+
+window.setStatsScope = function(scope) {
+  statsScope = scope;
+  let mBtn = document.getElementById('statsScopeMonthBtn');
+  let yBtn = document.getElementById('statsScopeYearBtn');
+  let sub = document.getElementById('statsSubtitle');
+  let pieBadge = document.getElementById('statsPieBadge');
+  let trendBadge = document.getElementById('statsTrendBadge');
+
+  if (mBtn && yBtn) {
+    if (scope === 'month') {
+      mBtn.className = 'flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs';
+      yBtn.className = 'flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200';
+      if (sub) sub.textContent = `ملخص دقيق لشهر ${MONTHS[viewMonth]} ${viewYear}`;
+      if (pieBadge) pieBadge.textContent = `${MONTHS[viewMonth]}`;
+      if (trendBadge) trendBadge.textContent = 'نشاط أيام الشهر';
+    } else {
+      yBtn.className = 'flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs';
+      mBtn.className = 'flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200';
+      if (sub) sub.textContent = `ملخص تراكمي شامل لعام ${viewYear}`;
+      if (pieBadge) pieBadge.textContent = `سنة ${viewYear}`;
+      if (trendBadge) trendBadge.textContent = 'على مدار الأشهر';
+    }
+  }
+  renderStats();
+};
+
 async function renderStats(){
-  let yr=viewYear;
+  let yr = viewYear;
+  let mo = viewMonth;
   if (typeof RECDB === 'undefined' || !RECDB) return;
-  let recs = await RECDB.getYear(yr);
+  let allYearRecs = await RECDB.getYear(yr);
   let bal = (typeof calcOvertimeBalance !== 'undefined') ? await calcOvertimeBalance() : {balance: 0};
-  recs = (recs || []).filter(r => {
+  
+  let validYearRecs = (allYearRecs || []).filter(r => {
     if (!r || typeof r !== 'object' || !r.date || typeof r.date !== 'string') return false;
     let parts = r.date.split('/');
     return parts.length === 3 && Number(parts[2]) === yr;
   });
-  let p=0,a=0,l=0,t=0,early=0,extra=0,tmEarly=0,tmExtra=0,tmLate=0,monthly=Array(12).fill(0).map(()=>({p:0,a:0,l:0,t:0}));
+
+  // Filter records based on selected scope
+  let activeRecs = validYearRecs;
+  if (statsScope === 'month') {
+    activeRecs = validYearRecs.filter(r => {
+      let parts = r.date.split('/');
+      return Number(parts[1]) - 1 === mo;
+    });
+  }
+
+  let p=0, a=0, l=0, t=0, early=0, extra=0, tmEarly=0, tmExtra=0, tmLate=0;
+  let monthly = Array(12).fill(0).map(()=>({p:0, a:0, l:0, t:0}));
+  let daysDistribution = Array(31).fill(0);
   let usedCompensations = settings.compensations || [];
   
-  recs.forEach(r=>{
+  // Compute metrics for activeRecs
+  activeRecs.forEach(r => {
     if (!r || !r.date) return;
-    let d=new Date(slashToISO(r.date));
+    let d = new Date(slashToISO(r.date));
     if (isNaN(d.getTime())) return;
-    let sch=getSchedule(d.getFullYear(),d.getMonth(),d),mo=d.getMonth();
+    let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     let isHol = isHoliday(d) || !isWorkDay(d);
-    
     let actuallyWorked = isPresent(r.status) || (isHol && r.checkIn);
     
     if(actuallyWorked){
-      p++; monthly[mo].p++;
-      
+      p++;
       let isLateComp = usedCompensations.some(c => c && c.date === r.date && c.type === 'late');
       let isEarlyComp = usedCompensations.some(c => c && c.date === r.date && c.type === 'early');
       
       let lm = 0, em = 0, ex = 0;
-      
       if (isHol && r.checkIn && r.checkOut) {
-        let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, _em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+        let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number);
+        let [eh, _em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
         ex = (eh*60+_em) - (sh*60+sm);
         if (ex < 0) ex += 1440;
       } else if (isPresent(r.status)) {
-        lm = isLateComp ? 0 : lateMin(r.checkIn,sch.start);
-        em = isEarlyComp ? 0 : (r.checkOut ? earlyMin(r.checkOut,sch.end) : 0);
-        ex = r.checkOut ? extraMin(r.checkOut,sch.overtimeStart) : 0;
+        lm = isLateComp ? 0 : lateMin(r.checkIn, sch.start);
+        em = isEarlyComp ? 0 : (r.checkOut ? earlyMin(r.checkOut, sch.end) : 0);
+        ex = r.checkOut ? extraMin(r.checkOut, sch.overtimeStart) : 0;
       }
       
-      if(lm>0){ l++; monthly[mo].l++; tmLate+=lm; }
-      if(em>0){ early++; tmEarly+=em; }
-      if(ex>0){ extra++; tmExtra+=ex; }
+      if(lm > 0){ l++; tmLate += lm; }
+      if(em > 0){ early++; tmEarly += em; }
+      if(ex > 0){ extra++; tmExtra += ex; }
     }
-    else if(r.status===`absent`){ a++; monthly[mo].a++; }
-    else if(r.status===`تكليف سفر`){ t++; monthly[mo].t++; }
+    else if(r.status === 'absent'){ a++; }
+    else if(r.status === 'تكليف سفر'){ t++; }
   });
-  let total=p+a,pct=total?Math.round(p/total*100):0;
+
+  // Calculate year breakdown for year-trend chart
+  validYearRecs.forEach(r => {
+    if (!r || !r.date) return;
+    let d = new Date(slashToISO(r.date));
+    if (isNaN(d.getTime())) return;
+    let mIndex = d.getMonth();
+    let isHol = isHoliday(d) || !isWorkDay(d);
+    let actuallyWorked = isPresent(r.status) || (isHol && r.checkIn);
+    if(actuallyWorked) {
+      monthly[mIndex].p++;
+      if (statsScope === 'month' && mIndex === mo) {
+        let dayNum = d.getDate();
+        if(dayNum >= 1 && dayNum <= 31) daysDistribution[dayNum - 1] = 1;
+      }
+    } else if(r.status === 'absent') {
+      monthly[mIndex].a++;
+    } else if(r.status === 'تكليف سفر') {
+      monthly[mIndex].t++;
+    }
+  });
+
+  let total = p + a;
+  let pct = total ? Math.round(p / total * 100) : 100;
+  if(total === 0) pct = 100;
   
-  // Refined Status Summary Cards (Using Theme Variables)
-  let sc = document.getElementById(`statsSumCards`); if(sc) sc.innerHTML=`
-    <div class="glass-surface p-4 text-center rounded-2xl shadow-sm border-r-4 border-r-emerald-500 hover:scale-105 trans">
-      <div class="text-2xl font-black mb-1" style="color:var(--stat-present-text, var(--c-accent-txt))">${p}</div>
-      <div class="text-[10px] uppercase tracking-tighter font-black opacity-50">الحضور</div>
-    </div>
-    <div class="glass-surface p-4 text-center rounded-2xl shadow-sm border-r-4 border-r-red-500 hover:scale-105 trans">
-      <div class="text-2xl font-black mb-1" style="color:var(--stat-absent-text, #ef4444)">${a}</div>
-      <div class="text-[10px] uppercase tracking-tighter font-black opacity-50">الغياب</div>
-    </div>
-    ${t>0 ? `<div class="glass-surface p-4 text-center rounded-2xl shadow-sm border-r-4 border-r-purple-500 hover:scale-105 trans">
-      <div class="text-2xl font-black mb-1" style="color:#a855f7">${t}</div>
-      <div class="text-[10px] uppercase tracking-tighter font-black opacity-50">تكليف سفر</div>
-    </div>` : `<div class="glass-surface p-4 text-center rounded-2xl shadow-sm border-r-4 border-r-amber-500 hover:scale-105 trans">
-      <div class="text-2xl font-black mb-1" style="color:var(--stat-late-text, #f59e0b)">${l}</div>
-      <div class="text-[10px] uppercase tracking-tighter font-black opacity-50">التأخير</div>
-    </div>`}
-    <div class="glass-surface p-4 text-center rounded-2xl shadow-sm border-r-4 ${pct>=80?`border-r-emerald-500`:`border-r-red-500`} hover:scale-105 trans">
-      <div class="text-2xl font-black mb-1 text-number" style="color:var(--c-text)">${pct}%</div>
-      <div class="text-[10px] uppercase tracking-tighter font-black opacity-50">الالتزام</div>
-    </div>`;
+  // KPI Summary Cards
+  let sc = document.getElementById('statsSumCards');
+  if(sc) {
+    sc.innerHTML = `
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-emerald-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-emerald-600 dark:text-emerald-400">${p}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الحضور</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-rose-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-rose-600 dark:text-rose-400">${a}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الغياب</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-amber-500 hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 text-amber-600 dark:text-amber-400">${l}</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">مرات التأخير</div>
+      </div>
+      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 ${pct >= 85 ? 'border-r-indigo-500' : 'border-r-rose-500'} hover:shadow-md transition-all">
+        <div class="text-xl sm:text-2xl font-black mb-0.5 ${pct >= 85 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
+        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">نسبة الالتزام</div>
+      </div>
+    `;
+  }
 
-  let pr = document.getElementById(`personalRecords`); if(pr) pr.innerHTML=`
-    <div class="flex justify-between items-center py-3 border-b border-white/5 dark:border-white/5">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-500"><i class="fa-solid fa-clock"></i></div>
-        <div><div class="text-sm font-black" style="color:var(--c-text)">تأخير صباحي</div><div class="text-[10px] opacity-50">إجمالي الوقت</div></div>
+  // Personal metrics & Detailed Bento Grid
+  let pr = document.getElementById('personalRecords');
+  if(pr) {
+    pr.innerHTML = `
+      <div class="flex items-center justify-between p-3 rounded-2xl bg-amber-500/5 border border-amber-500/15">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs">
+            <i class="fa-solid fa-clock"></i>
+          </div>
+          <div>
+            <div class="text-xs font-black text-slate-800 dark:text-slate-100">تأخير صباحي</div>
+            <div class="text-[10px] font-semibold text-slate-400">${l} أيام مسجلة</div>
+          </div>
+        </div>
+        <div class="text-left font-black text-xs text-amber-600 dark:text-amber-400">
+          ${formatMin(tmLate)}
+        </div>
       </div>
-      <div class="text-right">
-        <div class="font-black text-sm" style="color:var(--stat-late-text)">${l} أيام</div>
-        <div class="text-[10px] font-bold opacity-60">${formatMin(tmLate)}</div>
-      </div>
-    </div>
-    <div class="flex justify-between items-center py-3 border-b border-white/5 dark:border-white/5">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/10 text-red-500"><i class="fa-solid fa-person-running"></i></div>
-        <div><div class="text-sm font-black" style="color:var(--c-text)">خروج مبكر</div><div class="text-[10px] opacity-50">إجمالي الوقت</div></div>
-      </div>
-      <div class="text-right">
-        <div class="font-black text-sm" style="color:var(--stat-absent-text)">${early} أيام</div>
-        <div class="text-[10px] font-bold opacity-60">${formatMin(tmEarly)}</div>
-      </div>
-    </div>
-    <div class="flex justify-between items-center py-3 border-b border-white/5 dark:border-white/5">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/10 text-blue-500"><i class="fa-solid fa-business-time"></i></div>
-        <div><div class="text-sm font-black" style="color:var(--c-text)">دوام إضافي</div><div class="text-[10px] opacity-50">إجمالي الوقت</div></div>
-      </div>
-      <div class="text-right">
-        <div class="font-black text-sm text-blue-500">${extra} أيام</div>
-        <div class="text-[10px] font-bold opacity-60">${formatMin(tmExtra)}</div>
-      </div>
-    </div>
-    <div class="flex justify-between items-center py-3">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-500"><i class="fa-solid fa-scale-balanced"></i></div>
-        <div><div class="text-sm font-black" style="color:var(--c-text)">رصيد الإضافي المتبقي</div><div class="text-[10px] opacity-50">الرصيد المتاح</div></div>
-      </div>
-      <div class="text-right">
-        <div class="font-black text-sm text-emerald-500">${formatMin(bal.balance)}</div>
-      </div>
-    </div>`;
 
+      <div class="flex items-center justify-between p-3 rounded-2xl bg-rose-500/5 border border-rose-500/15">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center bg-rose-500/15 text-rose-600 dark:text-rose-400 text-xs">
+            <i class="fa-solid fa-person-running"></i>
+          </div>
+          <div>
+            <div class="text-xs font-black text-slate-800 dark:text-slate-100">خروج مبكر</div>
+            <div class="text-[10px] font-semibold text-slate-400">${early} أيام مسجلة</div>
+          </div>
+        </div>
+        <div class="text-left font-black text-xs text-rose-600 dark:text-rose-400">
+          ${formatMin(tmEarly)}
+        </div>
+      </div>
 
+      <div class="flex items-center justify-between p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/15">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs">
+            <i class="fa-solid fa-business-time"></i>
+          </div>
+          <div>
+            <div class="text-xs font-black text-slate-800 dark:text-slate-100">ساعات إضافية</div>
+            <div class="text-[10px] font-semibold text-slate-400">${extra} أيام إضافي</div>
+          </div>
+        </div>
+        <div class="text-left font-black text-xs text-indigo-600 dark:text-indigo-400">
+          ${formatMin(tmExtra)}
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/15">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs">
+            <i class="fa-solid fa-scale-balanced"></i>
+          </div>
+          <div>
+            <div class="text-xs font-black text-slate-800 dark:text-slate-100">رصيد الإضافي المتاح</div>
+            <div class="text-[10px] font-semibold text-slate-400">جاهز للتعويض</div>
+          </div>
+        </div>
+        <div class="text-left font-black text-xs text-emerald-600 dark:text-emerald-400">
+          ${formatMin(bal.balance)}
+        </div>
+      </div>
+    `;
+  }
+
+  // Modern Charts Rendering
   if(window.Chart){
-    const cp=stClr(`p`), ca=stClr(`a`), cl=stClr(`l`), cb=stClr(`o`);
+    const cp = '#10b981'; // Emerald
+    const ca = '#f43f5e'; // Rose
+    const cl = '#f59e0b'; // Amber
+    const ci = '#6366f1'; // Indigo
     const textColor2 = (settings && settings.dark) ? '#94a3b8' : '#64748b';
     
-    let pieEl = document.getElementById(`pieChart`);
+    // 1. Doughnut Distribution Chart
+    let pieEl = document.getElementById('pieChart');
     if(pieEl) {
       if(chartInstances.p) { try { chartInstances.p.destroy(); } catch(e){} chartInstances.p = null; }
       try {
-        chartInstances.p=new Chart(pieEl,{type:`doughnut`,data:{labels:[`حضور`,`تأخير`,`غياب`],datasets:[{data:[p-l,l,a],backgroundColor:[cp,cl,ca],borderWidth:0,hoverOffset:10}]},options:{responsive:true,cutout:`75%`,plugins:{legend:{position:`bottom`,labels:{padding:20,font:{family:`Cairo`,size:11,weight:'600'},color:textColor2}}}}});
+        let presentOnTime = Math.max(0, p - l);
+        let doughnutData = (p === 0 && a === 0) ? [1] : [presentOnTime, l, a];
+        let doughnutColors = (p === 0 && a === 0) ? ['#cbd5e1'] : [cp, cl, ca];
+        let doughnutLabels = (p === 0 && a === 0) ? ['لا توجد بيانات'] : ['حضور في الموعد', 'تأخير', 'غياب'];
+
+        chartInstances.p = new Chart(pieEl, {
+          type: 'doughnut',
+          data: {
+            labels: doughnutLabels,
+            datasets: [{
+              data: doughnutData,
+              backgroundColor: doughnutColors,
+              borderWidth: 0,
+              hoverOffset: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '72%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  boxWidth: 10,
+                  boxHeight: 10,
+                  padding: 12,
+                  font: { family: 'Cairo', size: 10, weight: 'bold' },
+                  color: textColor2
+                }
+              }
+            }
+          }
+        });
       } catch(e){}
     }
     
-    let barEl = document.getElementById(`barChart`);
-    if(barEl) {
-      if(chartInstances.b) { try { chartInstances.b.destroy(); } catch(e){} chartInstances.b = null; }
-      try {
-        chartInstances.b=new Chart(barEl,{type:`bar`,data:{labels:[`حضور`,`تأخير`,`غياب`],datasets:[{label:`الأيام`,data:[p,l,a],backgroundColor:[cp,cl,ca],borderRadius:8,hoverBackgroundColor:[cp,cl,ca]}]},options:{responsive:true,scales:{y:{display:false},x:{grid:{display:false},ticks:{color:stClr('o'),font:{weight:'bold'}}}},plugins:{legend:{display:false}}}});
-      } catch(e){}
-    }
-    
-    let trendEl = document.getElementById(`trendChart`);
+    // 2. Trend or Timeline Chart
+    let trendEl = document.getElementById('trendChart');
     if(trendEl) {
       if(chartInstances.t) { try { chartInstances.t.destroy(); } catch(e){} chartInstances.t = null; }
       try {
-        chartInstances.t=new Chart(trendEl,{type:`line`,data:{labels:MONTHS.map(m=>m.substring(0,3)),datasets:[{label:`حضور`,data:monthly.map(m=>m.p),borderColor:cp,backgroundColor:cp+`20`,fill:true,tension:0.4,pointRadius:0,borderWidth:3},{label:`غياب`,data:monthly.map(m=>m.a),borderColor:ca,backgroundColor:ca+`20`,fill:true,tension:0.4,pointRadius:0,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{font:{size:9},color:cb,font:{weight:'bold'}}},y:{display:false,min:0}},plugins:{legend:{display:false}},interaction:{mode:`index`,intersect:false}}});
+        let labels = [];
+        let pData = [];
+        let aData = [];
+
+        if (statsScope === 'month') {
+          // Show Month activity (4 weeks / periods)
+          labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4', 'الأسبوع 5'];
+          let wCounts = [0, 0, 0, 0, 0];
+          activeRecs.forEach(r => {
+            let d = new Date(slashToISO(r.date));
+            if(!isNaN(d.getTime()) && isPresent(r.status)) {
+              let w = Math.min(4, Math.floor((d.getDate() - 1) / 7));
+              wCounts[w]++;
+            }
+          });
+          pData = wCounts;
+          
+          chartInstances.t = new Chart(trendEl, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'أيام الحضور',
+                data: pData,
+                backgroundColor: ci,
+                borderRadius: 6,
+                hoverBackgroundColor: '#4f46e5'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { display: false, beginAtZero: true },
+                x: {
+                  grid: { display: false },
+                  ticks: { font: { family: 'Cairo', size: 9, weight: 'bold' }, color: textColor2 }
+                }
+              },
+              plugins: { legend: { display: false } }
+            }
+          });
+        } else {
+          // Show full year curve
+          labels = MONTHS.map(m => m.substring(0, 3));
+          pData = monthly.map(m => m.p);
+          aData = monthly.map(m => m.a);
+
+          chartInstances.t = new Chart(trendEl, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: 'حضور',
+                  data: pData,
+                  borderColor: cp,
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  fill: true,
+                  tension: 0.35,
+                  pointRadius: 2,
+                  borderWidth: 2.5
+                },
+                {
+                  label: 'غياب',
+                  data: aData,
+                  borderColor: ca,
+                  backgroundColor: 'transparent',
+                  tension: 0.35,
+                  pointRadius: 2,
+                  borderWidth: 1.5,
+                  borderDash: [3, 3]
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: {
+                  grid: { display: false },
+                  ticks: { font: { family: 'Cairo', size: 9, weight: 'bold' }, color: textColor2 }
+                },
+                y: { display: false, min: 0 }
+              },
+              plugins: { legend: { display: false } },
+              interaction: { mode: 'index', intersect: false }
+            }
+          });
+        }
       } catch(e){}
     }
   }
 }
-window.renderStats=renderStats;
+window.renderStats = renderStats;
 
 // ── Overtime Compensation System ──────────────────────────
 var currentCompSubTab = 'overtime';
@@ -4404,33 +4910,21 @@ window.backupData=async function(type = 'all'){
   let json=JSON.stringify(data);
   let timestamp=new Date().toISOString().replace(/[:.]/g,`-`).slice(0,19);
   let baseFileName=`${prefix}${timestamp}.json`;
+  let blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
 
-  if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
-    try{
-      // Request permission
-      await requestStoragePermission();
-      // Ensure Backup subfolder exists
-      await ensureDir(BACKUP_FOLDER,`DOCUMENTS`);
-      // Find unique filename
-      let filePath=await uniqueFilePath(`${BACKUP_FOLDER}/${baseFileName}`,`DOCUMENTS`);
-      await window.Capacitor.Plugins.Filesystem.writeFile({
-        path:filePath,data:json,directory:`DOCUMENTS`,encoding:`utf8`,recursive:true
-      });
-      toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ في: المستندات/${filePath}`,`ok`);
-    } catch(err){
-      console.error(`Backup error:`,err);
-      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل الحفظ: `+(err.message||err),`err`);
-    }
+  let saveRes = await window.ExportService.save({
+    blob,
+    fileName: baseFileName,
+    mimeType: 'application/json',
+    subDir: 'Personal Attendance/Backup'
+  });
+
+  if (saveRes.success) {
+    toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ النسخة الاحتياطية بنجاح في: ${saveRes.displayPath}`, `ok`);
+  } else if (saveRes.errorCode === 'CANCELLED') {
+    toast(`تم إلغاء الحفظ`, `info`);
   } else {
-    // Browser fallback
-    try{
-      let blob=new Blob([json],{type:`application/json`});
-      let url=URL.createObjectURL(blob);
-      let a=document.createElement(`a`);
-      a.href=url; a.download=baseFileName; a.click();
-      URL.revokeObjectURL(url);
-      toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`,`ok`);
-    } catch(err){ toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل`,`err`); }
+    toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل الحفظ: ` + (saveRes.errorMessage || ''), `err`);
   }
 };
 
@@ -4457,54 +4951,21 @@ window.shareBackup=async function(){
   let json=JSON.stringify(data);
   let timestamp=new Date().toISOString().replace(/[:.]/g,`-`).slice(0,19);
   let fileName=`backup_${timestamp}.json`;
+  let blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
 
-  if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
-    try{
-      // Write to cache for sharing
-      let tmpPath=`tmp_share_${Date.now()}.json`;
-      let written=await window.Capacitor.Plugins.Filesystem.writeFile({
-        path:tmpPath,data:json,directory:`CACHE`,encoding:`utf8`
-      });
-      if(window.Capacitor.Plugins.Share){
-        await window.Capacitor.Plugins.Share.share({
-          title:`نسخة احتياطية - سجل الحضور`,
-          text:`نسخة احتياطية لبيانات سجل الحضور الشخصي`,
-          url:written.uri,
-          dialogTitle:`مشاركة النسخة الاحتياطية`
-        });
-      } else { toast(`<i class="fa-solid fa-xmark ml-1"></i> المشاركة غير مدعومة على هذا الجهاز`,`err`); }
-    } catch(err){
-      console.error(`Share backup error:`,err);
-      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
-    }
+  let shareRes = await window.ExportService.share({
+    blob,
+    fileName: fileName,
+    mimeType: 'application/json',
+    title: 'نسخة احتياطية - سجل الحضور'
+  });
+
+  if (shareRes.success) {
+    toast(`<i class="fa-solid fa-check ml-1"></i> تمت مشاركة النسخة الاحتياطية بنجاح`, `ok`);
+  } else if (shareRes.errorCode === 'CANCELLED') {
+    toast(`تم إلغاء المشاركة`, `info`);
   } else {
-    // Browser: try Web Share API with file
-    try {
-      let blob = new Blob([json], { type: `application/json` });
-      let file = (typeof File !== 'undefined') ? new File([blob], fileName, { type: `application/json` }) : null;
-      let shared = false;
-      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ title: `نسخة احتياطية`, files: [file] });
-          shared = true;
-        } catch(shareErr) {
-          if (shareErr.name === 'AbortError') {
-            shared = true;
-          } else {
-            console.warn('Web Share backup fallback to direct download:', shareErr.message || shareErr);
-          }
-        }
-      }
-      if (!shared) {
-        // Fallback: download
-        let url = URL.createObjectURL(blob);
-        let a = document.createElement(`a`); a.href = url; a.download = fileName; a.click();
-        URL.revokeObjectURL(url);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تم تحميل ملف النسخة الاحتياطية`, `ok`);
-      }
-    } catch(err) {
-      toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل التحميل / المشاركة`, `err`);
-    }
+    toast(`<i class="fa-solid fa-xmark ml-1"></i> فشلت المشاركة: ` + (shareRes.errorMessage || ''), `err`);
   }
 };
 
@@ -5610,7 +6071,12 @@ async function buildPDFCanvas(){
   // Safety: ensure exportColumns is always defined before building
   if(!settings.exportColumns) settings.exportColumns = { date:true, checkIn:true, checkOut:true, status:true, late:true, early:true, overtime:true, absenceType:true, note:true };
   let container=document.getElementById(`pz`); if(!container) return null;
-  container.className=`fixed left-0 top-0 bg-white block`;
+  container.className=`fixed left-[-9999px] top-0 bg-white block pointer-events-none`;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.zIndex = '-9999';
+  container.style.pointerEvents = 'none';
   container.style.width=`1200px`;
   container.style.minWidth=`1200px`;
   container.style.maxWidth=`1200px`;
@@ -5623,6 +6089,7 @@ async function buildPDFCanvas(){
   container.setAttribute(`dir`,`rtl`);
   container.style.direction=`rtl`;
   
+  try {
   let periodLabel=``;
   let filtered=[];
   if(window.exportMode === 'selected') {
@@ -6162,8 +6629,18 @@ async function buildPDFCanvas(){
   cvFinal = null;
   
   pdfCanvasesCache = processCvs;
-  if(container) { container.className=`hidden`; container.innerHTML=``; } if(document.body && document.body.classList) document.body.classList.remove(`printing`);
   return pdfCanvasesCache;
+  } finally {
+    if(container) {
+      container.className=`hidden`;
+      container.innerHTML=``;
+      container.style.position = '';
+      container.style.left = '';
+      container.style.zIndex = '';
+      container.style.pointerEvents = '';
+    }
+    if(document.body && document.body.classList) document.body.classList.remove(`printing`);
+  }
 }
 
 async function buildPDF(){
@@ -6228,17 +6705,61 @@ window.exeExpPreview=async function(){
   });
 };
 
-window.showExportSuccess = function(pathMsg) {
+window._lastExportResult = null;
+
+window.showExportSuccess = function(result) {
   let area=document.getElementById(`expPreviewArea`);
   let wrap=document.getElementById(`expPreviewImgWrap`);
   if(area) area.classList.add(`hidden`);
   if(wrap) wrap.classList.add(`hidden`);
   let aBtns=document.getElementById(`expActionBtns`);
   let sArea=document.getElementById(`expSuccessArea`);
+  let sTitle=document.getElementById(`expSuccessTitle`);
+  let sName=document.getElementById(`expSuccessFileName`);
   let sPath=document.getElementById(`expSuccessPath`);
+  let btnOpen=document.getElementById(`btnOpenExported`);
+
   if(aBtns) aBtns.classList.add(`hidden`);
-  if(sPath) sPath.innerText = pathMsg;
+
+  let resObj = (typeof result === 'object' && result !== null) ? result : { success: true, displayPath: String(result || '') };
+  window._lastExportResult = resObj;
+
+  if(sTitle) sTitle.innerText = "تم حفظ التقرير بنجاح!";
+  if(sName) {
+    sName.innerText = resObj.fileName || (resObj.displayPath ? resObj.displayPath.split('/').pop() : 'تقرير_الدوام.pdf');
+  }
+  if(sPath) {
+    sPath.innerText = resObj.displayPath || 'المجلد المحدد على جهازك';
+  }
+
+  if(btnOpen) {
+    if(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && resObj.uri) {
+      btnOpen.classList.remove('hidden');
+    } else {
+      btnOpen.classList.add('hidden');
+    }
+  }
+
   if(sArea) sArea.classList.remove(`hidden`);
+};
+
+window.openLastExportedFile = async function() {
+  if(!window._lastExportResult || !window._lastExportResult.uri) {
+    toast('مسار الملف غير متوفر أو تم التنزيل عبر المتصفح', 'info');
+    return;
+  }
+  await window.ExportService.open(window._lastExportResult);
+};
+
+window.shareLastExportedFile = async function() {
+  if(window._lastExportResult && window._lastExportResult.blob) {
+    let res = await window.ExportService.share(window._lastExportResult);
+    if(res.success) {
+      toast('تمت المشاركة بنجاح', 'ok');
+    }
+  } else {
+    window.exeExpShare();
+  }
 };
 
 window.closeExportM = function() {
@@ -6251,7 +6772,7 @@ window.closeExportM = function() {
 window.exeExpDownload=function(){
   let btn = document.getElementById('btnExport');
   let originalHtml = btn ? btn.innerHTML : '';
-  if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري التحميل...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
+  if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري الإنشاء والحفظ...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
   
   setTimeout(async () => {
     let d = new Date();
@@ -6273,109 +6794,35 @@ window.exeExpDownload=function(){
       doc = await buildPDF();
     }
 
-    if(!doc) { if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; } return; }
-    let blob=doc.output(`blob`);
-    let finalLocation = "";
+    if(!doc) {
+      if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+      toast('تعذر إنشاء ملف PDF', 'err');
+      return;
+    }
+
+    let blob = doc.output(`blob`);
+    let fileName = `${name}.pdf`;
 
     try {
-      let isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform);
-      
-      // Automatic backup if running on native device
-      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-        try {
-          let nowForBackup = new Date();
-          let bkName = `backup_${nowForBackup.toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
-          let bkData = JSON.stringify({ S: settings, R: await RECDB.getAll(), d: nowForBackup.toISOString() });
-          await requestStoragePermission();
-          await ensureDir(BACKUP_FOLDER, `DOCUMENTS`);
-          let bkPath = await uniqueFilePath(`${BACKUP_FOLDER}/${bkName}`, `DOCUMENTS`);
-          await window.Capacitor.Plugins.Filesystem.writeFile({ path: bkPath, data: bkData, directory: `DOCUMENTS`, encoding: `utf8`, recursive: true });
-        } catch(bkErr) {
-          console.warn('Native backup on export warning:', bkErr);
-        }
-      }
+      let saveRes = await window.ExportService.save({
+        blob,
+        fileName,
+        mimeType: 'application/pdf',
+        subDir: 'Personal Attendance'
+      });
 
-      let saved = false;
-
-      // 1. If Native Android / Capacitor
-      if (isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-        try {
-          await ensureDir(APP_FOLDER, `DOCUMENTS`);
-          let safeName = name.replace(/[\\/:*?"<>|]/g, `_`);
-          let basePath = `${APP_FOLDER}/${safeName}.pdf`;
-          let finalPath = await uniqueFilePath(basePath, `DOCUMENTS`);
-          let b64 = await blobToBase64(blob);
-          await window.Capacitor.Plugins.Filesystem.writeFile({ path: finalPath, data: b64, directory: `DOCUMENTS`, recursive: true });
-          finalLocation = `مجلد التخزين الداخلي / Documents / ${finalPath}`;
-          saved = true;
-        } catch(capErr) {
-          console.warn('Native PDF file write error, falling back to download:', capErr);
-        }
-      }
-
-      // 2. Check if running inside iframe / subframe (cross-origin frames reject showSaveFilePicker)
-      let isInIframe = false;
-      try {
-        isInIframe = window.self !== window.top;
-      } catch (e) {
-        isInIframe = true;
-      }
-
-      if (!saved && !isInIframe && typeof window.showSaveFilePicker === 'function') {
-        try {
-          let handle = await window.showSaveFilePicker({
-            suggestedName: `${name}.pdf`,
-            types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
-          });
-          let writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          finalLocation = "جهاز الكمبيوتر / التنزيلات (حسب المكان الذي اخترته)";
-          saved = true;
-        } catch (pickerErr) {
-          if (pickerErr.name === 'AbortError') {
-            toast(`تم إلغاء الحفظ`, `err`);
-            if (btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
-            return;
-          }
-          console.warn('showSaveFilePicker fallback to standard download:', pickerErr.message || pickerErr);
-        }
-      }
-
-      // 3. Browser direct download fallback (standard for iframe & web)
-      if (!saved) {
-        let url = URL.createObjectURL(blob);
-        let a = document.createElement(`a`);
-        a.href = url;
-        a.download = `${name}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-        finalLocation = "مجلد التنزيلات الخاص بمتصفحك";
-      }
-
-      window.showExportSuccess(finalLocation);
-
-    } catch(err){
-      console.warn(`Export error:`, err);
-      if (err.name !== 'AbortError') {
-        try {
-          let url = URL.createObjectURL(blob);
-          let a = document.createElement(`a`);
-          a.href = url;
-          a.download = `${name}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 1500);
-          window.showExportSuccess("مجلد التنزيلات الخاص بمتصفحك");
-        } catch (e) {
-          toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل العملية: ` + (err.message || err), `err`);
-        }
+      if (saveRes.success) {
+        saveRes.blob = blob;
+        window.showExportSuccess(saveRes);
+        toast('تم حفظ التقرير بنجاح', 'ok');
+      } else if (saveRes.errorCode === 'CANCELLED') {
+        toast('تم إلغاء الحفظ', 'info');
       } else {
-        toast(`تم إلغاء الحفظ`, `err`);
+        toast('<i class="fa-solid fa-xmark ml-1"></i> تعذر حفظ الملف: ' + (saveRes.errorMessage || ''), 'err');
       }
+    } catch(err) {
+      console.error('PDF export save error:', err);
+      toast('<i class="fa-solid fa-xmark ml-1"></i> حدث خطأ أثناء التصدير: ' + (err.message || err), 'err');
     }
     
     if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
@@ -6532,40 +6979,27 @@ window.exeExpExcel=async function(mode){
       }
       let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       
-      if(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-        await requestStoragePermission();
-        await ensureDir(APP_FOLDER,`DOCUMENTS`);
-        let bkPath = await uniqueFilePath(`${APP_FOLDER}/${name}`,`DOCUMENTS`);
-        
-        let reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async function() {
-          let base64data = reader.result.split(',')[1];
-          await window.Capacitor.Plugins.Filesystem.writeFile({
-            path: bkPath,
-            data: base64data,
-            directory: `DOCUMENTS`,
-            recursive: true
-          });
-          toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ: ${name} في مجلد Documents`, `ok`);
-          if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
-        }
+      let saveRes = await window.ExportService.save({
+        blob,
+        fileName: name,
+        mimeType: 'text/csv',
+        subDir: 'Personal Attendance'
+      });
+
+      if (saveRes.success) {
+        saveRes.blob = blob;
+        window._lastExportResult = saveRes;
+        toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ الملف بنجاح في: ${saveRes.displayPath}`, `ok`);
+      } else if (saveRes.errorCode === 'CANCELLED') {
+        toast(`تم إلغاء الحفظ`, `info`);
       } else {
-        let link = document.createElement('a');
-        let url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', name);
-        link.style.visibility = 'hidden';
-        if(document.body && document.body.appendChild) document.body.appendChild(link);
-        if(typeof link.click === 'function') link.click();
-        if(document.body && document.body.removeChild && link.parentNode) document.body.removeChild(link);
-        toast(`<i class="fa-solid fa-check ml-1"></i> تم تصدير الملف بنجاح`, `ok`);
-        if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+        toast(`<i class="fa-solid fa-xmark ml-1"></i> تعذر حفظ الملف: ` + (saveRes.errorMessage || ''), `err`);
       }
 
     } catch(err) {
       console.error(err);
       toast("حدث خطأ أثناء التصدير", "err");
+    } finally {
       if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
     }
   }, 100);
@@ -6574,64 +7008,52 @@ window.exeExpExcel=async function(mode){
 window.exeExpShare=function(){
   let btn = document.getElementById('btnShare');
   let originalHtml = btn ? btn.innerHTML : '';
-  if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري التحميل...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
+  if(btn) { btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-sm"></i> جاري تجهيز المشاركة...'; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
   
   setTimeout(async () => {
     let d = new Date();
     let defaultName = `Attendance_Report_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
     let uf = document.getElementById(`expFileName`);
     let name = uf && uf.value.trim() ? uf.value.trim() : defaultName;
-    let doc=await buildPDF(); 
-    if(!doc) { if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; } return; }
-    let blob=doc.output(`blob`);
+    
+    let canvasesUrls = pdfCanvasesCache;
+    let doc = null;
+    if(canvasesUrls) {
+      doc = new jspdf.jsPDF(`p`,`mm`,`a4`);
+      let w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
+      for(let i=0; i<canvasesUrls.length; i++) {
+        if(i>0) doc.addPage();
+        doc.addImage(canvasesUrls[i], `JPEG`, 0, 0, w, h);
+      }
+    } else {
+      doc = await buildPDF(); 
+    }
 
-  if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Share){
-    try{
-      let b64=await blobToBase64(blob);
-      let tmpName=`tmp_share_${Date.now()}.pdf`;
-      let written=await window.Capacitor.Plugins.Filesystem.writeFile({path:tmpName,data:b64,directory:`CACHE`});
-      await window.Capacitor.Plugins.Share.share({
-        title:`تقرير الحضور`,
-        text:`تقرير الحضور والانصراف الموحد`,
-        url:written.uri,
-        dialogTitle:`مشاركة التقرير`
-      });
-    } catch(err){
-      if(err.name !== 'AbortError') {
-        console.warn(`Share PDF error:`,err);
-        toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل المشاركة: `+(err.message||err),`err`);
-      }
+    if(!doc) {
+      if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+      toast('تعذر إنشاء ملف PDF', 'err');
+      return;
     }
-  } else {
-    try {
-      let file = (typeof File !== 'undefined') ? new File([blob],`${name}.pdf`,{type:`application/pdf`}) : null;
-      let shared = false;
-      if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-        try {
-          await navigator.share({title:`تقرير الحضور`,files:[file]});
-          shared = true;
-        } catch(shareErr) {
-          if (shareErr.name === 'AbortError') {
-            shared = true; // User intentionally dismissed native share dialog
-          } else {
-            console.warn('Web share restricted or gesture expired, falling back to direct download:', shareErr.message || shareErr);
-          }
-        }
-      }
-      if (!shared) {
-        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
-      }
-    } catch(err) {
-      if (err.name !== 'AbortError') {
-        let url=URL.createObjectURL(blob),a=document.createElement(`a`);
-        a.href=url; a.download=`${name}.pdf`; a.click(); URL.revokeObjectURL(url);
-        toast(`تم تنزيل تقرير الـ PDF بنجاح`,`ok`);
-      }
+
+    let blob = doc.output(`blob`);
+    let fileName = `${name}.pdf`;
+
+    let shareRes = await window.ExportService.share({
+      blob,
+      fileName,
+      mimeType: 'application/pdf',
+      title: 'تقرير سجل الحضور والانصراف'
+    });
+
+    if (shareRes.success) {
+      toast('تمت المشاركة بنجاح', 'ok');
+    } else if (shareRes.errorCode === 'CANCELLED') {
+      toast('تم إلغاء المشاركة', 'info');
+    } else {
+      toast('<i class="fa-solid fa-xmark ml-1"></i> فشلت المشاركة: ' + (shareRes.errorMessage || ''), 'err');
     }
-  }
-  if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+
+    if(btn) { btn.innerHTML = originalHtml; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
   }, 100);
 };
 
