@@ -7296,23 +7296,26 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     footerImgH = Math.round(1120 * aspect);
   }
 
-  let headerBottom = 120;
+  let customHeaderHeight = 0;
   if (activeH) {
-    if (headerImgObj && customHeaderLines.length > 0) {
-      headerBottom = 15 + headerImgH + 15 + (customHeaderLines.length * 30) + 35;
-    } else if (headerImgObj) {
-      headerBottom = 15 + headerImgH + 35;
-    } else if (customHeaderLines.length > 0) {
-      headerBottom = 20 + (customHeaderLines.length * 30) + 35;
-    } else {
-      headerBottom = 120;
-    }
-  } else {
+    let currentY = 25;
     if (headerImgObj) {
-      headerBottom = 15 + headerImgH + 35;
-    } else {
-      headerBottom = 120;
+      currentY += headerImgH + 15;
     }
+    if (customHeaderLines.length > 0) {
+      currentY += (customHeaderLines.length * 30);
+      currentY += 10;
+    }
+    customHeaderHeight = currentY;
+  } else if (headerImgObj) {
+    customHeaderHeight = 15 + headerImgH + 15;
+  }
+
+  let headerBottom = 120;
+  if (customHeaderHeight > 0) {
+    headerBottom = customHeaderHeight + 95 + 15;
+  } else {
+    headerBottom = 15 + 95 + 10;
   }
   let tableY = headerBottom + 10;
 
@@ -7388,11 +7391,13 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.fillStyle = '#1B3D6D';
     ctx.fillRect(0, 0, 1200, 6);
 
+    let startY = 15;
+
     if (activeH) {
-      let currentY = 25;
+      startY = 25;
       if (headerImgObj) {
-        ctx.drawImage(headerImgObj, 40, currentY, 1120, headerImgH);
-        currentY += headerImgH + 15;
+        ctx.drawImage(headerImgObj, 40, startY, 1120, headerImgH);
+        startY += headerImgH + 15;
       }
       if (customHeaderLines.length > 0) {
         ctx.direction = 'rtl';
@@ -7400,87 +7405,54 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.fillStyle = '#1B3D6D';
         ctx.font = 'bold 22px sans-serif';
         customHeaderLines.forEach(line => {
-          ctx.fillText(line, 600, currentY + 18);
-          currentY += 30;
+          ctx.fillText(line, 600, startY + 18);
+          startY += 30;
         });
+        startY += 10;
       }
-      
-      let lineY = currentY + 8;
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(40, lineY);
-      ctx.lineTo(1160, lineY);
-      ctx.stroke();
-
-      ctx.direction = 'rtl';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
-
-      ctx.direction = 'ltr';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
-    } else {
-      if (headerImgObj) {
-        ctx.drawImage(headerImgObj, 40, 15, 1120, headerImgH);
-        let lineY = 15 + headerImgH + 8;
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(40, lineY);
-        ctx.lineTo(1160, lineY);
-        ctx.stroke();
-
-        ctx.direction = 'rtl';
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#475569';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
-
-        ctx.direction = 'ltr';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
-      } else {
-        ctx.direction = 'rtl';
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#1B3D6D';
-        ctx.font = 'bold 30px sans-serif';
-        ctx.fillText(headerTitleAr, 1160, 48);
-
-        ctx.fillStyle = '#475569';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillText(headerSubAr, 1160, 74);
-
-        ctx.direction = 'ltr';
-        ctx.textAlign = 'left';
-        ctx.fillStyle = '#1B3D6D';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.fillText(headerTitleEn, 40, 48);
-
-        ctx.fillStyle = '#475569';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(headerSubEn, 40, 74);
-
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(40, 92);
-        ctx.lineTo(1160, 92);
-        ctx.stroke();
-
-        ctx.direction = 'rtl';
-        ctx.textAlign = 'right';
-        ctx.fillStyle = '#475569';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
-
-        ctx.direction = 'ltr';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
-      }
+    } else if (headerImgObj) {
+      ctx.drawImage(headerImgObj, 40, startY, 1120, headerImgH);
+      startY += headerImgH + 15;
     }
+
+    // Always draw default dual-language header underneath
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#1B3D6D';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText(headerTitleAr, 1160, startY + 33);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(headerSubAr, 1160, startY + 59);
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#1B3D6D';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(headerTitleEn, 40, startY + 33);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(headerSubEn, 40, startY + 59);
+
+    let lineY = startY + 77;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, lineY);
+    ctx.lineTo(1160, lineY);
+    ctx.stroke();
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, lineY + 18);
   };
 
   let renderFooterOnCanvas = function(ctx, pageNum, totalPgs) {
