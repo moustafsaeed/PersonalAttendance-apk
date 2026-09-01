@@ -2850,21 +2850,23 @@ async function renderStats(){
   let sc = document.getElementById('statsSumCards');
   if(sc) {
     sc.innerHTML = `
-      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-emerald-500 hover:shadow-md transition-all">
-        <div class="text-xl sm:text-2xl font-black mb-0.5 text-emerald-600 dark:text-emerald-400">${p}</div>
-        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الحضور</div>
-      </div>
-      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-rose-500 hover:shadow-md transition-all">
-        <div class="text-xl sm:text-2xl font-black mb-0.5 text-rose-600 dark:text-rose-400">${a}</div>
-        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">أيام الغياب</div>
-      </div>
-      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 border-r-amber-500 hover:shadow-md transition-all">
-        <div class="text-xl sm:text-2xl font-black mb-0.5 text-amber-600 dark:text-amber-400">${l}</div>
-        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">مرات التأخير</div>
-      </div>
-      <div class="glass-surface p-3 sm:p-3.5 text-center rounded-2xl shadow-xs border-r-4 ${pct >= 85 ? 'border-r-indigo-500' : 'border-r-rose-500'} hover:shadow-md transition-all">
-        <div class="text-xl sm:text-2xl font-black mb-0.5 ${pct >= 85 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
-        <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">نسبة الالتزام</div>
+      <div class="flex flex-wrap justify-center gap-3 w-full">
+        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
+          <div class="text-xl font-black mb-0.5 text-emerald-600 dark:text-emerald-400">${p}</div>
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">حضور</div>
+        </div>
+        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
+          <div class="text-xl font-black mb-0.5 text-rose-600 dark:text-rose-400">${a}</div>
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">غياب</div>
+        </div>
+        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
+          <div class="text-xl font-black mb-0.5 text-amber-600 dark:text-amber-400">${l}</div>
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">تأخير</div>
+        </div>
+        <div class="glass-surface p-3 sm:p-4 text-center rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 min-w-[80px]">
+          <div class="text-xl font-black mb-0.5 ${pct >= 85 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">${pct}%</div>
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400">التزام</div>
+        </div>
       </div>
     `;
   }
@@ -4756,6 +4758,8 @@ var BUILTIN_REPORT_HEADERS = [];
 
 function getReportHeaderById(id) {
   if(!id) return null;
+  let b = BUILTIN_REPORT_HEADERS.find(x => x.id === id);
+  if(b) return b;
   return (settings.reportHeaders || []).find(x => x.id === id) || null;
 }
 
@@ -4827,8 +4831,7 @@ window.renderReportHeaders = function() {
   let list = document.getElementById('reportHeadersList');
   if(!list) return;
   
-  // Clean up any residual active builtin header IDs or 'none'
-  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_')) {
+  if (!settings.activeHeaderId || settings.activeHeaderId === 'none' || settings.activeHeaderId.startsWith('builtin_') || settings.activeHeaderId === 'custom_image') {
     settings.activeHeaderId = 'default';
     saveSettings();
   }
@@ -4838,12 +4841,12 @@ window.renderReportHeaders = function() {
   
   // Default Option
   html += `
-    <div class="flex items-center justify-between p-3 rounded-xl border ${defHChecked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all cursor-pointer" onclick="setActiveHeader('default')">
+    <div class="flex items-center justify-between p-3 rounded-xl border ${defHChecked ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-800'} transition-all cursor-pointer" onclick="setActiveHeader('default')">
       <div class="flex items-center gap-3">
         <input type="radio" name="active_header" ${defHChecked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
         <div>
-          <div class="font-bold text-sm">الترويسة الافتراضية</div>
-          <div class="text-xs text-gray-500">ترويسة قياسية ثنائية اللغة لتقارير الحضور</div>
+          <div class="font-bold text-sm text-slate-800 dark:text-slate-100">الترويسة الافتراضية</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">ترويسة قياسية ثنائية اللغة لتقارير الحضور</div>
         </div>
       </div>
     </div>
@@ -4853,14 +4856,14 @@ window.renderReportHeaders = function() {
   (settings.reportHeaders || []).forEach(h => {
     let checked = settings.activeHeaderId === h.id ? 'checked' : '';
     html += `
-      <div class="flex items-center justify-between p-3 rounded-xl border ${checked ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'} transition-all group">
+      <div class="flex items-center justify-between p-3 rounded-xl border ${checked ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-800'} transition-all group">
         <div class="flex items-center gap-3 flex-1 cursor-pointer" onclick="setActiveHeader('${h.id}')">
           <input type="radio" name="active_header" ${checked} class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-          <span class="font-bold text-sm truncate max-w-[200px]">${esc(h.name)}</span>
+          <span class="font-bold text-sm truncate max-w-[200px] text-slate-800 dark:text-slate-100">${esc(h.name)}</span>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="openHeaderModal('${h.id}'); event.stopPropagation();" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-xs"></i></button>
-          <button onclick="deleteReportHeader('${h.id}'); event.stopPropagation();" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
+          <button onclick="openHeaderModal('${h.id}'); event.stopPropagation();" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-pen text-xs"></i></button>
+          <button onclick="deleteReportHeader('${h.id}'); event.stopPropagation();" class="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors"><i class="fa-solid fa-trash text-xs"></i></button>
         </div>
       </div>
     `;
@@ -6202,18 +6205,20 @@ async function buildPDFCanvas(){
   }
 
   console.log('[PDF DEBUG] Container found. Initializing container styles');
-  // Safe positioning inside document bounds (0,0) with opacity 0.01 for Android WebView / Chromium layer compositor compatibility
-  container.className=`fixed left-0 top-0 bg-white block pointer-events-none`;
+  // Position container off-screen with opacity 1.0 so html2canvas captures at full opacity without visual flicker
+  container.className=`fixed bg-white block pointer-events-none`;
   container.style.position = 'fixed';
-  container.style.left = '0px';
+  container.style.left = '-9999px';
   container.style.top = '0px';
   container.style.width = '1200px';
   container.style.minWidth = '1200px';
   container.style.maxWidth = '1200px';
-  container.style.minHeight = '1700px';
-  container.style.opacity = '0.01';
+  container.style.minHeight = '1697px';
+  container.style.opacity = '1';
+  container.style.visibility = 'visible';
+  container.style.display = 'block';
   container.style.pointerEvents = 'none';
-  container.style.zIndex = '999999';
+  container.style.zIndex = '-99999';
   container.style.fontFamily=`'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif`;
   container.style.letterSpacing=`normal`;
   container.style.wordSpacing=`normal`;
@@ -6555,16 +6560,16 @@ async function buildPDFCanvas(){
 
   let opts = {
     backgroundColor: '#ffffff',
-    scale: 1,
-    useCORS: false,
-    allowTaint: true,
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
     logging: false,
-    imageTimeout: 5000,
+    imageTimeout: 10000,
     removeContainer: false,
-    width: container.scrollWidth || 1200,
-    height: container.scrollHeight || 1700,
-    windowWidth: Math.max(container.scrollWidth || 0, 1200),
-    windowHeight: Math.max(container.scrollHeight || 0, 1700),
+    width: 1200,
+    height: 1697,
+    windowWidth: 1200,
+    windowHeight: 1697,
     x: 0,
     y: 0
   };
@@ -6600,7 +6605,17 @@ async function buildPDFCanvas(){
      }
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
      
-     await new Promise(r => setTimeout(r, 20)); 
+     // Ensure all images (headers, footers, etc.) are 100% loaded before html2canvas rendering
+     const images = [...container.querySelectorAll('img')];
+     await Promise.all(images.map(img => {
+       if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+       return new Promise(res => {
+         img.onload = res;
+         img.onerror = res;
+         setTimeout(res, 500); // 500ms fallback safety timeout
+       });
+     }));
+     await new Promise(r => setTimeout(r, 50)); 
      
      console.log('[PDF DEBUG] PAGE START:', i+1);
      console.log('[PDF DEBUG] PAGE DOM SIZE:', {
@@ -6610,7 +6625,6 @@ async function buildPDFCanvas(){
        scrollHeight: container.scrollHeight
      });
 
-     const images = [...container.querySelectorAll('img')];
      console.log(`[PDF DEBUG] IMAGES (PAGE ${i+1}):`, images.map(img => ({
        src: img.src ? img.src.substring(0, 60) : '',
        complete: img.complete,
@@ -6810,6 +6824,16 @@ async function buildPDFCanvas(){
 
   console.log('[PDF DEBUG] H2C START (FINAL PAGE)');
   const finalImages = [...container.querySelectorAll('img')];
+  await Promise.all(finalImages.map(img => {
+    if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+    return new Promise(res => {
+      img.onload = res;
+      img.onerror = res;
+      setTimeout(res, 500);
+    });
+  }));
+  await new Promise(r => setTimeout(r, 50));
+
   console.log('[PDF DEBUG] IMAGES (FINAL PAGE):', finalImages.map(img => ({
     src: img.src ? img.src.substring(0, 60) : '',
     complete: img.complete,
@@ -7036,7 +7060,16 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   let footerContactAr = sanitizeText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
   let footerContactEn = sanitizeText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
-  let headerImgObj = await loadCanvasImage(settings.headerImage);
+  let activeH = getReportHeaderById(settings.activeHeaderId);
+  let effectiveHeaderImage = null;
+
+  if (activeH && activeH.image) {
+    effectiveHeaderImage = activeH.image;
+  } else if (settings.activeHeaderId === 'custom_image' || settings.activeHeaderId === 'default' || !settings.activeHeaderId) {
+    effectiveHeaderImage = settings.headerImage || null;
+  }
+
+  let headerImgObj = await loadCanvasImage(effectiveHeaderImage);
   let footerImgObj = await loadCanvasImage(settings.footerImage);
 
   let sumLate = 0, sumEarly = 0, sumExtra = 0;
@@ -7706,7 +7739,7 @@ window.debugSimplePDF = async function() {
 
     testElem = document.createElement('div');
     testElem.style.position = 'fixed';
-    testElem.style.left = '0px';
+    testElem.style.left = '-9999px';
     testElem.style.top = '0px';
     testElem.style.width = '600px';
     testElem.style.height = '400px';
@@ -7715,8 +7748,8 @@ window.debugSimplePDF = async function() {
     testElem.style.padding = '24px';
     testElem.style.fontSize = '20px';
     testElem.style.direction = 'rtl';
-    testElem.style.zIndex = '999999';
-    testElem.style.opacity = '0.01';
+    testElem.style.zIndex = '-99999';
+    testElem.style.opacity = '1';
     
     let nowStr = new Date().toLocaleString();
     let randNum = Math.floor(Math.random() * 899999) + 100000;
@@ -7781,13 +7814,13 @@ window.debugReportIncrementalTest = async function() {
   let createContainer = () => {
     let c = document.createElement('div');
     c.style.position = 'fixed';
-    c.style.left = '0px';
+    c.style.left = '-9999px';
     c.style.top = '0px';
     c.style.width = '1200px';
     c.style.height = '1700px';
     c.style.backgroundColor = '#ffffff';
-    c.style.zIndex = '999999';
-    c.style.opacity = '0.01';
+    c.style.zIndex = '-99999';
+    c.style.opacity = '1';
     c.style.direction = 'rtl';
     document.body.appendChild(c);
     return c;
