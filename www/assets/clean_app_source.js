@@ -6903,12 +6903,12 @@ async function buildPDF(){
   }
 }
 
-// PDF Export Adapter (Phase 11 Architectural Fix)
+// PDF Export Adapter (Phase 11 Architectural Fix & Phase 13 Design Restoration)
 window.PDFExportAdapter = {
   async generate(options) {
     options = options || {};
     if (options.forceDirect || this.isAndroidAPK()) {
-      console.log('[PDF ADAPTER] Android APK / Direct mode detected. Executing direct PDF renderer...');
+      console.log('[PDF ADAPTER] Android APK / Direct mode detected. Executing direct PDF renderer with original report design parity...');
       return await this.generatePDFDirect(options);
     } else {
       console.log('[PDF ADAPTER] Standard browser/preview detected. Executing canvas PDF renderer...');
@@ -6933,8 +6933,53 @@ window.PDFExportAdapter = {
   }
 };
 
+function drawCanvasRoundRect(ctx, x, y, w, h, r, fillStyle, strokeStyle, lineWidth, lineDash) {
+  ctx.save();
+  ctx.beginPath();
+  if (lineDash && Array.isArray(lineDash)) {
+    ctx.setLineDash(lineDash);
+  } else {
+    ctx.setLineDash([]);
+  }
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+  ctx.closePath();
+  if (fillStyle) {
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+  }
+  if (strokeStyle) {
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth || 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function loadCanvasImage(src) {
+  return new Promise((resolve) => {
+    if (!src || typeof src !== 'string' || !src.trim()) return resolve(null);
+    let img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 async function generateDirectRealReportPDF(jspdfLib, options) {
-  console.log('[DIRECT PDF] Starting real report PDF generation');
+  console.log('[DIRECT PDF] Starting real report PDF generation with full visual parity');
   
   let doc = new jspdfLib('p', 'mm', 'a4');
   console.log('[DIRECT PDF] jsPDF available');
@@ -6972,119 +7017,525 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   filtered.sort((a, b) => slashToISO(b.date).localeCompare(slashToISO(a.date)));
   console.log(`[DIRECT PDF] Data loaded: ${filtered.length} records`);
 
-  // Render report pages directly onto lightweight 2D HTML5 Canvas
-  let canvas = document.createElement('canvas');
-  canvas.width = 1200;
-  canvas.height = 1700;
-  let ctx = canvas.getContext('2d');
-  
-  let pageNum = 1;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, 1200, 1700);
-  
-  ctx.fillStyle = '#1e3a8a';
-  ctx.font = 'bold 34px sans-serif';
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'right';
-  ctx.fillText('سجل الحضور والغياب تفصيلي', 1140, 70);
-  
-  ctx.fillStyle = '#334155';
-  ctx.font = '20px sans-serif';
-  ctx.fillText(`الموظف: ${settings.name || 'غير محدد'} | المسمى: ${settings.jobTitle || 'غير محدد'}`, 1140, 120);
-  ctx.fillText(`الفترة: ${periodLabel} | تاريخ الإنشاء: ${new Date().toLocaleDateString('ar-EG')}`, 1140, 155);
-  
-  // Header Table Bar
-  ctx.fillStyle = '#1e3a8a';
-  ctx.fillRect(50, 180, 1100, 45);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillText('التاريخ واليوم', 1120, 208);
-  ctx.fillText('الحضور', 880, 208);
-  ctx.fillText('الانصراف', 730, 208);
-  ctx.fillText('العمل', 580, 208);
-  ctx.fillText('التأخير', 450, 208);
-  ctx.fillText('الإضافي', 330, 208);
-  ctx.fillText('الحالة والملاحظات', 220, 208);
-  
-  let startY = 240;
-  let rowHeight = 42;
-  let maxRowsPerPage = 31;
-  let currentRowsOnPage = 0;
+  let themePri = settings.themeColor === 'green' ? '#10b981' : '#3b82f6';
+  let repTitle = (document.getElementById('expReportTitle') && document.getElementById('expReportTitle').value.trim()) || 'تقرير الحضور والغياب';
 
-  for (let i = 0; i < filtered.length; i++) {
-    let r = filtered[i];
-    let d = new Date(slashToISO(r.date));
-    let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
+  let sanitizeText = function(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    return str.replace(/unisoft/gi, '')
+              .replace(/UniSoft/gi, '')
+              .replace(/www\.[a-z0-9-]+\.[a-z]{2,}/gi, '')
+              .replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi, '')
+              .trim();
+  };
+
+  let headerTitleAr = sanitizeText(settings.headerTitleAr || repTitle || 'سجل الحضور والغياب');
+  let headerTitleEn = sanitizeText(settings.headerTitleEn || 'Attendance & Absence Record');
+  let headerSubAr = sanitizeText(settings.headerSubAr || `الموظف: ${settings.name || '-'} | الفترة: ${periodLabel}`);
+  let headerSubEn = sanitizeText(settings.headerSubEn || `Employee: ${settings.name || '-'}`);
+  let footerContactAr = sanitizeText(settings.footerContactAr || 'تقرير آلي صادر من نظام سجل الحضور والغياب الشخصي');
+  let footerContactEn = sanitizeText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
+
+  let headerImgObj = await loadCanvasImage(settings.headerImage);
+  let footerImgObj = await loadCanvasImage(settings.footerImage);
+
+  let sumLate = 0, sumEarly = 0, sumExtra = 0;
+  let calcP = 0, calcA = 0, calcL = 0;
+  let rowDataList = [];
+  let allRowsUnits = [];
+
+  filtered.forEach(r => {
+    let d = new Date(slashToISO(r.date)), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
     let late = isPresent(r.status) ? (isLateComp ? 0 : lateMin(r.checkIn, sch.start)) : 0;
-    let extra = r.checkOut ? extraMin(r.checkOut, sch.overtimeStart) : 0;
-    
-    let dayName = d.toLocaleDateString('ar-EG', { weekday: 'short' });
-    let dateStr = `${r.date} (${dayName})`;
-    let checkInStr = r.checkIn || '-';
-    let checkOutStr = r.checkOut || '-';
-    let workStr = (r.checkIn && r.checkOut) ? `${calcWorkHours(r.checkIn, r.checkOut)} س` : '-';
-    let lateStr = late > 0 ? `${formatMin(late)}` : '-';
-    let extraStr = extra > 0 ? `${formatMin(extra)}` : '-';
-    let statusStr = r.status || 'حاضر';
-    if (r.note) statusStr += ` - ${r.note}`;
+    let early = r.checkOut ? (isEarlyComp ? 0 : earlyMin(r.checkOut, sch.end)) : 0;
+    let isHol = isHoliday(d) || !isWorkDay(d);
+    let extra = 0;
+    if (isHol && r.checkIn && r.checkOut) {
+      let [sh, sm] = (r.checkIn && r.checkIn.includes(':') ? r.checkIn : '00:00').split(':').map(Number);
+      let [eh, em] = (r.checkOut && r.checkOut.includes(':') ? r.checkOut : '00:00').split(':').map(Number);
+      extra = (eh * 60 + em) - (sh * 60 + sm);
+      if (extra < 0) extra += 1440;
+    } else if (r.checkOut) {
+      extra = extraMin(r.checkOut, sch.overtimeStart);
+    }
+    sumLate += late; sumEarly += early; sumExtra += extra;
 
-    if (currentRowsOnPage >= maxRowsPerPage) {
-      let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
-      console.log(`[DIRECT PDF] Page ${pageNum} created`);
-      
-      pageNum++;
-      doc.addPage();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 1200, 1700);
-      startY = 80;
-      currentRowsOnPage = 0;
-      
-      // Header Table Bar on new page
-      ctx.fillStyle = '#1e3a8a';
-      ctx.fillRect(50, 20, 1100, 45);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText('التاريخ واليوم', 1120, 48);
-      ctx.fillText('الحضور', 880, 48);
-      ctx.fillText('الانصراف', 730, 48);
-      ctx.fillText('العمل', 580, 48);
-      ctx.fillText('التأخير', 450, 48);
-      ctx.fillText('الإضافي', 330, 48);
-      ctx.fillText('الحالة والملاحظات', 220, 48);
+    if (isPresent(r.status)) {
+      calcP++;
+      if (late > 0) calcL++;
+    } else if (r.status === 'absent') {
+      calcA++;
     }
 
-    let y = startY + (currentRowsOnPage * rowHeight);
-    ctx.fillStyle = (i % 2 === 0) ? '#f8fafc' : '#ffffff';
-    ctx.fillRect(50, y - 28, 1100, rowHeight);
+    let lateDec = isLateComp ? 'معوّض' : (late > 0 ? formatMin(late) : '-');
+    let earlyDec = isEarlyComp ? 'معوّض' : (early > 0 ? formatMin(early) : '-');
     
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '16px sans-serif';
-    ctx.fillText(dateStr, 1120, y);
-    ctx.fillText(checkInStr, 880, y);
-    ctx.fillText(checkOutStr, 730, y);
-    ctx.fillText(workStr, 580, y);
-    ctx.fillText(lateStr, 450, y);
-    ctx.fillText(extraStr, 330, y);
-    ctx.fillText(statusStr.substring(0, 30), 220, y);
+    let sc = r.status === 'absent' ? '#ef4444' : r.status === 'تكليف سفر' ? '#a855f7' : (r.status === 'إجازة رسمية' || r.status === 'إجازة') ? '#3b82f6' : (late > 0 ? '#f59e0b' : themePri);
+    let rowBg = r.status === 'absent' ? '#fef2f2' : r.status === 'تكليف سفر' ? '#f3e8ff' : (r.status === 'إجازة رسمية' || r.status === 'إجازة') ? '#eff6ff' : (late > 0 ? '#fffbeb' : '#ffffff');
+    let rowBorder = r.status === 'absent' ? '#ef4444' : r.status === 'تكليف سفر' ? '#a855f7' : (r.status === 'إجازة رسمية' || r.status === 'إجازة') ? '#3b82f6' : (late > 0 ? '#f59e0b' : themePri);
 
-    currentRowsOnPage++;
+    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
+    let pdfNote = r.note || '';
+    if (leaveComp) {
+      let sourceDesc = formatCompSourceText(leaveComp, false);
+      let compNote = leaveComp.note ? leaveComp.note : '';
+      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+      pdfNote = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+        pdfNote = `${r.note} | ${pdfNote}`;
+      }
+    }
+
+    let statusText = r.status === 'present' ? 'حاضر' : (r.status === 'absent' ? 'غائب' : (r.status || 'حاضر'));
+    let absenceTypeText = r.status === 'absent' && r.absenceType ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '');
+
+    let noteText = settings.exportColumns.note && pdfNote ? String(pdfNote).trim() : "";
+    let absText = settings.exportColumns.absenceType && absenceTypeText ? String(absenceTypeText).trim() : "";
+    let noteLines = 1;
+    if (noteText) {
+      let explicitLines = noteText.split(/\r\n|\r|\n/);
+      noteLines = 0;
+      explicitLines.forEach(line => {
+        noteLines += Math.max(1, Math.ceil(line.length / 26));
+      });
+    }
+    let absLines = absText ? Math.max(1, Math.ceil(absText.length / 16)) : 1;
+    let maxVisualLines = Math.max(1, noteLines, absLines);
+    let rowWeight = 1.0 + (maxVisualLines - 1) * 0.65;
+    allRowsUnits.push(rowWeight);
+
+    rowDataList.push({
+      date: r.date,
+      day: DAYS[d.getDay()],
+      checkIn: r.checkIn ? fmt12(r.checkIn) : '-',
+      checkOut: r.checkOut ? fmt12(r.checkOut) : '-',
+      status: statusText,
+      late: lateDec,
+      early: earlyDec,
+      overtime: extra > 0 ? '+' + formatMin(extra) : '-',
+      absenceType: absenceTypeText,
+      note: pdfNote,
+      rowBg,
+      rowBorder,
+      statusColor: sc,
+      rowWeight,
+      maxVisualLines
+    });
+  });
+
+  let totalLateDec = formatMin(sumLate);
+  let totalEarlyDec = formatMin(sumEarly);
+  let totalExtraDec = formatMin(sumExtra);
+  let repSummary = { p: calcP, a: calcA, l: calcL };
+
+  // Table Columns Setup
+  let colDefs = [];
+  if (settings.exportColumns.date) colDefs.push({ key: 'date', label: 'التاريخ', width: 110, align: 'right' });
+  if (settings.exportColumns.day) colDefs.push({ key: 'day', label: 'اليوم', width: 85, align: 'right' });
+  if (settings.exportColumns.checkIn) colDefs.push({ key: 'checkIn', label: 'الحضور', width: 95, align: 'center' });
+  if (settings.exportColumns.checkOut) colDefs.push({ key: 'checkOut', label: 'الانصراف', width: 95, align: 'center' });
+  if (settings.exportColumns.status) colDefs.push({ key: 'status', label: 'الحالة', width: 105, align: 'right' });
+  if (settings.exportColumns.late) colDefs.push({ key: 'late', label: 'تأخير', width: 85, align: 'center' });
+  if (settings.exportColumns.early) colDefs.push({ key: 'early', label: 'مبكر', width: 85, align: 'center' });
+  if (settings.exportColumns.overtime) colDefs.push({ key: 'overtime', label: 'إضافي', width: 85, align: 'center' });
+  if (settings.exportColumns.absenceType) colDefs.push({ key: 'absenceType', label: 'نوع الغياب', width: 125, align: 'right' });
+  if (settings.exportColumns.note) colDefs.push({ key: 'note', label: 'ملاحظات', width: 250, align: 'right' });
+
+  let totalColWidth = colDefs.reduce((s, c) => s + c.width, 0);
+  let scaleCol = 1120 / Math.max(1, totalColWidth);
+  colDefs.forEach(c => c.actualWidth = Math.floor(c.width * scaleCol));
+
+  let currentX = 1160;
+  colDefs.forEach(col => {
+    col.xRight = currentX;
+    col.xLeft = currentX - col.actualWidth;
+    currentX -= col.actualWidth;
+  });
+
+  // Page Chunking logic matching buildPDFCanvas
+  let PAGE_MAX_UNITS = 31;
+  let totalUnits = allRowsUnits.reduce((a, b) => a + b, 0);
+  let numChunks = Math.max(1, Math.ceil(totalUnits / PAGE_MAX_UNITS));
+  let targetUnitsPerChunk = totalUnits / numChunks;
+
+  let pageChunks = [];
+  let currentChunk = [];
+  let currentUnits = 0;
+
+  for (let j = 0; j < rowDataList.length; j++) {
+    let u = allRowsUnits[j];
+    if (pageChunks.length < numChunks - 1 && (currentUnits >= targetUnitsPerChunk || currentUnits + u > PAGE_MAX_UNITS) && currentChunk.length > 0) {
+      pageChunks.push(currentChunk);
+      currentChunk = [];
+      currentUnits = 0;
+    } else if (currentUnits + u > PAGE_MAX_UNITS && currentChunk.length > 0) {
+      pageChunks.push(currentChunk);
+      currentChunk = [];
+      currentUnits = 0;
+    }
+    currentChunk.push(rowDataList[j]);
+    currentUnits += u;
+  }
+  if (currentChunk.length > 0) pageChunks.push(currentChunk);
+  if (pageChunks.length === 0) pageChunks.push([]);
+
+  let totalPages = pageChunks.length + 1; // Last page is summary + signatures
+
+  let renderHeaderOnCanvas = function(ctx, pageNum, totalPgs) {
+    // Top border line
+    ctx.fillStyle = '#1B3D6D';
+    ctx.fillRect(0, 0, 1200, 6);
+
+    if (headerImgObj) {
+      ctx.drawImage(headerImgObj, 40, 15, 1120, 70);
+    } else {
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#1B3D6D';
+      ctx.font = 'bold 30px sans-serif';
+      ctx.fillText(headerTitleAr, 1160, 48);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(headerSubAr, 1160, 74);
+
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#1B3D6D';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText(headerTitleEn, 40, 48);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(headerSubEn, 40, 74);
+    }
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 92);
+    ctx.lineTo(1160, 92);
+    ctx.stroke();
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, 110);
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 40, 110);
+  };
+
+  let renderFooterOnCanvas = function(ctx, pageNum, totalPgs) {
+    if (footerImgObj) {
+      ctx.drawImage(footerImgObj, 40, 1620, 1120, 50);
+      return;
+    }
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 1640);
+    ctx.lineTo(1200, 1640);
+    ctx.stroke();
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(footerContactAr, 1160, 1668);
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 600, 1668);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(footerContactEn, 40, 1668);
+  };
+
+  let canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 1697;
+  let ctx = canvas.getContext('2d');
+
+  for (let p = 0; p < pageChunks.length; p++) {
+    if (p > 0) doc.addPage();
+    let currentNum = p + 1;
+    let rows = pageChunks[p];
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1200, 1697);
+
+    renderHeaderOnCanvas(ctx, currentNum, totalPages);
+
+    // Table Header Bar
+    let tableY = 130;
+    ctx.fillStyle = themePri;
+    ctx.fillRect(40, tableY, 1120, 42);
+
+    colDefs.forEach((col, idx) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px sans-serif';
+      if (col.align === 'center') {
+        ctx.textAlign = 'center';
+        ctx.fillText(col.label, (col.xRight + col.xLeft) / 2, tableY + 27);
+      } else {
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'right';
+        ctx.fillText(col.label, col.xRight - 12, tableY + 27);
+      }
+      ctx.strokeStyle = themePri;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(col.xLeft, tableY, col.actualWidth, 42);
+    });
+
+    // Right-most border accent
+    if (colDefs.length > 0) {
+      ctx.fillStyle = themePri;
+      ctx.fillRect(colDefs[0].xRight - 5, tableY, 5, 42);
+    }
+
+    let currentY = tableY + 42;
+
+    rows.forEach((row) => {
+      let rowH = Math.floor(42 * row.rowWeight);
+
+      ctx.fillStyle = row.rowBg;
+      ctx.fillRect(40, currentY, 1120, rowH);
+
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(40, currentY, 1120, rowH);
+
+      // Right cell indicator strip
+      if (colDefs.length > 0) {
+        ctx.fillStyle = row.rowBorder;
+        ctx.fillRect(colDefs[0].xRight - 5, currentY, 5, rowH);
+      }
+
+      colDefs.forEach(col => {
+        let val = row[col.key] || '-';
+        ctx.fillStyle = col.key === 'status' ? row.statusColor : (col.key === 'late' ? '#d97706' : (col.key === 'early' ? '#dc2626' : (col.key === 'overtime' ? '#2563eb' : '#0f172a')));
+        ctx.font = (col.key === 'date' || col.key === 'status') ? 'bold 16px sans-serif' : '16px sans-serif';
+
+        if (col.align === 'center') {
+          ctx.textAlign = 'center';
+          ctx.fillText(String(val).substring(0, 20), (col.xRight + col.xLeft) / 2, currentY + 26);
+        } else if (col.key === 'note' && row.note) {
+          ctx.direction = 'rtl';
+          ctx.textAlign = 'right';
+          ctx.font = '800 16px sans-serif';
+          let explicitLines = String(row.note).split(/\r\n|\r|\n/);
+          let noteLinesArr = [];
+          explicitLines.forEach(l => {
+            if (l.length <= 26) noteLinesArr.push(l);
+            else {
+              for (let i = 0; i < l.length; i += 26) noteLinesArr.push(l.substring(i, i + 26));
+            }
+          });
+          let lineY = currentY + 24;
+          noteLinesArr.slice(0, 4).forEach(nl => {
+            ctx.fillText(nl, col.xRight - 12, lineY);
+            lineY += 20;
+          });
+        } else {
+          ctx.direction = 'rtl';
+          ctx.textAlign = 'right';
+          ctx.fillText(String(val).substring(0, 32), col.xRight - 12, currentY + 26);
+        }
+
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(col.xLeft, currentY, col.actualWidth, rowH);
+      });
+
+      currentY += rowH;
+    });
+
+    // Inline Summary Box on last records page
+    if (p === pageChunks.length - 1) {
+      let sumY = currentY + 20;
+      if (sumY + 60 <= 1610) {
+        drawCanvasRoundRect(ctx, 40, sumY, 1120, 58, 12, '#f8fafc', '#cbd5e1', 2, [6, 4]);
+
+        ctx.direction = 'rtl';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#334155';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`${periodLabel} (إجمالي):`, 1160 - 20, sumY + 36);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = themePri;
+        ctx.fillText(`حضور: ${repSummary.p}`, 880, sumY + 36);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillText(`غياب: ${repSummary.a}`, 710, sumY + 36);
+
+        ctx.fillStyle = '#d97706';
+        ctx.fillText(`تأخير: ${totalLateDec}`, 540, sumY + 36);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillText(`مبكر: ${totalEarlyDec}`, 370, sumY + 36);
+
+        ctx.fillStyle = '#059669';
+        ctx.fillText(`إضافي: ${totalExtraDec}`, 200, sumY + 36);
+      }
+    }
+
+    renderFooterOnCanvas(ctx, currentNum, totalPages);
+
+    let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+    console.log(`[DIRECT PDF] Page ${currentNum} created`);
   }
 
-  // Footer / Page Number
-  ctx.fillStyle = '#64748b';
-  ctx.font = '14px sans-serif';
-  ctx.fillText(`صفحة ${pageNum} من ${pageNum}`, 600, 1660);
+  // Final Summary & Signatures Page
+  doc.addPage();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 1200, 1697);
 
-  let dataUrlFinal = canvas.toDataURL('image/jpeg', 0.85);
-  doc.addImage(dataUrlFinal, 'JPEG', 0, 0, 210, 297);
-  console.log(`[DIRECT PDF] Page ${pageNum} created`);
-  console.log('[DIRECT PDF] Tables rendered');
-  
+  renderHeaderOnCanvas(ctx, totalPages, totalPages);
+
+  // Summary Title Card
+  let cardTopY = 130;
+  drawCanvasRoundRect(ctx, 40, cardTopY, 1120, 100, 14, '#f8fafc', '#cbd5e1', 2);
+  ctx.fillStyle = '#1B3D6D';
+  ctx.fillRect(40, cardTopY, 1120, 6);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#1B3D6D';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('ملخص الإحصائيات والاعتماد النهائي', 600, cardTopY + 48);
+
+  let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
+  let displayRepType = cleanRepTitle || repTitle;
+
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(`الموظف: ${settings.name || '-'}   |   نوع التقرير: ${displayRepType}   |   الفترة: ${periodLabel}`, 600, cardTopY + 80);
+
+  // 6 Statistics Cards Grid (3x2 Grid)
+  let statsY = cardTopY + 125;
+  let statCards = [
+    { title: 'إجمالي أيام الحضور', count: String(monthSummary.p), sub: 'يوم عمل', bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', countColor: '#16a34a', subColor: '#15803d' },
+    { title: 'إجمالي أيام الغياب', count: String(monthSummary.a), sub: 'يوم غياب', bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', countColor: '#dc2626', subColor: '#b91c1c' },
+    { title: 'أيام التأخير', count: String(monthSummary.l), sub: 'يوم به تأخير', bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', countColor: '#d97706', subColor: '#b45309' },
+    { title: 'إجمالي ساعات التأخير', count: totalLateDec, sub: 'ساعة : دقيقة', bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', countColor: '#d97706', subColor: '#b45309' },
+    { title: 'ساعات الخروج المبكر', count: totalEarlyDec, sub: 'ساعة : دقيقة', bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', countColor: '#dc2626', subColor: '#b91c1c' },
+    { title: 'إجمالي العمل الإضافي', count: totalExtraDec, sub: 'ساعة : دقيقة', bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', countColor: '#059669', subColor: '#15803d' }
+  ];
+
+  let cardW = 350, cardH = 150;
+  let gapX = 35, gapY = 24;
+
+  statCards.forEach((c, idx) => {
+    let colIdx = idx % 3; // 0, 1, 2
+    let rowIdx = Math.floor(idx / 3); // 0, 1
+
+    let cx = 1160 - (colIdx + 1) * cardW - colIdx * gapX;
+    let cy = statsY + rowIdx * (cardH + gapY);
+
+    drawCanvasRoundRect(ctx, cx, cy, cardW, cardH, 14, c.bg, c.border, 2);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = c.titleColor;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(c.title, cx + cardW / 2, cy + 34);
+
+    ctx.fillStyle = c.countColor;
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText(c.count, cx + cardW / 2, cy + 86);
+
+    ctx.fillStyle = c.subColor;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(c.sub, cx + cardW / 2, cy + 124);
+  });
+
+  // Signatures Block
+  let sigsY = statsY + 2 * cardH + gapY + 30;
+  let sigs = settings.signatures || {
+    col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col2: { show: true, title: "اعتماد المدير المباشر", label1: "رئيس القسم:", value1: "MANAGER_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
+    col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: ".......................................", label2: "التوقيع:", label3: "التاريخ:" }
+  };
+
+  let activeCols = [];
+  ['col1', 'col2', 'col3'].forEach(k => {
+    if (sigs[k] && sigs[k].show !== false) activeCols.push(sigs[k]);
+  });
+
+  if (activeCols.length > 0) {
+    let sigBoxH = 220;
+    drawCanvasRoundRect(ctx, 40, sigsY, 1120, sigBoxH, 12, '#ffffff', '#cbd5e1', 2);
+
+    // Header bar of signatures
+    drawCanvasRoundRect(ctx, 40, sigsY, 1120, 48, 12, '#f1f5f9', '#cbd5e1', 1);
+
+    let sigColW = 1120 / activeCols.length;
+
+    activeCols.forEach((col, idx) => {
+      let scx = 1160 - (idx + 1) * sigColW;
+
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 17px sans-serif';
+      ctx.fillText(col.title || 'اعتماد', scx + sigColW / 2, sigsY + 32);
+
+      let resolvedVal = col.value1 || '';
+      if (resolvedVal === 'NAME_PLACEHOLDER') resolvedVal = settings.name || '.......................................';
+      else if (resolvedVal === 'MANAGER_PLACEHOLDER') resolvedVal = settings.managerName || '.......................................';
+      if (!resolvedVal.trim()) resolvedVal = '.......................................';
+
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 14px sans-serif';
+      
+      // Label 1: Name
+      ctx.fillStyle = '#475569';
+      ctx.fillText(col.label1 || 'الاسم:', scx + sigColW - 20, sigsY + 88);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillText(resolvedVal, scx + sigColW - 100, sigsY + 88);
+
+      // Label 2: Signature
+      ctx.fillStyle = '#475569';
+      ctx.fillText(col.label2 || 'التوقيع:', scx + sigColW - 20, sigsY + 138);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('.......................................', scx + sigColW - 100, sigsY + 138);
+
+      // Label 3: Date
+      ctx.fillStyle = '#475569';
+      ctx.fillText(col.label3 || 'التاريخ:', scx + sigColW - 20, sigsY + 188);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillText(' ... / ... / 2026م', scx + sigColW - 100, sigsY + 188);
+
+      if (idx < activeCols.length - 1) {
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(scx, sigsY);
+        ctx.lineTo(scx, sigsY + sigBoxH);
+        ctx.stroke();
+      }
+    });
+  }
+
+  renderFooterOnCanvas(ctx, totalPages, totalPages);
+
+  let finalDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  doc.addImage(finalDataUrl, 'JPEG', 0, 0, 210, 297);
+  console.log(`[DIRECT PDF] Final page ${totalPages} created`);
+  console.log('[DIRECT PDF] Full report rendered successfully with design parity');
+
   let blob = doc.output('blob');
-  console.log(`[DIRECT PDF] Blob size: ${blob ? blob.size : 0}`);
+  console.log(`[DIRECT PDF] Blob size: ${blob ? blob.size : 0} bytes`);
   if (blob && blob.size > 0) {
     console.log('[DIRECT PDF] SUCCESS');
     return doc;
@@ -7479,7 +7930,7 @@ window.exeExpDownload=function(){
       let uf = document.getElementById(`expFileName`);
       let name = uf && uf.value.trim() ? uf.value.trim() : defaultName;
       
-      let canvasesUrls = pdfCanvasesCache;
+      let canvasesUrls = (window.PDFExportAdapter && window.PDFExportAdapter.isAndroidAPK()) ? null : pdfCanvasesCache;
       let doc = null;
       if(canvasesUrls) {
         let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
@@ -7729,17 +8180,21 @@ window.exeExpShare=function(){
     let uf = document.getElementById(`expFileName`);
     let name = uf && uf.value.trim() ? uf.value.trim() : defaultName;
     
-    let canvasesUrls = pdfCanvasesCache;
+    let canvasesUrls = (window.PDFExportAdapter && window.PDFExportAdapter.isAndroidAPK()) ? null : pdfCanvasesCache;
     let doc = null;
     if(canvasesUrls) {
-      doc = new jspdf.jsPDF(`p`,`mm`,`a4`);
-      let w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
-      for(let i=0; i<canvasesUrls.length; i++) {
-        if(i>0) doc.addPage();
-        doc.addImage(canvasesUrls[i], `JPEG`, 0, 0, w, h);
+      let jspdfLib = window.jspdf ? (window.jspdf.jsPDF || window.jspdf) : (typeof jspdf !== 'undefined' ? (jspdf.jsPDF || jspdf) : null);
+      if(jspdfLib) {
+        doc = new jspdfLib(`p`,`mm`,`a4`);
+        let w=doc.internal.pageSize.getWidth(), h=doc.internal.pageSize.getHeight();
+        for(let i=0; i<canvasesUrls.length; i++) {
+          if(i>0) doc.addPage();
+          doc.addImage(canvasesUrls[i], `JPEG`, 0, 0, w, h);
+        }
       }
-    } else {
-      doc = await buildPDF(); 
+    }
+    if(!doc) {
+      doc = await window.PDFExportAdapter.generate(); 
     }
 
     if(!doc) {
