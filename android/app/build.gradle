@@ -14,7 +14,7 @@ android {
         applicationId "com.personal.attendance"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.currentTimeMillis() / 1000L).toInteger()
+        versionCode 120
         versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
