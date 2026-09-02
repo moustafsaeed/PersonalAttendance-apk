@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
-// سنقوم لاحقاً بإضافة AlarmScheduler هنا
+import com.personal.attendance.notifications.NotificationScheduler;
 
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BOOT_RECEIVER";

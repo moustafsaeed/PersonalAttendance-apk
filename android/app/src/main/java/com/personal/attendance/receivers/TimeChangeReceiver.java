@@ -12,9 +12,9 @@ public class TimeChangeReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
-        if (Intent.ACTION_TIME_SET.equals(action) || 
-            Intent.ACTION_TIMEZONE_CHANGED.equals(action) || 
-            Intent.ACTION_DATE_CHANGED.equals(action)) {
+        if (android.content.Intent.ACTION_TIME_SET.equals(action) || 
+            android.content.Intent.ACTION_TIMEZONE_CHANGED.equals(action) || 
+            android.content.Intent.ACTION_DATE_CHANGED.equals(action)) {
             Log.d(TAG, "Time/Timezone changed, rescheduling...");
             NotificationScheduler.rescheduleAll(context);
         }
