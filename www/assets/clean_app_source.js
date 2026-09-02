@@ -2849,12 +2849,16 @@ window.saveTravelAssignment = async function() {
 
       cancelEditTravelAssignment();
       _monthCacheKey = '';
+      await fillAbsences();
       await renderRecords();
       renderHome();
       renderStats();
       switchTravelTab('history');
       toast(`<i class="fa-solid fa-plane-departure ml-1"></i> تم تسجيل تكليف السفر (${days} أيام) بنجاح`, `ok`);
     }
+  } catch (err) {
+    console.error("Save Travel Assignment Error:", err);
+    toast("تعذر حفظ التكليف: " + (err.message || err), "err");
   } finally {
     releaseActionLock('saveTravel');
   }
@@ -3730,42 +3734,50 @@ window.onCompSourceChange = async function(selectedDate) {
 };
 
 window.confirmCompensation = async function() {
-  if(!_activeCompTarget) return;
-  let radios = document.getElementsByName('compSourceDateRadio');
-  let selectedDate = null;
-  for(let r of radios) { if(r.checked) { selectedDate = r.value; break; } }
-  
-  if(!selectedDate) return toast('يرجى اختيار يوم الإضافي للخصم منه', 'err');
-  
-  let bal = await calcOvertimeBalance();
-  let src = (bal.extraDays || []).find(d => d.date === selectedDate);
-  if(!src) return toast('لم يتم العثور على يوم الإضافي المختار', 'err');
-  
-  if(src.remainingMinutes < _activeCompTarget.minutes) {
-    if(!confirm(`رصيد يوم ${selectedDate} المتبقي (${formatMin(src.remainingMinutes)}) أقل من المطلوب (${formatMin(_activeCompTarget.minutes)}). هل تريد المتابعة وخصم الرصيد المتوفر؟`)) {
-      return;
+  if (!acquireActionLock('confirmCompensation')) return;
+  try {
+    if(!_activeCompTarget) return;
+    let radios = document.getElementsByName('compSourceDateRadio');
+    let selectedDate = null;
+    for(let r of radios) { if(r.checked) { selectedDate = r.value; break; } }
+    
+    if(!selectedDate) return toast('يرجى اختيار يوم الإضافي للخصم منه', 'err');
+    
+    let bal = await calcOvertimeBalance();
+    let src = (bal.extraDays || []).find(d => d.date === selectedDate);
+    if(!src) return toast('لم يتم العثور على يوم الإضافي المختار', 'err');
+    
+    if(src.remainingMinutes < _activeCompTarget.minutes) {
+      if(!confirm(`رصيد يوم ${selectedDate} المتبقي (${formatMin(src.remainingMinutes)}) أقل من المطلوب (${formatMin(_activeCompTarget.minutes)}). هل تريد المتابعة وخصم الرصيد المتوفر؟`)) {
+        return;
+      }
     }
+    
+    let note = document.getElementById('compCustomNote')?.value || '';
+    
+    settings.compensations.push({
+      id: uuid(),
+      date: _activeCompTarget.date,
+      type: _activeCompTarget.type,
+      minutes: _activeCompTarget.minutes,
+      sourceDate: selectedDate,
+      note: note,
+      createdAt: new Date().toISOString()
+    });
+    saveSettings();
+    
+    closeCompModal();
+    await renderCompensation();
+    renderRecords();
+    renderHome();
+    renderStats();
+    toast(`✅ تم تعويض ${_activeCompTarget.type === 'late' ? 'التأخير' : 'الخروج المبكر'} من رصيد يوم ${selectedDate} بنجاح`, 'ok');
+  } catch (err) {
+    console.error("Confirm Compensation Error:", err);
+    toast("تعذر تأكيد التعويض: " + (err.message || err), "err");
+  } finally {
+    releaseActionLock('confirmCompensation');
   }
-  
-  let note = document.getElementById('compCustomNote')?.value || '';
-  
-  settings.compensations.push({
-    id: uuid(),
-    date: _activeCompTarget.date,
-    type: _activeCompTarget.type,
-    minutes: _activeCompTarget.minutes,
-    sourceDate: selectedDate,
-    note: note,
-    createdAt: new Date().toISOString()
-  });
-  saveSettings();
-  
-  closeCompModal();
-  await renderCompensation();
-  renderRecords();
-  renderHome();
-  renderStats();
-  toast(`✅ تم تعويض ${_activeCompTarget.type === 'late' ? 'التأخير' : 'الخروج المبكر'} من رصيد يوم ${selectedDate} بنجاح`, 'ok');
 };
 
 window.compensateLate = function(date) {
