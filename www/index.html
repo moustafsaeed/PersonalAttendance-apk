@@ -182,7 +182,7 @@
     input,
     select,
     textarea {
-      font-family: 'Cairo', sans-serif !important;
+      /* font-family: 'Cairo', sans-serif !important; */
     }
 
     button,
@@ -2165,69 +2165,69 @@
 
   <main class="px-2 sm:px-4 lg:px-6 -mt-4 relative z-10 w-full max-w-6xl mx-auto pb-36">
 
-    <div id="pg-home" class="page active w-full space-y-3 pb-16">
-      <div id="notifArea" class="space-y-2"></div>
+    <div id="pg-home" class="page active w-full space-y-4 pb-24 anim-up">
+      <div id="notifArea" class="space-y-2.5"></div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <!-- Primary Dashboard Column: User Greeting, Live Timer & Quick Punch Action Console -->
-        <div class="lg:col-span-7 space-y-3">
-          <div class="card p-0 overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+        <div class="lg:col-span-7 space-y-4">
+          <div class="card p-0 overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
             <!-- Compact Profile Header & Live Status -->
-            <div class="p-3.5 sm:p-4" style="background: var(--c-surface2)">
-              <div class="flex items-center gap-3">
+            <div class="p-4 sm:p-5" style="background: var(--c-surface2)">
+              <div class="flex items-center gap-3.5">
                 <div class="relative group shrink-0 cursor-pointer" onclick="window.triggerUserPhotoUpload()" title="إرفاق أو تغيير صورة الشخص">
                   <input type="file" id="userPhotoInput" accept="image/*" class="hidden" onchange="window.handleUserPhotoSelect(event)" />
-                  <div class="w-11 h-11 rounded-full tech-chip flex items-center justify-center text-lg font-black text-white overflow-hidden relative shadow-xs transition-all duration-200 group-hover:ring-2 group-hover:ring-indigo-400/60" id="homeAvatar">
+                  <div class="w-12 h-12 rounded-full tech-chip flex items-center justify-center text-lg font-black text-white overflow-hidden relative shadow-md transition-all duration-200 group-hover:ring-2 group-hover:ring-indigo-400/60" id="homeAvatar">
                     <span class="relative z-10" id="homeAvatarInitial">أ</span>
                     <img id="homeAvatarImg" src="" class="w-full h-full object-cover hidden absolute inset-0 z-10" alt="صورة الشخص" />
                     <div class="absolute inset-0 circuit-bg opacity-30"></div>
                   </div>
-                  <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-[9px] shadow-md border-2 border-slate-900 z-20 transition-all duration-200 group-hover:scale-110">
+                  <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-[10px] shadow-md border-2 border-slate-900 z-20 transition-all duration-200 group-hover:scale-110">
                     <i class="fa-solid fa-camera"></i>
                   </div>
-                  <div class="absolute -inset-1 rounded-full border border-emerald-500/20 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+                  <div class="absolute -inset-1 rounded-full border border-emerald-500/30 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-1.5 min-w-0">
-                    <div class="font-black text-sm text-primary truncate" id="homeGreeting">مرحباً</div>
-                    <button onclick="window.editEmployeeName()" class="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center transition-all shrink-0 cursor-pointer" title="تعديل اسم الموظف">
-                      <i class="fa-solid fa-pen text-[10px]"></i>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="font-black text-sm sm:text-base text-primary truncate" id="homeGreeting">مرحباً</div>
+                    <button onclick="window.editEmployeeName()" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center transition-all shrink-0 cursor-pointer shadow-2xs" title="تعديل اسم الموظف">
+                      <i class="fa-solid fa-pen text-[11px]"></i>
                     </button>
                   </div>
-                  <div class="text-[11px] font-bold mt-0.5 truncate" style="color:var(--text2)" id="homeSchedule"></div>
+                  <div class="text-xs font-bold mt-1 truncate" style="color:var(--text2)" id="homeSchedule"></div>
                 </div>
                 <div id="homeStatusBadge" class="shrink-0"></div>
               </div>
               <!-- Compact Today Info Row -->
-              <div id="homeTodayInfo" class="text-[11px] font-bold mt-2.5 pt-2 border-t border-slate-200/40 dark:border-slate-700/40" style="color:var(--text2)"></div>
+              <div id="homeTodayInfo" class="text-xs font-bold mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between" style="color:var(--text2)"></div>
             </div>
 
             <!-- Controls & Punch Action Area -->
-            <div class="p-3.5 sm:p-4 flex flex-col gap-2.5 border-t" style="border-color: var(--c-border)">
+            <div class="p-4 sm:p-5 flex flex-col gap-3.5 border-t border-slate-100 dark:border-slate-800/80">
               <!-- Live Timer Display -->
-              <div id="homeTimer" class="hidden text-center py-2.5 px-4 rounded-xl transition-all duration-500 border border-emerald-500/20"
+              <div id="homeTimer" class="hidden text-center py-3 px-4 rounded-2xl transition-all duration-500 border border-emerald-500/25 shadow-inner"
                 style="background:var(--theme-primary-bg)">
-                <div class="flex items-center justify-center gap-2">
-                  <span class="text-xs font-bold" style="color:var(--theme-primary)"><i class="fa-solid fa-stopwatch ml-1 animate-pulse"></i>وقت الحضور الحالي:</span>
+                <div class="flex items-center justify-center gap-2.5">
+                  <span class="text-xs font-bold" style="color:var(--theme-primary)"><i class="fa-solid fa-stopwatch ml-1.5 animate-pulse"></i>وقت الحضور الحالي:</span>
                   <span class="text-xl sm:text-2xl font-black text-number tracking-wider" style="color:var(--theme-primary)" id="timerDisplay">00:00:00</span>
                 </div>
               </div>
 
               <!-- Holiday Work Banner -->
-              <div id="holidayWorkBanner" class="hidden rounded-xl overflow-hidden" style="border:1.5px solid var(--c-info);background:var(--c-info-bg)">
-                <div class="flex items-center justify-between px-3.5 py-2.5">
-                  <div class="flex items-center gap-2">
+              <div id="holidayWorkBanner" class="hidden rounded-2xl overflow-hidden shadow-xs" style="border:1.5px solid var(--c-info);background:var(--c-info-bg)">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div class="flex items-center gap-2.5">
                     <i class="fa-solid fa-calendar-xmark text-sm" style="color:var(--c-info)"></i>
-                    <span class="text-[11px] font-black" style="color:var(--c-info)" id="holidayBannerLabel">يوم إجازة</span>
+                    <span class="text-xs font-black" style="color:var(--c-info)" id="holidayBannerLabel">يوم إجازة</span>
                   </div>
                   <button onclick="toggleHolidayWork()" id="btnWorkOnHoliday"
-                    class="text-[10px] font-black px-3 py-1.5 rounded-xl transition-all duration-200 shadow-xs"
+                    class="text-xs font-black px-3.5 py-2 rounded-xl transition-all duration-200 shadow-xs cursor-pointer hover:brightness-105"
                     style="background:var(--c-info);color:white">
-                    <i class="fa-solid fa-unlock ml-1"></i>تفعيل التسجيل
+                    <i class="fa-solid fa-unlock ml-1.5"></i>تفعيل التسجيل
                   </button>
                 </div>
-                <div id="holidayWorkActiveMsg" class="hidden px-3.5 pb-2.5">
-                  <div class="flex items-center gap-1.5 text-[10px] font-bold" style="color:var(--c-info)">
+                <div id="holidayWorkActiveMsg" class="hidden px-4 pb-3">
+                  <div class="flex items-center gap-2 text-xs font-bold" style="color:var(--c-info)">
                     <i class="fa-solid fa-circle-check"></i>
                     <span>مفعّل – دوام هذا اليوم سيُحسب كساعات إضافية</span>
                   </div>
@@ -2235,71 +2235,71 @@
               </div>
 
               <!-- Sleek Quick Check-In / Check-Out Buttons -->
-              <div class="grid grid-cols-2 gap-2.5">
-                <button onclick="doCheckIn()" id="btnCheckIn" class="btn btn-primary w-full shadow-md py-2.5 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 rounded-xl transition-all">
+              <div class="grid grid-cols-2 gap-3">
+                <button onclick="doCheckIn()" id="btnCheckIn" class="btn btn-primary w-full shadow-sm py-3 text-xs sm:text-sm font-black flex items-center justify-center gap-2 rounded-xl transition-all cursor-pointer hover:scale-[1.01] active:scale-95">
                   <i class="fa-solid fa-right-to-bracket text-base"></i><span>تسجيل حضور</span>
                 </button>
-                <button onclick="doCheckOut()" id="btnCheckOut" class="btn btn-error w-full disabled shadow-md py-2.5 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 rounded-xl transition-all" disabled>
+                <button onclick="doCheckOut()" id="btnCheckOut" class="btn btn-error w-full disabled shadow-sm py-3 text-xs sm:text-sm font-black flex items-center justify-center gap-2 rounded-xl transition-all cursor-pointer hover:scale-[1.01] active:scale-95" disabled>
                   <i class="fa-solid fa-right-from-bracket text-base"></i><span>تسجيل انصراف</span>
                 </button>
               </div>
 
               <!-- Compact Note Input -->
-              <div class="mt-0.5">
-                <textarea id="noteInput" rows="1" class="form-control text-xs rounded-xl py-2 px-3 resize-none focus:rows-2 transition-all"
+              <div>
+                <textarea id="noteInput" rows="1" class="form-control text-xs rounded-xl py-2.5 px-3.5 resize-none focus:rows-2 transition-all border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
                   placeholder="ملاحظة للحضور أو الانصراف (اختياري)..."></textarea>
               </div>
             </div>
           </div>
 
           <!-- AI Smart Tip Card -->
-          <div id="aiHomeTip" class="hidden ai-card transition-all duration-500 transform translate-y-2 opacity-0 rounded-2xl p-3">
-            <div class="flex items-start gap-2.5 relative z-10">
-              <div class="w-8 h-8 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 text-sm shrink-0 shadow-xs">
+          <div id="aiHomeTip" class="hidden ai-card transition-all duration-500 transform translate-y-2 opacity-0 rounded-2xl p-4 shadow-sm">
+            <div class="flex items-start gap-3 relative z-10">
+              <div class="w-9 h-9 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 text-sm shrink-0 shadow-2xs">
                 <i class="fa-solid fa-brain-circuit"></i>
               </div>
               <div class="flex-1">
-                <div class="flex justify-between items-center mb-0.5">
-                  <span class="ai-badge text-[10px]"><i class="fa-solid fa-bolt"></i> ذكاء البيانات</span>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="ai-badge text-[11px] font-black"><i class="fa-solid fa-bolt ml-1"></i> ذكاء البيانات</span>
                   <button onclick="this.closest('#aiHomeTip').classList.add('hidden')"
-                    class="text-slate-400 hover:text-slate-600 transition">
-                    <i class="fa-solid fa-xmark text-[10px]"></i>
+                    class="text-slate-400 hover:text-slate-600 transition cursor-pointer p-1">
+                    <i class="fa-solid fa-xmark text-xs"></i>
                   </button>
                 </div>
-                <div id="aiTipContent" class="text-xs font-bold leading-snug" style="color:var(--text)"></div>
+                <div id="aiTipContent" class="text-xs font-bold leading-relaxed" style="color:var(--text)"></div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Secondary Overview Column: Weekly Calendar & Integrated Stats Bento Card -->
-        <div class="lg:col-span-5 space-y-3">
-          <div class="card p-3.5 sm:p-4 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-3">
-            <h2 class="font-bold text-xs sm:text-sm flex items-center justify-between" style="color:var(--pri)">
-              <span class="flex items-center gap-1.5">
-                <i class="fa-solid fa-calendar-week text-indigo-500"></i> ملخص الأسبوع والإحصائيات
+        <div class="lg:col-span-5 space-y-4">
+          <div class="card p-4 sm:p-5 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-4 bg-white dark:bg-slate-900">
+            <h2 class="font-bold text-xs sm:text-sm flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800" style="color:var(--pri)">
+              <span class="flex items-center gap-2">
+                <i class="fa-solid fa-calendar-week text-indigo-500 text-base"></i> ملخص الأسبوع والإحصائيات
               </span>
             </h2>
 
             <!-- Week Days Grid -->
-            <div>
-              <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold mb-1 opacity-70" style="color:var(--text2)" id="weekDayLabels"></div>
-              <div class="grid grid-cols-7 gap-1" id="weekDays"></div>
+            <div class="space-y-1.5">
+              <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-black mb-1 opacity-80" style="color:var(--text2)" id="weekDayLabels"></div>
+              <div class="grid grid-cols-7 gap-1.5" id="weekDays"></div>
             </div>
 
             <!-- Integrated Fast Summary Stat Cards Strip -->
-            <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div class="grid grid-cols-3 gap-2">
-                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-emerald-500/15" style="background:var(--c-success-bg)" onclick="goToRecords('present')">
-                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-present-text)">أيام حضور</div>
+            <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div class="grid grid-cols-3 gap-2.5">
+                <div class="stat-card p-2.5 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-emerald-500/20 shadow-2xs" style="background:var(--c-success-bg)" onclick="goToRecords('present')">
+                  <div class="text-[10px] font-black opacity-80 mb-1" style="color:var(--stat-present-text)">أيام حضور</div>
                   <div class="stat-num text-lg font-black" style="color:var(--stat-present-text)" id="hsPresent">0</div>
                 </div>
-                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-rose-500/15" style="background:var(--c-danger-bg)" onclick="goToRecords('absent')">
-                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-absent-text)">أيام غياب</div>
+                <div class="stat-card p-2.5 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-rose-500/20 shadow-2xs" style="background:var(--c-danger-bg)" onclick="goToRecords('absent')">
+                  <div class="text-[10px] font-black opacity-80 mb-1" style="color:var(--stat-absent-text)">أيام غياب</div>
                   <div class="stat-num text-lg font-black" style="color:var(--stat-absent-text)" id="hsAbsent">0</div>
                 </div>
-                <div class="stat-card p-2 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-amber-500/15" style="background:var(--c-warning-bg)" onclick="goToRecords('late')">
-                  <div class="text-[10px] font-bold opacity-80 mb-0.5" style="color:var(--stat-late-text)">أيام تأخير</div>
+                <div class="stat-card p-2.5 text-center rounded-xl cursor-pointer hover:scale-[1.02] transition-all border border-amber-500/20 shadow-2xs" style="background:var(--c-warning-bg)" onclick="goToRecords('late')">
+                  <div class="text-[10px] font-black opacity-80 mb-1" style="color:var(--stat-late-text)">أيام تأخير</div>
                   <div class="stat-num text-lg font-black" style="color:var(--stat-late-text)" id="hsLate">0</div>
                 </div>
               </div>
@@ -2309,35 +2309,45 @@
       </div>
     </div>
 
-    <div id="pg-records" class="page w-full space-y-3 pb-24">
+    <div id="pg-records" class="page w-full space-y-4 pb-28 anim-up">
       <!-- Records Sub-Navigation Tabs (سجل الحضور vs التعويضات والرصيد) -->
-      <div class="records-nav-container">
-        <div class="records-tabs">
-          <button onclick="switchRecordsView('attendance')" id="rt-attendance" class="rec-tab active">
-            <i class="fa-solid fa-clipboard-user"></i>
+      <div class="records-nav-container pt-1 pb-1">
+        <div class="records-tabs p-1.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm max-w-lg mx-auto flex items-center gap-1.5">
+          <button onclick="switchRecordsView('attendance')" id="rt-attendance" class="rec-tab active flex-1 py-2.5 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-clipboard-user text-sm"></i>
             <span>سجل الحضور والغياب</span>
           </button>
-          <button onclick="switchRecordsView('compensation')" id="rt-compensation" class="rec-tab">
-            <i class="fa-solid fa-scale-balanced"></i>
+          <button onclick="switchRecordsView('compensation')" id="rt-compensation" class="rec-tab flex-1 py-2.5 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-scale-balanced text-sm"></i>
             <span>التعويضات والرصيد</span>
           </button>
         </div>
       </div>
 
       <!-- View 1: Attendance Records View -->
-      <div id="rv-attendance" class="rec-view space-y-2.5">
+      <div id="rv-attendance" class="rec-view space-y-3.5">
         <!-- Unified Control & Action Card (Compact High-Density Toolbar) -->
-        <div class="card p-2.5 sm:p-3 shadow-xs border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-2">
+        <div class="card p-4 sm:p-5 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-3 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800/80">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-filter"></i>
+              </div>
+              <span class="text-xs font-black text-slate-800 dark:text-slate-200">خيارات البحث والفلترة السريعة</span>
+            </div>
+            <span class="text-[10px] font-bold text-slate-400">تحديث لحظي للسجلات</span>
+          </div>
+
           <!-- Top Row: Search & Filter Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
             <!-- Search Bar -->
             <div class="relative sm:col-span-5">
-              <input type="text" id="recSearch" class="form-control text-xs pr-8 py-1.5 text-right rounded-xl transition-all shadow-xs" placeholder="بحث باليوم، التاريخ، الملاحظات..." oninput="debouncedRenderRecords()">
-              <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs" style="color:var(--text2)"></i>
+              <input type="text" id="recSearch" class="form-control text-xs pr-9 py-2 text-right rounded-xl transition-all shadow-2xs border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold" placeholder="بحث باليوم، التاريخ، أو الملاحظات..." oninput="debouncedRenderRecords()">
+              <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 text-xs" style="color:var(--text2)"></i>
             </div>
             <!-- Period Filter -->
             <div class="sm:col-span-3.5">
-              <select id="periodFilter" class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-bold" onchange="togglePeriodFilter()">
+              <select id="periodFilter" class="form-control text-xs py-2 cursor-pointer text-center rounded-xl font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" onchange="togglePeriodFilter()">
                 <option value="current">الشهر الحالي</option>
                 <option value="prev">الشهر السابق</option>
                 <option value="specific">شهر محدد</option>
@@ -2346,7 +2356,7 @@
             </div>
             <!-- Status Filter -->
             <div class="sm:col-span-3.5">
-              <select id="statusFilter" class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-bold" onchange="renderRecords()">
+              <select id="statusFilter" class="form-control text-xs py-2 cursor-pointer text-center rounded-xl font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" onchange="renderRecords()">
                 <option value="">جميع الحالات</option>
                 <option value="present">حاضر / مخصص</option>
                 <option value="absent">غائب</option>
@@ -2360,276 +2370,295 @@
 
           <!-- Conditional Specific Month / Custom Date Range -->
           <div id="filterSpecific" class="hidden relative">
-            <input type="text" id="monthIn" readonly class="form-control text-xs py-1.5 cursor-pointer text-center rounded-xl font-black bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300" onclick="openCal()" placeholder="اختر الشهر">
+            <input type="text" id="monthIn" readonly class="form-control text-xs py-2 cursor-pointer text-center rounded-xl font-black bg-indigo-50/60 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60 shadow-2xs" onclick="openCal()" placeholder="اختر الشهر">
           </div>
-          <div id="filterCustom" class="hidden grid grid-cols-2 gap-2">
-            <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs py-1.5 text-center rounded-xl" onchange="renderRecords()">
-            <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs py-1.5 text-center rounded-xl" onchange="renderRecords()">
+          <div id="filterCustom" class="hidden grid grid-cols-2 gap-2.5">
+            <input type="date" lang="en-GB" id="dateStart" class="form-control text-xs py-2 text-center rounded-xl font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" onchange="renderRecords()">
+            <input type="date" lang="en-GB" id="dateEnd" class="form-control text-xs py-2 text-center rounded-xl font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800" onchange="renderRecords()">
           </div>
 
           <!-- Bottom Row: Action Buttons & Live Summary Strip -->
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
             <!-- Action Buttons Group -->
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <button onclick="openAddRecord()" class="btn btn-primary shadow-xs px-2.5 py-1 text-xs font-black flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plus ml-1 text-[11px]"></i>إضافة سجل
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="openAddRecord()" class="btn btn-primary shadow-sm px-3 py-2 text-xs font-black flex items-center justify-center whitespace-nowrap rounded-xl gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-95 transition-all">
+                <i class="fa-solid fa-plus text-[11px]"></i>
+                <span>إضافة سجل</span>
               </button>
-              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-plane-departure ml-1 text-[11px]"></i>تكليف سفر
+              <button onclick="openTravelM()" class="btn btn-outline shadow-xs px-3 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                <i class="fa-solid fa-plane-departure text-[11px] text-purple-600 dark:text-purple-400"></i>
+                <span>تكليف سفر</span>
               </button>
-              <button onclick="window.showExportModal('excel')" id="btnExcelExp" class="border border-transparent btn btn-success shadow-xs text-white px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-excel ml-1 text-[11px]"></i>Excel
+              <button onclick="window.showExportModal('excel')" id="btnExcelExp" class="border border-emerald-200 dark:border-emerald-900/60 btn btn-success shadow-xs text-white px-3 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl gap-1.5 cursor-pointer hover:brightness-105 transition-all">
+                <i class="fa-solid fa-file-excel text-[11px]"></i>
+                <span>Excel</span>
               </button>
-              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-2.5 py-1 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl">
-                <i class="fa-solid fa-file-pdf ml-1 text-[11px]"></i>PDF
+              <button onclick="prepareExportPDF()" class="btn btn-outline shadow-xs px-3 py-2 text-xs font-bold flex items-center justify-center whitespace-nowrap rounded-xl gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                <i class="fa-solid fa-file-pdf text-[11px] text-rose-600 dark:text-rose-400"></i>
+                <span>PDF</span>
               </button>
             </div>
 
             <!-- Integrated Live Metric Badges Container -->
-            <div id="monthSum" class="hidden flex-1 sm:flex-initial">
-              <div id="monthSumC" class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-end"></div>
+            <div id="monthSum" class="hidden flex-1 sm:flex-initial flex justify-center">
+              <div id="monthSumC" class="flex items-center justify-center gap-2 flex-wrap"></div>
             </div>
           </div>
         </div>
 
         <!-- Modern Table Card with Floating Zoom Controller -->
-        <div class="card overflow-hidden relative group border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs" id="recordsZoomWrapper" style="isolation: isolate;">
+        <div class="card overflow-hidden relative group border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" id="recordsZoomWrapper" style="isolation: isolate;">
           <!-- Floating Zoom Controller (Hidden by default, reveals on pinch/zoom gesture) -->
-          <div id="recordsZoomFloatingController" class="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-2.5 py-1 rounded-xl shadow-md border border-slate-200/80 dark:border-slate-700/80 opacity-0 pointer-events-none scale-95 transition-all duration-300">
-            <span id="zoomLevelIndicator" class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 px-1 min-w-[34px] text-center">100%</span>
-            <button onclick="window.adjustZoom(-0.15)" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="تصغير">
-              <i class="fa-solid fa-magnifying-glass-minus text-[10px]"></i>
+          <div id="recordsZoomFloatingController" class="absolute top-3 left-3 z-20 flex items-center gap-1.5 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-slate-200/80 dark:border-slate-700/80 opacity-0 pointer-events-none scale-95 transition-all duration-300">
+            <span id="zoomLevelIndicator" class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 px-1 min-w-[36px] text-center">100%</span>
+            <button onclick="window.adjustZoom(-0.15)" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-2xs cursor-pointer" title="تصغير">
+              <i class="fa-solid fa-magnifying-glass-minus"></i>
             </button>
-            <button onclick="window.adjustZoom(0.15)" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="تكبير">
-              <i class="fa-solid fa-magnifying-glass-plus text-[10px]"></i>
+            <button onclick="window.adjustZoom(0.15)" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-2xs cursor-pointer" title="تكبير">
+              <i class="fa-solid fa-magnifying-glass-plus"></i>
             </button>
-            <button onclick="window.resetZoom()" class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-[10px] font-bold shadow-xs" title="إعادة ضبط">
-              <i class="fa-solid fa-rotate-left text-[10px]"></i>
+            <button onclick="window.resetZoom()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors text-xs font-bold shadow-2xs cursor-pointer" title="إعادة ضبط">
+              <i class="fa-solid fa-rotate-left"></i>
             </button>
           </div>
 
           <div id="recordsPanViewport" class="overflow-auto relative cursor-grab active:cursor-grabbing select-none" style="max-height: 64vh; touch-action: pan-x pan-y;">
             <div id="recordsZoomContent" style="transform-origin: top right; transition: transform 0.08s ease-out;">
-              <table class="table-modern" style="min-width:680px">
+              <table class="table-modern" style="min-width:720px">
                 <thead>
                   <tr>
-                    <th class="p-1.5 text-center" style="width: 36px;"><input type="checkbox" id="selectAll" onclick="window.toggleSelectAll()"></th>
-                    <th>التاريخ</th>
-                    <th id="thDay">اليوم</th>
-                    <th>الحضور</th>
-                    <th>الانصراف</th>
-                    <th>الحالة</th>
-                    <th>تأخير/مبكر</th>
-                    <th id="thExtra">إضافي</th>
-                    <th>نوع الغياب</th>
-                    <th>ملاحظة</th>
-                    <th style="text-align: center; width: 40px;"></th>
+                    <th class="p-2 text-center" style="width: 40px;"><input type="checkbox" id="selectAll" onclick="window.toggleSelectAll()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"></th>
+                    <th class="py-2.5 px-3">التاريخ</th>
+                    <th id="thDay" class="py-2.5 px-3">اليوم</th>
+                    <th class="py-2.5 px-3">الحضور</th>
+                    <th class="py-2.5 px-3">الانصراف</th>
+                    <th class="py-2.5 px-3">الحالة</th>
+                    <th class="py-2.5 px-3">تأخير/مبكر</th>
+                    <th id="thExtra" class="py-2.5 px-3">إضافي</th>
+                    <th class="py-2.5 px-3">نوع الغياب</th>
+                    <th class="py-2.5 px-3">ملاحظة</th>
+                    <th style="text-align: center; width: 44px;" class="py-2.5 px-2"></th>
                   </tr>
                 </thead>
                 <tbody id="recBody"></tbody>
               </table>
             </div>
           </div>
-          <div id="noRec" class="text-center py-12 hidden" style="color:var(--text2)">
-            <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-indigo-500/10 text-indigo-500 text-2xl mb-2.5">
+          <div id="noRec" class="text-center py-16 hidden" style="color:var(--text2)">
+            <div class="w-16 h-16 rounded-3xl mx-auto flex items-center justify-center bg-indigo-500/10 text-indigo-500 text-2xl mb-3 shadow-inner">
               <i class="fa-solid fa-clipboard-list"></i>
             </div>
             <p class="text-xs font-black text-slate-700 dark:text-slate-200">لا توجد سجلات مطابقة</p>
-            <p class="text-[11px] opacity-60 mt-0.5">جرّب تغيير خيارات البحث أو الفترة المحددة</p>
+            <p class="text-[11px] opacity-60 mt-1">جرّب تغيير خيارات البحث أو الفترة المحددة لعرض النتائج</p>
           </div>
         </div>
       </div>
 
       <!-- View 2: Clear & Detailed Compensations View (قسم التعويضات المفصل والشامل) -->
-      <div id="rv-compensation" class="rec-view hidden space-y-3">
+      <div id="rv-compensation" class="rec-view hidden space-y-4">
         <!-- Master Balance Dashboard Card -->
-        <div class="card p-3.5 sm:p-4 shadow-xs border border-slate-200/80 dark:border-slate-800 rounded-2xl">
-          <div class="flex items-center justify-between mb-3 border-b pb-2.5 border-slate-100 dark:border-slate-800">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+        <div class="card p-4 sm:p-5 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
+          <div class="flex items-center justify-between mb-4 border-b pb-3 border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-sm shadow-sm bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                 <i class="fa-solid fa-scale-balanced"></i>
               </div>
               <div>
                 <h2 class="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-100">لوحة رصيد وتعويضات الساعات الإضافية</h2>
-                <p class="text-[10px] text-slate-400 font-bold">إدارة مفصلة ودقيقة لساعات الإضافي المكتسبة، الخصومات، والتعويضات</p>
+                <p class="text-[11px] text-slate-400 font-bold mt-0.5">إدارة مفصلة ودقيقة لساعات الإضافي المكتسبة، الخصومات، والتعويضات الرسمية</p>
               </div>
             </div>
           </div>
 
           <!-- Dynamic 3-Metrics Balance Overview Grid -->
-          <div id="otBalanceCardMaster" class="mb-3">
+          <div id="otBalanceCardMaster" class="mb-4">
             <!-- Rendered by renderCompensation() -->
           </div>
 
           <!-- Quick Action Buttons Row -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button onclick="openOTLeaveM()" class="btn btn-primary w-full py-2.5 shadow-xs text-xs font-black flex items-center justify-center gap-2 rounded-xl">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button onclick="openOTLeaveM()" class="btn btn-primary w-full py-3 shadow-sm text-xs font-black flex items-center justify-center gap-2 rounded-xl cursor-pointer hover:scale-[1.01] active:scale-95 transition-all">
               <i class="fa-solid fa-calendar-plus text-xs"></i>
               <span>أخذ إجازة / خصم من رصيد الإضافي</span>
             </button>
-            <button onclick="openTravelM()" class="btn btn-outline w-full py-2.5 text-xs font-bold flex items-center justify-center gap-2 rounded-xl">
-              <i class="fa-solid fa-plane-departure text-xs"></i>
+            <button onclick="openTravelM()" class="btn btn-outline w-full py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+              <i class="fa-solid fa-plane-departure text-xs text-purple-600 dark:text-purple-400"></i>
               <span>تسجيل تكليف سفر</span>
             </button>
           </div>
         </div>
 
         <!-- Categorized Details & Sub-Tabs -->
-        <div class="card p-0 overflow-hidden shadow-xs border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+        <div class="card p-0 overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
           <!-- Sub-tabs bar -->
-          <div class="flex gap-1 p-2 border-b overflow-x-auto border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-            <button id="compTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <div class="flex gap-1.5 p-2.5 border-b overflow-x-auto border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+            <button id="compTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
               <i class="fa-solid fa-star text-amber-500 text-xs"></i>
               <span>أيام الإضافي المكتسبة</span>
             </button>
-            <button id="compTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
               <i class="fa-solid fa-clock-rotate-left text-amber-600 text-xs"></i>
               <span>التأخيرات الصباحية</span>
             </button>
-            <button id="compTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
               <i class="fa-solid fa-person-walking-arrow-right text-red-500 text-xs"></i>
               <span>الخروج المبكر</span>
             </button>
-            <button id="compTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer">
+            <button id="compTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
               <i class="fa-solid fa-list-check text-blue-500 text-xs"></i>
               <span>سجل العمليات والخصم</span>
             </button>
           </div>
 
           <!-- Dynamic List Container -->
-          <div id="compListContainer" class="comp-list-container p-3 space-y-2.5 max-h-[480px] overflow-y-auto">
+          <div id="compListContainer" class="comp-list-container p-4 space-y-3 max-h-[500px] overflow-y-auto">
             <!-- Rendered by renderCompensationList() -->
           </div>
         </div>
       </div>
     </div>
 
-    <div id="pg-stats" class="page w-full space-y-3 pb-24">
+    <div id="pg-stats" class="page w-full space-y-4 pb-28 anim-up">
       <!-- Top Control & Scope Selector -->
-      <div class="card p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5 w-full sm:w-auto">
-          <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+      <div class="card p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3.5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <div class="w-11 h-11 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shadow-2xs">
             <i class="fa-solid fa-chart-simple"></i>
           </div>
           <div>
-            <h2 class="font-black text-sm text-slate-800 dark:text-slate-100">تحليلات الأداء والدوام</h2>
-            <p id="statsSubtitle" class="text-[11px] font-bold text-slate-400">ملخص دقيق لمؤشرات الحضور والانضباط</p>
+            <h2 class="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100">تحليلات الأداء والدوام</h2>
+            <p id="statsSubtitle" class="text-xs font-bold text-slate-400 mt-0.5">ملخص دقيق لمؤشرات الحضور والانضباط</p>
           </div>
         </div>
 
         <!-- Scope Pill Selector -->
-        <div class="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl w-full sm:w-auto border border-slate-200/50 dark:border-slate-700/50">
-          <button id="statsScopeMonthBtn" onclick="window.setStatsScope('month')" class="flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs">
-            <i class="fa-regular fa-calendar-days ml-1"></i> الشهر الحالي
+        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl w-full sm:w-auto border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+          <button id="statsScopeMonthBtn" onclick="window.setStatsScope('month')" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm">
+            <i class="fa-regular fa-calendar-days ml-1.5"></i> الشهر الحالي
           </button>
-          <button id="statsScopeYearBtn" onclick="window.setStatsScope('year')" class="flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800">
-            <i class="fa-solid fa-calendar-check ml-1"></i> إجمالي السنة
+          <button id="statsScopeYearBtn" onclick="window.setStatsScope('year')" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 dark:text-slate-400 hover:text-slate-800">
+            <i class="fa-solid fa-calendar-check ml-1.5"></i> إجمالي السنة
           </button>
         </div>
       </div>
 
       <!-- KPI Summary Cards Grid -->
-      <div id="statsSumCards" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5"></div>
+      <div id="statsSumCards" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
 
       <!-- Charts Row: Doughnut Distribution & Trend / Comparison -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- Distribution Chart Card -->
-        <div class="card p-4 flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-chart-pie text-indigo-500"></i> توزيع حالات الدوام
+        <div class="card p-5 flex flex-col justify-between shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+          <div class="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <span class="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-indigo-500 text-sm"></i> توزيع حالات الدوام
             </span>
-            <span id="statsPieBadge" class="text-[10px] font-black px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">نسب مئوية</span>
+            <span id="statsPieBadge" class="text-[10px] font-black px-2.5 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">نسب مئوية</span>
           </div>
-          <div class="relative flex items-center justify-center p-2 min-h-[170px]">
-            <canvas id="pieChart" style="max-height: 165px; width: 100%;"></canvas>
+          <div class="relative flex items-center justify-center p-3 min-h-[190px]">
+            <canvas id="pieChart" style="max-height: 180px; width: 100%;"></canvas>
           </div>
         </div>
 
         <!-- Trend / Bar Breakdown Card -->
-        <div class="card p-4 flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-chart-line text-emerald-500"></i> مسار ونشاط الدوام
+        <div class="card p-5 flex flex-col justify-between shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+          <div class="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <span class="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-emerald-500 text-sm"></i> مسار ونشاط الدوام
             </span>
-            <span id="statsTrendBadge" class="text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">على مدار العام</span>
+            <span id="statsTrendBadge" class="text-[10px] font-black px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">على مدار العام</span>
           </div>
-          <div class="relative flex items-center justify-center p-2 min-h-[170px]">
-            <canvas id="trendChart" style="max-height: 165px; width: 100%;"></canvas>
+          <div class="relative flex items-center justify-center p-3 min-h-[190px]">
+            <canvas id="trendChart" style="max-height: 180px; width: 100%;"></canvas>
           </div>
         </div>
       </div>
 
       <!-- Detailed Breakdown & Balance Metrics (Compact Bento Grid) -->
-      <div class="card p-4">
-        <div class="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-          <h3 class="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-            <i class="fa-solid fa-gauge-high text-amber-500"></i> تفاصيل الساعات والأرصدة
+      <div class="card p-5 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <h3 class="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-gauge-high text-amber-500 text-base"></i> تفاصيل الساعات والأرصدة
           </h3>
-          <span class="text-[10px] font-bold text-slate-400">حساب آلي دقيق</span>
+          <span class="text-[11px] font-bold text-slate-400">حساب آلي دقيق ومحدث</span>
         </div>
-        <div id="personalRecords" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5"></div>
+        <div id="personalRecords" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
       </div>
     </div>
 
-    <div id="pg-settings" class="page w-full pb-24 space-y-3">
-      <div class="settings-nav-container">
-        <div class="settings-tabs">
-          <button onclick="switchSetTab('account')" id="st-account" class="set-tab active"><i
-              class="fa-solid fa-user"></i> <span>الحساب</span></button>
-          <button onclick="switchSetTab('schedule')" id="st-schedule" class="set-tab"><i class="fa-solid fa-clock"></i>
-            <span>الدوام</span></button>
-          <button onclick="switchSetTab('data')" id="st-data" class="set-tab"><i class="fa-solid fa-table-list"></i>
-            <span>البيانات</span></button>
-          <button onclick="switchSetTab('compensation');renderCompensation();" id="st-compensation" class="set-tab"><i
-              class="fa-solid fa-scale-balanced"></i>
-            <span>التعويضات</span></button>
-          <button onclick="switchSetTab('backup')" id="st-backup" class="set-tab"><i class="fa-solid fa-cloud"></i>
-            <span>النسخ</span></button>
-          <button onclick="switchSetTab('system')" id="st-system" class="set-tab"><i
-              class="fa-solid fa-shield-halved"></i> <span>النظام</span></button>
+    <div id="pg-settings" class="page w-full pb-28 space-y-4 anim-up">
+      <div class="settings-nav-container pt-1 pb-2">
+        <div class="settings-tabs p-1.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm max-w-2xl mx-auto grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+          <button onclick="switchSetTab('account')" id="st-account" class="set-tab active py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-user text-sm"></i>
+            <span>الحساب</span>
+          </button>
+          <button onclick="switchSetTab('schedule')" id="st-schedule" class="set-tab py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-clock text-sm"></i>
+            <span>الدوام</span>
+          </button>
+          <button onclick="switchSetTab('data')" id="st-data" class="set-tab py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-table-list text-sm"></i>
+            <span>البيانات</span>
+          </button>
+          <button onclick="switchSetTab('compensation');renderCompensation();" id="st-compensation" class="set-tab py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-scale-balanced text-sm"></i>
+            <span>التعويضات</span>
+          </button>
+          <button onclick="switchSetTab('backup')" id="st-backup" class="set-tab py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-cloud text-sm"></i>
+            <span>النسخ</span>
+          </button>
+          <button onclick="switchSetTab('system')" id="st-system" class="set-tab py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <i class="fa-solid fa-shield-halved text-sm"></i>
+            <span>النظام</span>
+          </button>
         </div>
       </div>
 
-      <div id="settings-content-wrapper" class="settings-content">
+      <div id="settings-content-wrapper" class="settings-content space-y-4">
 
         <!-- Tab 1: Account -->
-        <div id="sp-account" class="set-pane space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div id="sp-account" class="set-pane space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Personal Info Card -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-id-card"></i>
                 </div>
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">المعلومات الشخصية</h3>
+                <div>
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">المعلومات الشخصية</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">بيانات الموظف والجهة التابع لها</p>
+                </div>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-3">
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">اسم الموظف</label>
-                  <input type="text" id="setName" placeholder="اكتب اسمك..." class="form-control text-xs rounded-xl" onchange="saveName()">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">اسم الموظف</label>
+                  <input type="text" id="setName" placeholder="اكتب اسمك..." class="form-control text-xs rounded-xl py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold shadow-2xs" onchange="saveName()">
                 </div>
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">القسم / الإدارة</label>
-                  <input type="text" id="setDepartment" placeholder="مثال: إدارة الموارد..." class="form-control text-xs rounded-xl" onchange="saveDepartment()">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">القسم / الإدارة</label>
+                  <input type="text" id="setDepartment" placeholder="مثال: إدارة الموارد..." class="form-control text-xs rounded-xl py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold shadow-2xs" onchange="saveDepartment()">
                 </div>
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">رئيس القسم / المدير المباشر</label>
-                  <input type="text" id="setManagerName" placeholder="اسم رئيس القسم..." class="form-control text-xs rounded-xl" onchange="saveManagerName()">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">رئيس القسم / المدير المباشر</label>
+                  <input type="text" id="setManagerName" placeholder="اسم رئيس القسم..." class="form-control text-xs rounded-xl py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold shadow-2xs" onchange="saveManagerName()">
                 </div>
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">صورة الشخص (الهوية)</label>
-                  <div class="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800">
-                    <div class="w-10 h-10 rounded-full tech-chip flex items-center justify-center text-sm font-black text-white overflow-hidden relative shrink-0 shadow-xs" id="setAccountAvatar">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">صورة الشخص (الهوية)</label>
+                  <div class="flex items-center gap-3.5 p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+                    <div class="w-11 h-11 rounded-full tech-chip flex items-center justify-center text-sm font-black text-white overflow-hidden relative shrink-0 shadow-sm" id="setAccountAvatar">
                       <span id="setAccountAvatarInitial">أ</span>
                       <img id="setAccountAvatarImg" src="" class="w-full h-full object-cover hidden absolute inset-0 z-10" alt="صورة الشخص" />
                     </div>
                     <div class="flex-1 min-w-0">
-                      <div class="text-[11px] font-bold text-slate-700 dark:text-slate-300">صورة الصفحة الرئيسية</div>
+                      <div class="text-xs font-black text-slate-800 dark:text-slate-200">صورة الصفحة الرئيسية</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">تظهر في ترويسة التطبيق</div>
                     </div>
-                    <button onclick="window.openUserPhotoModal()" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs">
+                    <button onclick="window.openUserPhotoModal()" type="button" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-sm">
                       <i class="fa-solid fa-camera"></i>
-                      <span>تغيير الصورة</span>
+                      <span>تغيير</span>
                     </button>
                   </div>
                 </div>
@@ -2637,37 +2666,54 @@
             </div>
 
             <!-- Appearance & Fonts Card -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-palette"></i>
                 </div>
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">المظهر والخطوط</h3>
-              </div>
-              <div class="space-y-2.5">
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">خط التقارير والملاحظات</label>
-                  <div class="flex items-center gap-1.5">
-                    <select id="noteFontIn" class="form-control text-xs rounded-xl flex-1 font-bold" onchange="saveNoteFont()">
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">المظهر والخطوط</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">تخصيص الخطوط والألوان العامة</p>
+                </div>
+              </div>
+              <div class="space-y-3.5">
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-400">حجم خط التطبيق</label>
+                    <span id="fontSizeVal" class="text-xs font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-md">100%</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-[10px] text-slate-400 font-bold">صغير (85%)</span>
+                    <input type="range" id="fontSizeSlider" min="0.85" max="1.35" step="0.05" value="1.0" class="flex-1 accent-blue-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg" oninput="saveFontSizeScale()">
+                    <span class="text-[10px] text-slate-400 font-bold">كبير (135%)</span>
+                    <button onclick="resetFontSizeScale()" class="btn btn-outline text-[11px] px-2.5 py-1.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="إعادة الضبط">
+                      <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">خط التقارير والملاحظات</label>
+                  <div class="flex items-center gap-2">
+                    <select id="noteFontIn" class="form-control text-xs rounded-xl flex-1 font-bold py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs" onchange="saveNoteFont()">
                       <option value="Cairo">Cairo (الافتراضي)</option>
                       <option value="Amiri">Amiri</option>
                       <option value="Tajawal">Tajawal</option>
                     </select>
-                    <button onclick="document.getElementById('fontUploader').click()" class="btn btn-outline text-xs px-2.5 py-1.5 rounded-xl" title="رفع خط مخصص">
-                      <i class="fa-solid fa-plus"></i>
+                    <button onclick="document.getElementById('fontUploader').click()" class="btn btn-outline text-xs px-3.5 py-2.5 rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800" title="رفع خط مخصص">
+                      <i class="fa-solid fa-plus text-xs"></i>
                     </button>
                     <input type="file" id="fontUploader" class="hidden" accept=".ttf,.otf,.woff2" onchange="handleFontUpload(this)">
                   </div>
-                  <div id="customFontsStatus" class="p-2 text-[10px] font-bold hidden rounded-lg mt-1 bg-slate-50 dark:bg-slate-800/50 text-slate-500"></div>
+                  <div id="customFontsStatus" class="p-2.5 text-[11px] font-bold hidden rounded-xl mt-1.5 bg-slate-50 dark:bg-slate-800/60 text-slate-500 border border-slate-200 dark:border-slate-700"></div>
                 </div>
                 <div>
-                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 block">السمة اللونية للواجهة</label>
-                  <div class="grid grid-cols-2 gap-2">
-                    <button onclick="setThemeColor('blue')" class="btn btn-outline py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 border-blue-500/20 bg-blue-50/30 dark:bg-blue-900/10">
-                      <i class="fa-solid fa-tint"></i> أزرق عصري
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 block">السمة اللونية للواجهة</label>
+                  <div class="grid grid-cols-2 gap-3">
+                    <button onclick="setThemeColor('blue')" class="btn btn-outline py-3 px-4 text-xs font-black rounded-xl flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 border-blue-500/30 bg-blue-50/40 dark:bg-blue-900/10 cursor-pointer shadow-2xs hover:scale-[1.02] transition-all">
+                      <i class="fa-solid fa-tint text-sm"></i> أزرق عصري
                     </button>
-                    <button onclick="setThemeColor('green')" class="btn btn-outline py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-900/10">
-                      <i class="fa-solid fa-leaf"></i> أخضر كلاسيكي
+                    <button onclick="setThemeColor('green')" class="btn btn-outline py-3 px-4 text-xs font-black rounded-xl flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-900/10 cursor-pointer shadow-2xs hover:scale-[1.02] transition-all">
+                      <i class="fa-solid fa-leaf text-sm"></i> أخضر كلاسيكي
                     </button>
                   </div>
                 </div>
@@ -2677,219 +2723,219 @@
         </div>
 
         <!-- Tab 2: Schedule -->
-        <div id="sp-schedule" class="set-pane hidden space-y-3">
+        <div id="sp-schedule" class="set-pane hidden space-y-4">
           <!-- Base Schedule Card -->
-          <div class="settings-section p-3.5 space-y-3">
-            <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-              <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+          <div class="settings-section p-4 sm:p-5 space-y-4 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+            <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-2xs">
                 <i class="fa-solid fa-business-time"></i>
               </div>
               <div>
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">ساعات الدوام الأساسي</h3>
-                <p class="text-[10px] text-slate-400 font-bold">تحديد مواعيد الحضور والانصراف وبداية الإضافي</p>
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">ساعات الدوام الأساسي</h3>
+                <p class="text-[10px] text-slate-400 font-bold mt-0.5">تحديد مواعيد الحضور والانصراف وبداية الإضافي</p>
               </div>
             </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">بداية الدوام</label>
-                <input type="time" lang="en-GB" id="baseStartIn" class="form-control text-xs text-center rounded-xl font-black" onchange="saveBaseSchedule()">
+                <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">بداية الدوام</label>
+                <input type="time" lang="en-GB" id="baseStartIn" class="form-control text-xs text-center rounded-xl font-black py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs" onchange="saveBaseSchedule()">
               </div>
               <div>
-                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">نهاية الدوام</label>
-                <input type="time" lang="en-GB" id="baseEndIn" class="form-control text-xs text-center rounded-xl font-black" onchange="saveBaseSchedule()">
+                <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">نهاية الدوام</label>
+                <input type="time" lang="en-GB" id="baseEndIn" class="form-control text-xs text-center rounded-xl font-black py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs" onchange="saveBaseSchedule()">
               </div>
               <div>
-                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">بداية الإضافي (افتراضي)</label>
-                <input type="time" lang="en-GB" id="baseOvertimeStartIn" class="form-control text-xs text-center rounded-xl font-black" onchange="saveBaseSchedule()">
+                <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">بداية الإضافي (افتراضي)</label>
+                <input type="time" lang="en-GB" id="baseOvertimeStartIn" class="form-control text-xs text-center rounded-xl font-black py-2.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs" onchange="saveBaseSchedule()">
               </div>
             </div>
 
-            <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div class="flex items-center justify-between mb-1.5">
-                <label class="text-[11px] font-black text-slate-700 dark:text-slate-300">أيام الدوام في الأسبوع</label>
+            <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-black text-slate-800 dark:text-slate-200">أيام الدوام في الأسبوع</label>
                 <span class="text-[10px] text-slate-400 font-bold">* المظلل يعتبر إجازة أسبوعية</span>
               </div>
-              <div class="grid grid-cols-7 gap-1 text-center text-xs font-black" id="wdPicker"></div>
+              <div class="grid grid-cols-7 gap-2 text-center text-xs font-black" id="wdPicker"></div>
             </div>
           </div>
 
           <!-- Exceptions & Schedules Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Specific Day Times -->
-            <div class="settings-section p-3 space-y-2">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h4 class="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <div class="settings-section p-4 space-y-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <h4 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <i class="fa-solid fa-clock-rotate-left text-indigo-500"></i> أوقات لأيام محددة
                 </h4>
               </div>
-              <div id="daySchedsList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+              <div id="daySchedsList" class="space-y-2 max-h-52 overflow-y-auto"></div>
             </div>
 
             <!-- Monthly Schedules -->
-            <div class="settings-section p-3 space-y-2">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h4 class="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <div class="settings-section p-4 space-y-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <h4 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <i class="fa-solid fa-calendar-days text-amber-500"></i> جداول شهرية
                 </h4>
-                <button onclick="openSchedModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg">
-                  <i class="fa-solid fa-plus"></i>
+                <button onclick="openSchedModal()" class="btn btn-outline text-xs px-2.5 py-1.5 rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <i class="fa-solid fa-plus text-xs"></i>
                 </button>
               </div>
-              <div id="schedList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+              <div id="schedList" class="space-y-2 max-h-52 overflow-y-auto"></div>
             </div>
 
             <!-- Holidays -->
-            <div class="settings-section p-3 space-y-2">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h4 class="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <div class="settings-section p-4 space-y-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <h4 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
                   <i class="fa-solid fa-umbrella-beach text-teal-500"></i> إجازات رسمية
                 </h4>
-                <button onclick="openHolModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg text-teal-600 border-teal-500/30">
-                  <i class="fa-solid fa-plus"></i>
+                <button onclick="openHolModal()" class="btn btn-outline text-xs px-2.5 py-1.5 rounded-xl text-teal-600 border-teal-500/30 cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <i class="fa-solid fa-plus text-xs"></i>
                 </button>
               </div>
-              <div id="holList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+              <div id="holList" class="space-y-2 max-h-52 overflow-y-auto"></div>
             </div>
           </div>
         </div>
 
         <!-- Tab 3: Data (PDF + Types) -->
-        <div id="sp-data" class="set-pane hidden space-y-3">
+        <div id="sp-data" class="set-pane hidden space-y-4">
           <!-- Headers & Footers Row -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="settings-section p-3.5 space-y-2">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-heading text-indigo-500"></i> ترويسات التقارير
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="settings-section p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <i class="fa-solid fa-heading text-indigo-500 text-base"></i> ترويسات التقارير
                 </h3>
-                <div class="flex items-center gap-1.5">
-                  <button onclick="uploadCustomHeaderImage()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" style="display: none;">
-                    <i class="fa-solid fa-image ml-1"></i>رفع صورة
+                <div class="flex items-center gap-2">
+                  <button onclick="uploadCustomHeaderImage()" class="btn btn-outline text-xs px-2.5 py-1.5 rounded-xl text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer shadow-2xs" style="display: none;">
+                    <i class="fa-solid fa-image ml-1.5"></i>رفع صورة
                   </button>
-                  <button onclick="openHeaderModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg">
-                    <i class="fa-solid fa-plus ml-1"></i>جديد
+                  <button onclick="openHeaderModal()" class="btn btn-outline text-xs px-3 py-1.5 rounded-xl cursor-pointer shadow-2xs">
+                    <i class="fa-solid fa-plus ml-1.5"></i>جديد
                   </button>
                 </div>
               </div>
-              <div id="reportHeadersList" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto"></div>
+              <div id="reportHeadersList" class="flex flex-col gap-2 max-h-48 overflow-y-auto"></div>
             </div>
 
-            <div class="settings-section p-3.5 space-y-2">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-shoe-prints text-amber-500"></i> تذييلات التقارير
+            <div class="settings-section p-4 sm:p-5 space-y-3 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <i class="fa-solid fa-shoe-prints text-amber-500 text-base"></i> تذييلات التقارير
                 </h3>
-                <button onclick="openFooterModal()" class="btn btn-outline text-xs px-2 py-0.5 rounded-lg">
-                  <i class="fa-solid fa-plus ml-1"></i>جديد
+                <button onclick="openFooterModal()" class="btn btn-outline text-xs px-3 py-1.5 rounded-xl cursor-pointer shadow-2xs">
+                  <i class="fa-solid fa-plus ml-1.5"></i>جديد
                 </button>
               </div>
-              <div id="reportFootersList" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto"></div>
+              <div id="reportFootersList" class="flex flex-col gap-2 max-h-48 overflow-y-auto"></div>
             </div>
           </div>
 
           <!-- Signatures Configuration Card -->
-          <div class="settings-section p-3.5 space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs">
+          <div class="settings-section p-4 sm:p-5 space-y-4 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-signature"></i>
                 </div>
                 <div>
-                  <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">إعدادات التوقيع والاعتماد (أسفل التقرير)</h3>
-                  <p class="text-[10px] text-slate-400 font-bold">تخصيص أعمدة التواقيع الإلكترونية والمسميات</p>
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">إعدادات التوقيع والاعتماد (أسفل التقرير)</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">تخصيص أعمدة التواقيع الإلكترونية والمسميات</p>
                 </div>
               </div>
-              <button onclick="saveSignatureSettings()" class="btn btn-primary text-xs px-3 py-1.5 rounded-xl font-black">
-                <i class="fa-solid fa-save ml-1"></i> حفظ التواقيع
+              <button onclick="saveSignatureSettings()" class="btn btn-primary text-xs px-4 py-2 rounded-xl font-black cursor-pointer shadow-sm hover:scale-[1.02] transition-all">
+                <i class="fa-solid fa-save ml-1.5"></i> حفظ التواقيع
               </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
               <!-- Column 1 -->
-              <div class="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 space-y-2">
-                <div class="flex justify-between items-center pb-1 border-b border-slate-200/60 dark:border-slate-800">
+              <div class="p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/60 space-y-2.5 shadow-2xs">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/80">
                   <span class="text-xs font-black text-indigo-600 dark:text-indigo-400">العمود الأول</span>
-                  <label class="flex items-center gap-1 text-[11px] font-bold cursor-pointer">
+                  <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer">
                     <span>إظهار</span>
-                    <input type="checkbox" id="sig_show1" class="toggle-switch" style="width:36px; height:20px;">
+                    <input type="checkbox" id="sig_show1" class="toggle-switch" style="width:38px; height:22px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title1" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: توقيع الموظف)">
-                <input type="text" id="sig_lbl1" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: الاسم:)">
-                <input type="text" id="sig_val1" class="form-control text-xs rounded-lg" placeholder="اسم الموظف (فارغ = تلقائي من الإعدادات)">
-                <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
-                  <img id="sig_img_preview_col1" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
-                  <div class="flex items-center justify-center gap-1">
-                    <button id="sig_img_add_col1" onclick="openSigPad('col1')" class="btn btn-outline text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
-                    <button id="sig_img_clear_col1" onclick="clearSignature('col1')" class="hidden btn bg-red-100 text-red-600 text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-trash"></i></button>
+                <input type="text" id="sig_title1" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="عنوان العمود (مثال: توقيع الموظف)">
+                <input type="text" id="sig_lbl1" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="تسمية الحقل (مثال: الاسم:)">
+                <input type="text" id="sig_val1" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="اسم الموظف (فارغ = تلقائي)">
+                <div class="p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center bg-slate-50/30 dark:bg-slate-900/30">
+                  <img id="sig_img_preview_col1" class="hidden mx-auto mb-2" style="max-height: 40px; object-fit: contain;" />
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button id="sig_img_add_col1" onclick="openSigPad('col1')" class="btn btn-outline text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
+                    <button id="sig_img_clear_col1" onclick="clearSignature('col1')" class="hidden btn bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-trash"></i></button>
                   </div>
                 </div>
               </div>
 
               <!-- Column 2 -->
-              <div class="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 space-y-2">
-                <div class="flex justify-between items-center pb-1 border-b border-slate-200/60 dark:border-slate-800">
+              <div class="p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/60 space-y-2.5 shadow-2xs">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/80">
                   <span class="text-xs font-black text-indigo-600 dark:text-indigo-400">العمود الثاني</span>
-                  <label class="flex items-center gap-1 text-[11px] font-bold cursor-pointer">
+                  <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer">
                     <span>إظهار</span>
-                    <input type="checkbox" id="sig_show2" class="toggle-switch" style="width:36px; height:20px;">
+                    <input type="checkbox" id="sig_show2" class="toggle-switch" style="width:38px; height:22px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title2" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: اعتماد المدير المباشر)">
-                <input type="text" id="sig_lbl2" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: رئيس القسم:)">
-                <input type="text" id="sig_val2" class="form-control text-xs rounded-lg" placeholder="اسم المدير (فارغ = تلقائي من الإعدادات)">
-                <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
-                  <img id="sig_img_preview_col2" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
-                  <div class="flex items-center justify-center gap-1">
-                    <button id="sig_img_add_col2" onclick="openSigPad('col2')" class="btn btn-outline text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
-                    <button id="sig_img_clear_col2" onclick="clearSignature('col2')" class="hidden btn bg-red-100 text-red-600 text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-trash"></i></button>
+                <input type="text" id="sig_title2" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="عنوان العمود (مثال: اعتماد المدير)">
+                <input type="text" id="sig_lbl2" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="تسمية الحقل (مثال: رئيس القسم:)">
+                <input type="text" id="sig_val2" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="اسم المدير (فارغ = تلقائي)">
+                <div class="p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center bg-slate-50/30 dark:bg-slate-900/30">
+                  <img id="sig_img_preview_col2" class="hidden mx-auto mb-2" style="max-height: 40px; object-fit: contain;" />
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button id="sig_img_add_col2" onclick="openSigPad('col2')" class="btn btn-outline text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
+                    <button id="sig_img_clear_col2" onclick="clearSignature('col2')" class="hidden btn bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-trash"></i></button>
                   </div>
                 </div>
               </div>
 
               <!-- Column 3 -->
-              <div class="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 space-y-2">
-                <div class="flex justify-between items-center pb-1 border-b border-slate-200/60 dark:border-slate-800">
+              <div class="p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/60 space-y-2.5 shadow-2xs">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700/80">
                   <span class="text-xs font-black text-indigo-600 dark:text-indigo-400">العمود الثالث</span>
-                  <label class="flex items-center gap-1 text-[11px] font-bold cursor-pointer">
+                  <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer">
                     <span>إظهار</span>
-                    <input type="checkbox" id="sig_show3" class="toggle-switch" style="width:36px; height:20px;">
+                    <input type="checkbox" id="sig_show3" class="toggle-switch" style="width:38px; height:22px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title3" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: الموارد البشرية)">
-                <input type="text" id="sig_lbl3" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: مسؤول الموارد:)">
-                <input type="text" id="sig_val3" class="form-control text-xs rounded-lg" placeholder="اسم المسؤول أو الجهة المعتمدة">
-                <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
-                  <img id="sig_img_preview_col3" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
-                  <div class="flex items-center justify-center gap-1">
-                    <button id="sig_img_add_col3" onclick="openSigPad('col3')" class="btn btn-outline text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
-                    <button id="sig_img_clear_col3" onclick="clearSignature('col3')" class="hidden btn bg-red-100 text-red-600 text-[10px] py-1 px-2 rounded-lg"><i class="fa-solid fa-trash"></i></button>
+                <input type="text" id="sig_title3" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="عنوان العمود (مثال: الموارد البشرية)">
+                <input type="text" id="sig_lbl3" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="تسمية الحقل (مثال: مسؤول الموارد:)">
+                <input type="text" id="sig_val3" class="form-control text-xs rounded-xl py-2 font-bold border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" placeholder="اسم المسؤول أو الجهة">
+                <div class="p-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center bg-slate-50/30 dark:bg-slate-900/30">
+                  <img id="sig_img_preview_col3" class="hidden mx-auto mb-2" style="max-height: 40px; object-fit: contain;" />
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button id="sig_img_add_col3" onclick="openSigPad('col3')" class="btn btn-outline text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-signature ml-1"></i>توقيع</button>
+                    <button id="sig_img_clear_col3" onclick="clearSignature('col3')" class="hidden btn bg-red-100 text-red-600 text-xs py-1.5 px-3 rounded-xl cursor-pointer"><i class="fa-solid fa-trash"></i></button>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Signature Date Options -->
-            <div class="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/10 space-y-3 mt-3">
-              <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+            <div class="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/60 space-y-3 shadow-2xs">
+              <div class="flex items-center gap-2.5 mb-1">
+                <div class="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
                   <i class="fa-solid fa-calendar-day"></i>
                 </div>
                 <span class="text-xs font-black text-slate-800 dark:text-slate-200">تاريخ التوقيع والاعتماد للتقارير</span>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">تحديد صيغة التاريخ</label>
-                  <select id="sig_date_type" onchange="window.updateSigDateFields()" class="form-control text-xs rounded-xl py-2.5">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">تحديد صيغة التاريخ</label>
+                  <select id="sig_date_type" onchange="window.updateSigDateFields()" class="form-control text-xs rounded-xl py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 font-bold">
                     <option value="today">تاريخ التصدير التلقائي (تاريخ اليوم)</option>
                     <option value="custom">تاريخ مخصص من التقويم</option>
                     <option value="none">توقيف / إخفاء التاريخ بالكامل</option>
                   </select>
                 </div>
                 <div id="sig_custom_date_wrap" class="hidden">
-                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">اختر التاريخ المطلوب</label>
-                  <input type="date" id="sig_custom_date" class="form-control text-xs rounded-xl py-2.5">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">اختر التاريخ المطلوب</label>
+                  <input type="date" id="sig_custom_date" class="form-control text-xs rounded-xl py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 font-bold">
                 </div>
               </div>
             </div>
@@ -2897,40 +2943,40 @@
           </div>
 
           <!-- Custom Statuses & PDF Columns Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Custom Types & Statuses -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-tags text-amber-500"></i> التصنيفات المخصصة
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <i class="fa-solid fa-tags text-amber-500 text-base"></i> التصنيفات المخصصة
                 </h3>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-3">
                 <div>
-                  <div class="flex justify-between items-center mb-1">
-                    <span class="text-[11px] font-bold text-slate-500">أنواع الغياب</span>
-                    <button onclick="openAbsModal()" class="text-[10px] font-bold text-amber-600 hover:underline">+ إضافة</button>
+                  <div class="flex justify-between items-center mb-1.5">
+                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400">أنواع الغياب</span>
+                    <button onclick="openAbsModal()" class="text-xs font-black text-amber-600 hover:underline cursor-pointer">+ إضافة نوع</button>
                   </div>
-                  <div id="absList" class="flex flex-wrap gap-1.5"></div>
+                  <div id="absList" class="flex flex-wrap gap-2"></div>
                 </div>
-                <div class="pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                  <div class="flex justify-between items-center mb-1">
-                    <span class="text-[11px] font-bold text-slate-500">حالات الحضور</span>
-                    <button onclick="openStatusModal()" class="text-[10px] font-bold text-indigo-600 hover:underline">+ إضافة</button>
+                <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div class="flex justify-between items-center mb-1.5">
+                    <span class="text-xs font-bold text-slate-600 dark:text-slate-400">حالات الحضور</span>
+                    <button onclick="openStatusModal()" class="text-xs font-black text-indigo-600 hover:underline cursor-pointer">+ إضافة حالة</button>
                   </div>
-                  <div id="statusList" class="flex flex-wrap gap-1.5"></div>
+                  <div id="statusList" class="flex flex-wrap gap-2"></div>
                 </div>
               </div>
             </div>
 
             <!-- PDF Columns Export -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <i class="fa-solid fa-file-pdf text-rose-500"></i> أعمدة التصدير PDF
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <i class="fa-solid fa-file-pdf text-rose-500 text-base"></i> أعمدة التصدير PDF
                 </h3>
               </div>
-              <div class="flex flex-wrap gap-1.5" id="pdfColumnsChips">
+              <div class="flex flex-wrap gap-2" id="pdfColumnsChips">
                 <label class="setting-chip"><input type="checkbox" id="ec_date" class="hidden" onchange="syncChips();saveExportCols()">التاريخ</label>
                 <label class="setting-chip"><input type="checkbox" id="ec_day" class="hidden" onchange="syncChips();saveExportCols()">يوم الأسبوع</label>
                 <label class="setting-chip"><input type="checkbox" id="ec_checkIn" class="hidden" onchange="syncChips();saveExportCols()">الحضور</label>
@@ -2947,113 +2993,117 @@
         </div>
 
         <!-- Tab 4: Overtime Compensation -->
-        <div id="sp-compensation" class="set-pane hidden space-y-3">
-          <div class="settings-section p-3.5 space-y-2.5">
-            <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-              <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+        <div id="sp-compensation" class="set-pane hidden space-y-4">
+          <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+            <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-2xs">
                 <i class="fa-solid fa-scale-balanced"></i>
               </div>
               <div>
-                <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">رصيد وتعويض ساعات الإضافي</h3>
-                <p class="text-[10px] text-slate-400 font-bold">متابعة الأرصدة المكتسبة وسجل المقاصة</p>
+                <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">رصيد وتعويض ساعات الإضافي</h3>
+                <p class="text-[10px] text-slate-400 font-bold mt-0.5">متابعة الأرصدة المكتسبة وسجل المقاصة</p>
               </div>
             </div>
             
-            <div id="otBalanceCard" class="ot-balance-card mb-2">
+            <div id="otBalanceCard" class="ot-balance-card mb-3">
               <!-- Content generated dynamically -->
             </div>
 
             <div class="flex gap-2">
-              <button onclick="openOTLeaveM()" class="btn btn-primary w-full py-2 text-xs font-black flex items-center justify-center gap-2 rounded-xl">
-                <i class="fa-solid fa-calendar-plus"></i> أخذ إجازة من الإضافي
+              <button onclick="openOTLeaveM()" class="btn btn-primary w-full py-3 text-xs font-black flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-sm hover:scale-[1.01] transition-all">
+                <i class="fa-solid fa-calendar-plus text-sm"></i> أخذ إجازة من الإضافي
               </button>
             </div>
           </div>
 
-          <div class="settings-section p-0 overflow-hidden space-y-0">
+          <div class="settings-section p-0 overflow-hidden shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 space-y-0">
             <!-- Sub-tabs within compensation -->
-            <div class="flex gap-1 p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-              <button id="settingsCompTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-1.5 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1">
+            <div class="flex gap-1.5 p-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+              <button id="settingsCompTabBtn-overtime" data-comp-tab="overtime" onclick="switchCompSubTab('overtime')" class="btn-sub-tab active flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
                 <i class="fa-solid fa-star text-amber-500 text-xs"></i> <span>أيام الإضافي</span>
               </button>
-              <button id="settingsCompTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-1.5 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1">
+              <button id="settingsCompTabBtn-late" data-comp-tab="late" onclick="switchCompSubTab('late')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
                 <i class="fa-solid fa-clock-rotate-left text-amber-600 text-xs"></i> <span>التأخيرات</span>
               </button>
-              <button id="settingsCompTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-1.5 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1">
+              <button id="settingsCompTabBtn-early" data-comp-tab="early" onclick="switchCompSubTab('early')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
                 <i class="fa-solid fa-person-walking-arrow-right text-rose-500 text-xs"></i> <span>الخروج المبكر</span>
               </button>
-              <button id="settingsCompTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-1.5 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1">
+              <button id="settingsCompTabBtn-history" data-comp-tab="history" onclick="switchCompSubTab('history')" class="btn-sub-tab flex-1 py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all">
                 <i class="fa-solid fa-list-check text-blue-500 text-xs"></i> <span>سجل العمليات</span>
               </button>
             </div>
 
             <!-- List container -->
-            <div id="settingsCompListContainer" class="comp-list-container p-3 max-h-[380px] overflow-y-auto">
+            <div id="settingsCompListContainer" class="comp-list-container p-4 max-h-[420px] overflow-y-auto space-y-2.5">
               <!-- Lists generated dynamically -->
             </div>
           </div>
         </div>
 
         <!-- Tab 5: Backup & Sync -->
-        <div id="sp-backup" class="set-pane hidden space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div id="sp-backup" class="set-pane hidden space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Auto Sync Settings -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-4 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-cloud-arrow-up"></i>
                 </div>
                 <div>
-                  <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">المزامنة التلقائية والجدولة</h3>
-                  <p class="text-[10px] text-slate-400 font-bold">نسخ احتياطي محلي وسحابي دوري</p>
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">المزامنة التلقائية والجدولة</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">نسخ احتياطي محلي وسحابي دوري</p>
                 </div>
               </div>
 
               <div id="googleAccountArea" class="empty:hidden"></div>
 
-              <div class="space-y-2">
-                <label class="flex items-center justify-between p-2 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" for="autoBackupCB">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-hard-drive text-emerald-500 text-xs"></i>
+              <div class="space-y-2.5">
+                <label class="flex items-center justify-between p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer shadow-2xs transition-all" for="autoBackupCB">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xs">
+                      <i class="fa-solid fa-hard-drive"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">نسخ تلقائي (محلي)</div>
-                      <div class="text-[10px] text-slate-400">حفظ نسخة داخل مجلد التطبيق</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">حفظ نسخة داخل مجلد التطبيق</div>
                     </div>
                   </div>
-                  <input type="checkbox" id="autoBackupCB" class="toggle-switch" onchange="toggleAutoBackup()">
+                  <input type="checkbox" id="autoBackupCB" class="toggle-switch" onchange="toggleAutoBackup()" style="width:38px; height:22px;">
                 </label>
 
-                <label class="flex items-center justify-between p-2 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" for="cloudAutoSyncCB">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-brands fa-google-drive text-blue-500 text-xs"></i>
+                <label class="flex items-center justify-between p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer shadow-2xs transition-all" for="cloudAutoSyncCB">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center text-xs">
+                      <i class="fa-brands fa-google-drive"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">مزامنة سحابية (Drive)</div>
-                      <div class="text-[10px] text-slate-400">حفظ بأمان في حسابك</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">حفظ بأمان في حسابك</div>
                     </div>
                   </div>
-                  <input type="checkbox" id="cloudAutoSyncCB" class="toggle-switch" onchange="toggleCloudAutoSync()">
+                  <input type="checkbox" id="cloudAutoSyncCB" class="toggle-switch" onchange="toggleCloudAutoSync()" style="width:38px; height:22px;">
                 </label>
               </div>
 
-              <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                <span class="text-[11px] font-black text-slate-700 dark:text-slate-300 block">جدول التنفيذ الدوري</span>
-                <div class="grid grid-cols-2 gap-2">
+              <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <span class="text-xs font-black text-slate-800 dark:text-slate-200 block">جدول التنفيذ الدوري</span>
+                <div class="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label class="text-[10px] font-bold text-slate-400 mb-1 block">التكرار</label>
-                    <select id="backupIntervalIn" onchange="updateBackupFieldsVisibility();saveBackupSettings()" class="form-control text-xs rounded-xl font-bold">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">التكرار</label>
+                    <select id="backupIntervalIn" onchange="updateBackupFieldsVisibility();saveBackupSettings()" class="form-control text-xs rounded-xl font-bold py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800">
                       <option value="daily">يومياً</option>
                       <option value="weekly">أسبوعياً</option>
                       <option value="monthly">شهرياً</option>
                     </select>
                   </div>
                   <div>
-                    <label class="text-[10px] font-bold text-slate-400 mb-1 block">الوقت (24h)</label>
-                    <input type="time" id="backupTimeIn" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl text-center font-black" dir="ltr">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">الوقت (24h)</label>
+                    <input type="time" id="backupTimeIn" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl text-center font-black py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" dir="ltr">
                   </div>
                 </div>
                 <div id="backupWeeklyWrap" class="hidden">
-                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">يوم التنفيذ</label>
-                  <select id="backupDayIn" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl font-bold">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">يوم التنفيذ</label>
+                  <select id="backupDayIn" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl font-bold py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800">
                     <option value="0">الأحد</option>
                     <option value="1">الاثنين</option>
                     <option value="2">الثلاثاء</option>
@@ -3064,52 +3114,52 @@
                   </select>
                 </div>
                 <div id="backupMonthlyWrap" class="hidden">
-                  <label class="text-[10px] font-bold text-slate-400 mb-1 block">يوم الشهر (1-28)</label>
-                  <input type="number" id="backupDateIn" min="1" max="28" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl text-center font-black">
+                  <label class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">يوم الشهر (1-28)</label>
+                  <input type="number" id="backupDateIn" min="1" max="28" onchange="saveBackupSettings()" class="form-control text-xs rounded-xl text-center font-black py-2.5 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800">
                 </div>
               </div>
             </div>
 
             <!-- Manual Backup & Restore -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-4 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-arrows-rotate"></i>
                 </div>
                 <div>
-                  <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">العمليات اليدوية والاستعادة</h3>
-                  <p class="text-[10px] text-slate-400 font-bold">تصدير واستيراد قواعد البيانات</p>
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">العمليات اليدوية والاستعادة</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">تصدير واستيراد قواعد البيانات</p>
                 </div>
               </div>
 
-              <div class="space-y-2">
-                <button onclick="backupData('all')" class="btn btn-primary w-full py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5">
-                  <i class="fa-solid fa-download"></i> تحميل نسخة كاملة للجهاز
+              <div class="space-y-2.5">
+                <button onclick="backupData('all')" class="btn btn-primary w-full py-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all">
+                  <i class="fa-solid fa-download text-sm"></i> تحميل نسخة كاملة للجهاز
                 </button>
-                <button onclick="syncToGoogleDrive()" class="btn btn-secondary w-full py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5">
-                  <i class="fa-brands fa-google-drive"></i> رفع نسخة فورية لـ Drive
+                <button onclick="syncToGoogleDrive()" class="btn btn-secondary w-full py-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all">
+                  <i class="fa-brands fa-google-drive text-sm"></i> رفع نسخة فورية لـ Drive
                 </button>
-                <div class="grid grid-cols-2 gap-2">
-                  <button onclick="backupData('settings')" class="btn btn-outline py-1.5 text-[11px] font-bold rounded-xl">إعدادات فقط</button>
-                  <button onclick="backupData('records')" class="btn btn-outline py-1.5 text-[11px] font-bold rounded-xl">سجلات فقط</button>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <button onclick="backupData('settings')" class="btn btn-outline py-2.5 text-xs font-bold rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">إعدادات فقط</button>
+                  <button onclick="backupData('records')" class="btn btn-outline py-2.5 text-xs font-bold rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">سجلات فقط</button>
                 </div>
               </div>
 
-              <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                <button onclick="browseCloudBackups()" class="btn w-full py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 bg-slate-800 text-white dark:bg-slate-700">
-                  <i class="fa-solid fa-cloud-arrow-down"></i> استعادة من السحابة
+              <div class="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                <button onclick="browseCloudBackups()" class="btn w-full py-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 bg-slate-800 text-white dark:bg-slate-700 cursor-pointer shadow-sm hover:scale-[1.01] transition-all">
+                  <i class="fa-solid fa-cloud-arrow-down text-sm"></i> استعادة من السحابة
                 </button>
-                <div class="grid grid-cols-2 gap-2">
-                  <button onclick="document.getElementById('restF').click()" class="btn btn-outline py-1.5 text-[11px] font-bold rounded-xl">
-                    <i class="fa-solid fa-upload ml-1"></i> ملف محلي
+                <div class="grid grid-cols-2 gap-2.5">
+                  <button onclick="document.getElementById('restF').click()" class="btn btn-outline py-2.5 text-xs font-bold rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i class="fa-solid fa-upload ml-1.5"></i> ملف محلي
                   </button>
-                  <button onclick="restoreAutoBackup()" class="btn btn-outline py-1.5 text-[11px] font-bold rounded-xl">
-                    <i class="fa-solid fa-clock-rotate-left ml-1"></i> التلقائية
+                  <button onclick="restoreAutoBackup()" class="btn btn-outline py-2.5 text-xs font-bold rounded-xl cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i class="fa-solid fa-clock-rotate-left ml-1.5"></i> التلقائية
                   </button>
                   <input type="file" id="restF" class="hidden" accept=".json,.txt,.backup,*" onchange="restoreData(this)">
                 </div>
-                <button onclick="shareBackup()" class="btn btn-outline w-full py-1.5 text-xs font-bold rounded-xl text-purple-600 border-purple-500/30">
-                  <i class="fa-solid fa-share-nodes ml-1"></i> إرسال نسخة مشاركة
+                <button onclick="shareBackup()" class="btn btn-outline w-full py-2.5 text-xs font-bold rounded-xl text-purple-600 border-purple-500/30 cursor-pointer shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <i class="fa-solid fa-share-nodes ml-1.5"></i> إرسال نسخة مشاركة
                 </button>
               </div>
             </div>
@@ -3117,70 +3167,80 @@
         </div>
 
         <!-- Tab 6: System -->
-        <div id="sp-system" class="set-pane hidden space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div id="sp-system" class="set-pane hidden space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Security & Preferences Card -->
-            <div class="settings-section p-3.5 space-y-2.5">
-              <div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-shield-halved"></i>
                 </div>
                 <div>
-                  <h3 class="text-xs font-black text-slate-800 dark:text-slate-200">الأمان والتفضيلات</h3>
-                  <p class="text-[10px] text-slate-400 font-bold">خيارات الحماية والتنبيهات المباشرة</p>
+                  <h3 class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">الأمان والتفضيلات</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">خيارات الحماية والتنبيهات المباشرة</p>
                 </div>
               </div>
 
-              <div class="space-y-1">
-                <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer" for="themeToggleCB">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-circle-half-stroke text-blue-500 text-xs"></i>
+              <div class="space-y-2">
+                <label class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer border border-slate-200/60 dark:border-slate-800 transition-all shadow-2xs" for="themeToggleCB">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-xs">
+                      <i class="fa-solid fa-circle-half-stroke"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">الوضع الليلي</div>
-                      <div class="text-[10px] text-slate-400">تبديل بين المظهر الفاتح والداكن</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">تبديل بين المظهر الفاتح والداكن</div>
                     </div>
                   </div>
-                  <input type="checkbox" id="themeToggleCB" class="toggle-switch" onchange="toggleTheme()">
+                  <input type="checkbox" id="themeToggleCB" class="toggle-switch" onchange="toggleTheme()" style="width:38px; height:22px;">
                 </label>
 
-                <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer border-t border-slate-100 dark:border-slate-800" for="biometricLockCB">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-fingerprint text-purple-500 text-xs"></i>
+                <label class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer border border-slate-200/60 dark:border-slate-800 transition-all shadow-2xs" for="biometricLockCB">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xs">
+                      <i class="fa-solid fa-fingerprint"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">قفل بالبصمة الحيوية</div>
-                      <div class="text-[10px] text-slate-400">طلب البصمة لفتح التطبيق</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">طلب البصمة لفتح التطبيق</div>
                     </div>
                   </div>
-                  <input type="checkbox" id="biometricLockCB" class="toggle-switch" onchange="toggleBiometricLock()">
+                  <input type="checkbox" id="biometricLockCB" class="toggle-switch" onchange="toggleBiometricLock()" style="width:38px; height:22px;">
                 </label>
 
-                <div class="flex items-center justify-between p-2 border-t border-slate-100 dark:border-slate-800">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-bell text-amber-500 text-xs"></i>
+                <div class="flex items-center justify-between p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-xs">
+                      <i class="fa-solid fa-bell"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">إشعار قبل الدوام</div>
-                      <div class="text-[10px] text-slate-400">دقائق قبل الموعد (0 للإلغاء)</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">دقائق قبل الموعد (0 للإلغاء)</div>
                     </div>
                   </div>
-                  <input type="number" id="alertOffsetIn" class="form-control text-xs text-center rounded-xl font-bold" style="max-width: 65px; padding: 0.35rem;" min="0" onchange="saveAlertSettings()">
+                  <input type="number" id="alertOffsetIn" class="form-control text-xs text-center rounded-xl font-bold py-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" style="width: 75px;" min="0" onchange="saveAlertSettings()">
                 </div>
 
-                <div class="flex items-center justify-between p-2 border-t border-slate-100 dark:border-slate-800">
-                  <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-volume-high text-emerald-500 text-xs"></i>
+                <div class="flex items-center justify-between p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xs">
+                      <i class="fa-solid fa-volume-high"></i>
+                    </div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">التنبيه الصوتي للبصمة</div>
-                      <div class="text-[10px] text-slate-400">صوت جهاز البصمة ونطق الحالة</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">صوت جهاز البصمة ونطق الحالة</div>
                     </div>
                   </div>
-                  <div class="flex items-center gap-1.5">
-                    <select id="voiceFeedbackIn" class="form-control text-xs rounded-xl font-bold" style="max-width: 110px; padding: 0.35rem;" onchange="saveVoiceSettings()">
+                  <div class="flex items-center gap-2">
+                    <select id="voiceFeedbackIn" class="form-control text-xs rounded-xl font-bold py-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800" style="max-width: 120px;" onchange="saveVoiceSettings()">
                       <option value="none">بدون</option>
-                      <option value="female">صوت نسائي (طبيعي)</option>
-                      <option value="male">صوت رجالي (طبيعي)</option>
+                      <option value="zkteco">ZKTeco</option>
+                      <option value="hikvision">Hikvision</option>
+                      <option value="anviz">Anviz</option>
+                      <option value="granding">Granding</option>
                     </select>
-                    <button type="button" onclick="testVoicePreview()" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-lg font-bold flex items-center gap-1 transition-all" title="استماع لتجربة الصوت">
-                      <i class="fa-solid fa-volume-high text-[10px]"></i>
+                    <button type="button" onclick="testVoicePreview()" class="px-2.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl font-bold flex items-center gap-1 transition-all cursor-pointer" title="استماع لتجربة الصوت">
+                      <i class="fa-solid fa-volume-high text-xs"></i>
                       <span>تجربة</span>
                     </button>
                   </div>
@@ -3189,40 +3249,40 @@
             </div>
 
             <!-- Danger Zone Card -->
-            <div class="settings-section p-3.5 space-y-2.5 border-rose-200/60 dark:border-rose-900/30">
-              <div class="flex items-center gap-2 border-b border-rose-100 dark:border-rose-900/40 pb-2">
-                <div class="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xs">
+            <div class="settings-section p-4 sm:p-5 space-y-3.5 bg-white dark:bg-slate-900 shadow-sm border border-rose-200/60 dark:border-rose-900/40 rounded-2xl">
+              <div class="flex items-center gap-3 border-b border-rose-100 dark:border-rose-900/40 pb-3">
+                <div class="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center text-sm shadow-2xs">
                   <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
                 <div>
-                  <h3 class="text-xs font-black text-rose-600 dark:text-rose-400">إدارة البيانات ومنطقة الخطر</h3>
-                  <p class="text-[10px] text-slate-400 font-bold">خيارات التهيئة وتفريغ السجلات</p>
+                  <h3 class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400">إدارة البيانات ومنطقة الخطر</h3>
+                  <p class="text-[10px] text-slate-400 font-bold mt-0.5">خيارات التهيئة وتفريغ السجلات</p>
                 </div>
               </div>
 
-              <div class="space-y-1.5">
-                <button onclick="generateFakeYearData()" class="btn btn-outline w-full py-1.5 text-xs font-bold rounded-xl text-emerald-600 border-emerald-500/30 flex items-center justify-center gap-1.5">
-                  <i class="fa-solid fa-magic"></i> إنشاء سجلات تجريبية (سنة كاملة)
+              <div class="space-y-2.5">
+                <button onclick="generateFakeYearData()" class="btn btn-outline w-full py-2.5 text-xs font-bold rounded-xl text-emerald-600 border-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                  <i class="fa-solid fa-magic text-sm"></i> إنشاء سجلات تجريبية (سنة كاملة)
                 </button>
-                <button onclick="clearRecs()" class="btn btn-outline w-full py-1.5 text-xs font-bold rounded-xl text-amber-600 border-amber-500/30">
+                <button onclick="clearRecs()" class="btn btn-outline w-full py-2.5 text-xs font-bold rounded-xl text-amber-600 border-amber-500/30 cursor-pointer shadow-2xs hover:bg-amber-50 dark:hover:bg-amber-950/30">
                   تفريغ كافة السجلات الحالية
                 </button>
-                <button onclick="resetSettings()" class="btn btn-outline w-full py-1.5 text-xs font-bold rounded-xl text-blue-600 border-blue-500/30">
+                <button onclick="resetSettings()" class="btn btn-outline w-full py-2.5 text-xs font-bold rounded-xl text-blue-600 border-blue-500/30 cursor-pointer shadow-2xs hover:bg-blue-50 dark:hover:bg-blue-950/30">
                   إعادة الافتراضيات للإعدادات
                 </button>
-                <button onclick="clearAll()" class="btn btn-error w-full py-2 text-xs font-black rounded-xl flex items-center justify-center gap-1.5">
-                  <i class="fa-solid fa-trash"></i> مسح التطبيق كاملاً (تهيئة شاملة)
+                <button onclick="clearAll()" class="btn btn-error w-full py-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:scale-[1.01] transition-all">
+                  <i class="fa-solid fa-trash text-sm"></i> مسح التطبيق كاملاً (تهيئة شاملة)
                 </button>
               </div>
 
               <!-- About App Tile -->
-              <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
-                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors" onclick="openAboutM()">
-                  <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-serif font-black text-sm">!</div>
+              <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors border border-slate-200/80 dark:border-slate-700 shadow-2xs" onclick="openAboutM()">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-serif font-black text-sm shadow-2xs">!</div>
                     <div>
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">حول التطبيق</div>
-                      <div class="text-[10px] text-slate-400">الإصدار وبيانات المطور والترخيص</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">الإصدار وبيانات المطور والترخيص</div>
                     </div>
                   </div>
                   <i class="fa-solid fa-angle-left text-slate-400 text-xs"></i>

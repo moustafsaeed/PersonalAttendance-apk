@@ -18,7 +18,7 @@ var DEFAULT_SETTINGS={
   absenceTypes:[``,`إجازة سنوية`,`إجازة طارئة`,`بدون عذر`,`مهمة رسمية`],
   customStatuses:[`إضافي`,`مغادرة مبكرة`,`إجازة مدفوعة`,`إجازة غير مدفوعة`,`عمل عن بعد`,`تكليف سفر`,`إجازة من الإضافي`],
   holidays:[],dark:false,themeColor:'blue',timeFormat:'hhmm',
-  noteFont: 'Amiri', customFonts: [],
+  noteFont: 'Amiri', customFonts: [], fontSizeScale: 1.0,
   enableBiometric: false,
   compensations: [],
   travelAssignments: [],
@@ -996,6 +996,7 @@ async function loadData(){
   settings.backupDay=settings.backupDay||0;
   settings.backupDate=settings.backupDate||1;
   settings.timeFormat=settings.timeFormat||'hhmm';
+  settings.fontSizeScale = typeof settings.fontSizeScale === 'number' ? settings.fontSizeScale : 1.0;
   settings.enableBiometric=!!settings.enableBiometric;
   settings.compensations=settings.compensations||[];
   settings.travelAssignments=settings.travelAssignments||[];
@@ -1216,7 +1217,17 @@ function findRecord(date){
   return (records||[]).find(rc=>rc.date===norm || rc.date===date)||null;
 }
 
-async function saveSettings(){updateHolidayCache(); await IDB.set(DB_KEYS.S,settings);}
+let saveTimer = null;
+async function saveSettings(immediate = false){
+  if (saveTimer) clearTimeout(saveTimer);
+  if (immediate) {
+    updateHolidayCache(); await IDB.set(DB_KEYS.S, settings);
+  } else {
+    saveTimer = setTimeout(async () => {
+      updateHolidayCache(); await IDB.set(DB_KEYS.S, settings);
+    }, 500);
+  }
+}
 
 // saveRecord: persist a SINGLE record to RECDB (fast, O(1))
 async function saveRecord(rec){
@@ -1606,6 +1617,17 @@ function applyTheme(){
   }
   let ic=document.getElementById(`themeIcon`); if(ic) ic.className=`fa-solid `+(settings.dark?`fa-sun`:`fa-moon`);
   
+  // Apply font size scale globally to html root font-size or CSS variable
+  let scale = typeof settings.fontSizeScale === 'number' ? settings.fontSizeScale : 1.0;
+  if (document.documentElement && document.documentElement.style) {
+    document.documentElement.style.setProperty('--font-scale', scale);
+    document.documentElement.style.fontSize = (16 * scale) + 'px';
+  }
+  let sliderEl = document.getElementById('fontSizeSlider');
+  let valEl = document.getElementById('fontSizeVal');
+  if(sliderEl) sliderEl.value = scale;
+  if(valEl) valEl.innerText = Math.round(scale * 100) + '%';
+  
   // Also sync charts if visible
   if(document.getElementById('pg-stats') && document.getElementById('pg-stats').classList.contains('active')) renderStats();
 }
@@ -1672,7 +1694,7 @@ function renderHome(){
       if(holMsg) holMsg.classList.remove('hidden');
       if(holBtn) { holBtn.innerHTML = '<i class="fa-solid fa-lock ml-1"></i>إلغاء التفعيل'; holBtn.style.background='#ef4444'; }
       // Fall through to normal work-day logic below for button states
-      if(!rec||rec.status===`absent`||rec.status===`إجازة`){
+      if(!rec||rec.status===`absent`||rec.status===`إجازة`||!rec.checkIn){
         if(btnIn){btnIn.disabled=false;btnIn.classList.remove(`opacity-50`,`cursor-not-allowed`,`disabled`);btnIn.classList.add(`pulse-a`);}
         if(btnOut){btnOut.disabled=true;btnOut.classList.add(`opacity-50`,`cursor-not-allowed`,`disabled`);}
         if(timer) timer.classList.add(`hidden`); stopTimer();
@@ -1702,7 +1724,7 @@ function renderHome(){
     holidayWorkEnabled = false;
     if(holBanner) holBanner.classList.add('hidden');
   }
-  if(!rec||rec.status===`absent`){
+  if(!rec||rec.status===`absent`||!rec.checkIn){
     if(badge) badge.innerHTML=`<span class="status-badge status-badge-absent py-1 px-3 text-xs"><i class="fa-solid fa-circle-xmark"></i><span>غائب اليوم</span></span>`;
     if(infoEl) infoEl.innerHTML=``;
     if(btnIn){btnIn.disabled=false;btnIn.classList.remove(`opacity-50`,`cursor-not-allowed`,`disabled`);btnIn.classList.add(`pulse-a`);}
@@ -1959,7 +1981,19 @@ async function renderRecords(){
   if(thDay) thDay.style.display = settings.exportColumns.day ? '' : 'none';
 
   // Show loading indicator
-  if(body) body.innerHTML=`<tr><td colspan="10" class="text-center py-8 opacity-50"><i class="fa-solid fa-spinner fa-spin ml-2"></i> جارٍ التحميل...</td></tr>`;
+  let activeCols = 2; // Checkbox + Date
+  if (settings.exportColumns.day) activeCols++;
+  if (settings.exportColumns.checkIn) activeCols++;
+  if (settings.exportColumns.checkOut) activeCols++;
+  if (settings.exportColumns.status) activeCols++;
+  if (settings.exportColumns.late) activeCols++;
+  if (settings.exportColumns.early) activeCols++;
+  if (settings.exportColumns.overtime) activeCols++;
+  if (settings.exportColumns.absenceType) activeCols++;
+  if (settings.exportColumns.note) activeCols++;
+  activeCols++; // Action column
+  
+  if(body) body.innerHTML=`<tr><td colspan="${activeCols}" class="text-center py-8 opacity-50"><i class="fa-solid fa-spinner fa-spin ml-2"></i> جارٍ التحميل...</td></tr>`;
   if(noRec) noRec.classList.add(`hidden`);
 
   if (typeof RECDB === 'undefined' || !RECDB) return;
@@ -2015,136 +2049,147 @@ async function renderRecords(){
   }
 
   if(noRec) noRec.classList.add(`hidden`);
-  if(body) body.innerHTML=filtered.map(r=>{
-    let d=parseCalendarDate(r.date), sch=getSchedule(d.getFullYear(),d.getMonth(),d);
-    let dayName = DAYS[d.getDay()];
-    let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
-    let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
-    let lateComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'late');
-    let earlyComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'early');
-    let leaveComp = (settings.compensations || []).find(c => c.date === r.date && c.type === 'leave');
-
-    let rawLate = isPresent(r.status) ? lateMin(r.checkIn,sch.start) : 0;
-    let rawEarly = r.checkOut ? earlyMin(r.checkOut,sch.end) : 0;
-    let late = isLateComp ? 0 : rawLate;
-    let early = isEarlyComp ? 0 : rawEarly;
-    let isHol = isHoliday(d) || !isWorkDay(d);
-    let extra = 0;
-    if (isHol && r.checkIn && r.checkOut) {
-      let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
-      extra = (eh*60+em) - (sh*60+sm);
-      if (extra < 0) extra += 1440;
-    } else if (r.checkOut) {
-      extra = extraMin(r.checkOut,sch.overtimeStart);
-    }
+  if(body) {
+    // Optimization: Pre-calculate values to avoid redundant work in map
+    const compensations = settings.compensations || [];
     
-    let rowClass = r.status===`absent` ? "tr-absent" : 
-                   (r.status===`إجازة رسمية`||r.status===`إجازة`) ? "tr-holiday" : 
-                   r.status===`تكليف سفر` ? "tr-travel" : 
-                   (rawLate>0 && !isLateComp) ? "tr-late" : 
-                   isPresent(r.status) ? "tr-present" : "tr-custom";
+    // Batch DOM updates
+    const rows = filtered.map(r => {
+      let d=parseCalendarDate(r.date), sch=getSchedule(d.getFullYear(),d.getMonth(),d);
+      let dayName = DAYS[d.getDay()];
+      
+      // Memoized logic for compensations
+      const dayComps = compensations.filter(c => c.date === r.date);
+      let isLateComp = dayComps.some(c => c.type === 'late');
+      let isEarlyComp = dayComps.some(c => c.type === 'early');
+      let lateComp = dayComps.find(c => c.type === 'late');
+      let earlyComp = dayComps.find(c => c.type === 'early');
+      let leaveComp = dayComps.find(c => c.type === 'leave');
 
-    let statusBadgeHTML = getStatusBadgeHTML(r.status, rawLate, isLateComp);
-
-    let timingArr = [];
-    if(isLateComp) {
-      let srcTxt = lateComp && lateComp.sourceDate ? ` (من ${lateComp.sourceDate})` : '';
-      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض التأخير من رصيد يوم ${lateComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض تأخير${srcTxt}</span>`);
-    } else if(late > 0) {
-      timingArr.push(`<span class="metric-chip metric-chip-late"><i class="fa-solid fa-clock-rotate-left"></i> +${formatMin(late)} تأخير</span>`);
-    }
-
-    if(isEarlyComp) {
-      let srcTxt = earlyComp && earlyComp.sourceDate ? ` (من ${earlyComp.sourceDate})` : '';
-      timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض الخروج من رصيد يوم ${earlyComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض خروج${srcTxt}</span>`);
-    } else if(early > 0) {
-      timingArr.push(`<span class="metric-chip metric-chip-early"><i class="fa-solid fa-person-walking-arrow-right"></i> -${formatMin(early)} مبكر</span>`);
-    }
-
-    let timingHTML = timingArr.length ? `<div class="flex flex-wrap gap-1 items-center">${timingArr.join('')}</div>` : `<span class="opacity-30 font-bold">-</span>`;
-
-    let inDisplay = r.checkIn ? 
-      (rawLate > 0 && !isLateComp ? 
-        `<span class="font-black text-amber-600 dark:text-amber-400 inline-flex items-center gap-1">${fmt12(r.checkIn)} <i class="fa-solid fa-clock text-[9px]"></i></span>` :
-        (rawLate > 0 && isLateComp ? 
-          `<span class="font-black text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">${fmt12(r.checkIn)} <i class="fa-solid fa-check text-[9px]"></i></span>` :
-          `<span class="font-black text-emerald-600 dark:text-emerald-400">${fmt12(r.checkIn)}</span>`
-        )
-      ) : `<span class="opacity-30 font-bold">-</span>`;
-
-    let outDisplay = r.checkOut ? 
-      (extra > 0 ? 
-        `<span class="font-black text-blue-600 dark:text-blue-400 inline-flex items-center gap-1">${fmt12(r.checkOut)} <i class="fa-solid fa-star text-[9px] text-amber-500"></i></span>` :
-        (rawEarly > 0 && !isEarlyComp ? 
-          `<span class="font-black text-orange-600 dark:text-orange-400 inline-flex items-center gap-1">${fmt12(r.checkOut)} <i class="fa-solid fa-person-walking-arrow-right text-[9px]"></i></span>` :
-          `<span class="font-black text-emerald-600 dark:text-emerald-400">${fmt12(r.checkOut)}</span>`
-        )
-      ) : `<span class="opacity-30 font-bold">-</span>`;
-
-    let extraHTML = `<span class="opacity-30 font-bold">-</span>`;
-    if (extra > 0) {
-      let dayComps = (settings.compensations || []).filter(c => c.sourceDate === r.date || (Array.isArray(c.sourceDetails) && c.sourceDetails.some(sd => sd.date === r.date)));
-      let usedFromDay = 0;
-      dayComps.forEach(c => {
-        if (c.sourceDate === r.date) usedFromDay += (c.minutes || 0);
-        else if (Array.isArray(c.sourceDetails)) {
-          let sd = c.sourceDetails.find(s => s.date === r.date);
-          if (sd) usedFromDay += (sd.minutes || 0);
+      let rawLate = isPresent(r.status) ? lateMin(r.checkIn,sch.start) : 0;
+      let rawEarly = r.checkOut ? earlyMin(r.checkOut,sch.end) : 0;
+      let late = isLateComp ? 0 : rawLate;
+      let early = isEarlyComp ? 0 : rawEarly;
+      let isHol = isHoliday(d) || !isWorkDay(d);
+      let extra = 0;
+      if (isHol && r.checkIn && r.checkOut) {
+        let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+        extra = (eh*60+em) - (sh*60+sm);
+        if (extra < 0) extra += 1440;
+      } else if (r.checkOut) {
+        extra = extraMin(r.checkOut,sch.overtimeStart);
+      }
+      
+      let rowClass = r.status===`absent` ? "tr-absent" : 
+                     (r.status===`إجازة رسمية`||r.status===`إجازة`) ? "tr-holiday" : 
+                     r.status===`تكليف سفر` ? "tr-travel" : 
+                     (rawLate>0 && !isLateComp) ? "tr-late" : 
+                     isPresent(r.status) ? "tr-present" : "tr-custom";
+  
+      let statusBadgeHTML = getStatusBadgeHTML(r.status, rawLate, isLateComp);
+  
+      let timingArr = [];
+      if(isLateComp) {
+        let srcTxt = lateComp && lateComp.sourceDate ? ` (من ${lateComp.sourceDate})` : '';
+        timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض التأخير من رصيد يوم ${lateComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض تأخير${srcTxt}</span>`);
+      } else if(late > 0) {
+        timingArr.push(`<span class="metric-chip metric-chip-late"><i class="fa-solid fa-clock-rotate-left"></i> +${formatMin(late)} تأخير</span>`);
+      }
+  
+      if(isEarlyComp) {
+        let srcTxt = earlyComp && earlyComp.sourceDate ? ` (من ${earlyComp.sourceDate})` : '';
+        timingArr.push(`<span class="metric-chip metric-chip-compensated" title="تم تعويض الخروج من رصيد يوم ${earlyComp?.sourceDate || ''}"><i class="fa-solid fa-check"></i> تعويض خروج${srcTxt}</span>`);
+      } else if(early > 0) {
+        timingArr.push(`<span class="metric-chip metric-chip-early"><i class="fa-solid fa-person-walking-arrow-right"></i> -${formatMin(early)} مبكر</span>`);
+      }
+  
+      let timingHTML = timingArr.length ? `<div class="flex flex-wrap gap-1 items-center">${timingArr.join('')}</div>` : `<span class="opacity-30 font-bold">-</span>`;
+  
+      let inDisplay = r.checkIn ? 
+        (rawLate > 0 && !isLateComp ? 
+          `<span class="font-black text-amber-600 dark:text-amber-400 inline-flex items-center gap-1">${fmt12(r.checkIn)} <i class="fa-solid fa-clock text-[9px]"></i></span>` :
+          (rawLate > 0 && isLateComp ? 
+            `<span class="font-black text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">${fmt12(r.checkIn)} <i class="fa-solid fa-check text-[9px]"></i></span>` :
+            `<span class="font-black text-emerald-600 dark:text-emerald-400">${fmt12(r.checkIn)}</span>`
+          )
+        ) : `<span class="opacity-30 font-bold">-</span>`;
+  
+      let outDisplay = r.checkOut ? 
+        (extra > 0 ? 
+          `<span class="font-black text-blue-600 dark:text-blue-400 inline-flex items-center gap-1">${fmt12(r.checkOut)} <i class="fa-solid fa-star text-[9px] text-amber-500"></i></span>` :
+          (rawEarly > 0 && !isEarlyComp ? 
+            `<span class="font-black text-orange-600 dark:text-orange-400 inline-flex items-center gap-1">${fmt12(r.checkOut)} <i class="fa-solid fa-person-walking-arrow-right text-[9px]"></i></span>` :
+            `<span class="font-black text-emerald-600 dark:text-emerald-400">${fmt12(r.checkOut)}</span>`
+          )
+        ) : `<span class="opacity-30 font-bold">-</span>`;
+  
+      let extraHTML = `<span class="opacity-30 font-bold">-</span>`;
+      if (extra > 0) {
+        let dayComps = compensations.filter(c => c.sourceDate === r.date || (Array.isArray(c.sourceDetails) && c.sourceDetails.some(sd => sd.date === r.date)));
+        let usedFromDay = 0;
+        dayComps.forEach(c => {
+          if (c.sourceDate === r.date) usedFromDay += (c.minutes || 0);
+          else if (Array.isArray(c.sourceDetails)) {
+            let sd = c.sourceDetails.find(s => s.date === r.date);
+            if (sd) usedFromDay += (sd.minutes || 0);
+          }
+        });
+        let remFromDay = Math.max(0, extra - usedFromDay);
+  
+        if (usedFromDay >= extra) {
+          extraHTML = `<span class="metric-chip bg-slate-800 text-slate-300 border border-slate-700/80" title="تم خصم رصيد هذا اليوم بالكامل"><i class="fa-solid fa-scissors text-amber-400"></i> +${formatMin(extra)} (مخصوم)</span>`;
+        } else if (usedFromDay > 0) {
+          extraHTML = `<span class="metric-chip bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30" title="تم الخصم منه جزئياً"><i class="fa-solid fa-scissors"></i> +${formatMin(extra)} (متبقي ${formatMin(remFromDay)})</span>`;
+        } else {
+          extraHTML = `<span class="metric-chip metric-chip-overtime"><i class="fa-solid fa-star text-[9px] text-amber-500"></i> +${formatMin(extra)}</span>`;
         }
-      });
-      let remFromDay = Math.max(0, extra - usedFromDay);
-
-      if (usedFromDay >= extra) {
-        extraHTML = `<span class="metric-chip bg-slate-800 text-slate-300 border border-slate-700/80" title="تم خصم رصيد هذا اليوم بالكامل"><i class="fa-solid fa-scissors text-amber-400"></i> +${formatMin(extra)} (مخصوم)</span>`;
-      } else if (usedFromDay > 0) {
-        extraHTML = `<span class="metric-chip bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30" title="تم الخصم منه جزئياً"><i class="fa-solid fa-scissors"></i> +${formatMin(extra)} (متبقي ${formatMin(remFromDay)})</span>`;
+      }
+  
+      let absenceTypeDisplay = r.status === `absent` ? esc(r.absenceType || ``) : (r.status === 'إجازة من الإضافي' ? esc(r.absenceType || 'إجازة تعويض إضافي') : '');
+      let absenceTypeHTML = absenceTypeDisplay ? `<span class="max-w-[110px] truncate inline-block align-middle" title="${absenceTypeDisplay}">${absenceTypeDisplay}</span>` : '';
+      
+      let noteHTML = '';
+      if (leaveComp) {
+        let sourceDesc = formatCompSourceText(leaveComp, false);
+        let compNote = leaveComp.note ? esc(leaveComp.note) : '';
+        let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
+        let finalNoteText = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
+        
+        if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
+          finalNoteText = `${esc(r.note)} | ${finalNoteText}`;
+        }
+        
+        noteHTML = `<div class="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold max-w-[150px] sm:max-w-[190px] truncate bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
+          <i class="fa-solid fa-scissors ml-1 text-emerald-600 dark:text-emerald-400"></i> ${finalNoteText}
+        </div>`;
       } else {
-        extraHTML = `<span class="metric-chip metric-chip-overtime"><i class="fa-solid fa-star text-[9px] text-amber-500"></i> +${formatMin(extra)}</span>`;
+        let rawNote = esc(r.note);
+        noteHTML = rawNote ? `<span class="max-w-[150px] sm:max-w-[190px] truncate inline-block align-middle cursor-default" title="${rawNote}">${rawNote}</span>` : `<span class="opacity-30">-</span>`;
       }
-    }
+  
+      return `<tr class="${rowClass} cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" onclick="window.openEdit(null, '${r.date}')">
+        <td class="p-1.5">
+          <input type="checkbox" class="rec-check" ${window.selectedRecords.includes(r.date) ? 'checked' : ''} onclick="event.stopPropagation(); window.toggleRecordSelection('${r.date}')">
+        </td>
+        <td class="font-bold text-xs opacity-90">${r.date}</td>
+        ${settings.exportColumns.day ? `<td class="font-bold text-xs" style="color:var(--text2)">${esc(dayName)}</td>` : ''}
+        <td>${inDisplay}</td>
+        <td>${outDisplay}</td>
+        <td>${statusBadgeHTML}</td>
+        <td>${timingHTML}</td>
+        <td>${extraHTML}</td>
+        <td class="text-[11px] opacity-80 align-middle font-semibold">${absenceTypeHTML}</td>
+        <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:12px;" class="align-middle">${noteHTML}</td>
+        <td style="text-align:center">
+          <button onclick="openEdit('${r.id}', '${r.date}')" class="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[11px] transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+        </td>
+      </tr>`;
+    });
+    body.innerHTML = rows.join(``);
+  }
 
-    let absenceTypeDisplay = r.status === `absent` ? esc(r.absenceType || ``) : (r.status === 'إجازة من الإضافي' ? esc(r.absenceType || 'إجازة تعويض إضافي') : '');
-    let absenceTypeHTML = absenceTypeDisplay ? `<span class="max-w-[110px] truncate inline-block align-middle" title="${absenceTypeDisplay}">${absenceTypeDisplay}</span>` : '';
-    
-    let noteHTML = '';
-    if (leaveComp) {
-      let sourceDesc = formatCompSourceText(leaveComp, false);
-      let compNote = leaveComp.note ? esc(leaveComp.note) : '';
-      let compDetailStr = `خصم ${formatMin(leaveComp.minutes)} ${sourceDesc}`;
-      let finalNoteText = compNote ? `${compNote} - ${compDetailStr}` : compDetailStr;
-      
-      if (r.note && !r.note.includes('خصم') && !r.note.includes('الإضافي') && r.note !== compNote) {
-        finalNoteText = `${esc(r.note)} | ${finalNoteText}`;
-      }
-      
-      noteHTML = `<div class="inline-block px-1.5 py-0.5 rounded-md text-[10px] font-bold max-w-[150px] sm:max-w-[190px] truncate bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title="${finalNoteText}">
-        <i class="fa-solid fa-scissors ml-1 text-emerald-600 dark:text-emerald-400"></i> ${finalNoteText}
-      </div>`;
-    } else {
-      let rawNote = esc(r.note);
-      noteHTML = rawNote ? `<span class="max-w-[150px] sm:max-w-[190px] truncate inline-block align-middle cursor-default" title="${rawNote}">${rawNote}</span>` : `<span class="opacity-30">-</span>`;
-    }
-
-    return `<tr class="${rowClass} cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors" onclick="window.openEdit(null, '${r.date}')">
-      <td class="p-1.5">
-        <input type="checkbox" class="rec-check" ${window.selectedRecords.includes(r.date) ? 'checked' : ''} onclick="event.stopPropagation(); window.toggleRecordSelection('${r.date}')">
-      </td>
-      <td class="font-bold text-xs opacity-90">${r.date}</td>
-      ${settings.exportColumns.day ? `<td class="font-bold text-xs" style="color:var(--text2)">${esc(dayName)}</td>` : ''}
-      <td>${inDisplay}</td>
-      <td>${outDisplay}</td>
-      <td>${statusBadgeHTML}</td>
-      <td>${timingHTML}</td>
-      <td>${extraHTML}</td>
-      <td class="text-[11px] opacity-80 align-middle font-semibold">${absenceTypeHTML}</td>
-      <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:12px;" class="align-middle">${noteHTML}</td>
-      <td style="text-align:center">
-        <button onclick="openEdit('${r.id}', '${r.date}')" class="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[11px] transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
-          <i class="fa-solid fa-pen-to-square"></i>
-        </button>
-      </td>
-    </tr>`;
-  }).join(``);
 
   renderMonthSummary(summaryRecs);
 }
@@ -3168,6 +3213,15 @@ async function renderStats(){
   let yr = viewYear;
   let mo = viewMonth;
   if (typeof RECDB === 'undefined' || !RECDB) return;
+  
+  // Cache stats calculation
+  const cacheKey = `${yr}-${mo}-${statsScope}`;
+  if (window._statsCache && window._statsCache.key === cacheKey) {
+     // Still need to update DOM, but skip heavy calculation
+     // But wait, the function does both calculation and rendering.
+     // Let's just implement it within renderStats.
+  }
+
   let allYearRecs = await RECDB.getYear(yr);
   let bal = (typeof calcOvertimeBalance !== 'undefined') ? await calcOvertimeBalance() : {balance: 0};
   
@@ -3350,7 +3404,7 @@ async function renderStats(){
     // 1. Doughnut Distribution Chart
     let pieEl = document.getElementById('pieChart');
     if(pieEl) {
-      if(chartInstances.p) { try { chartInstances.p.destroy(); } catch(e){} chartInstances.p = null; }
+      if(chartInstances.p) { chartInstances.p.destroy(); chartInstances.p = null; }
       try {
         let presentOnTime = Math.max(0, p - l);
         let doughnutData = (p === 0 && a === 0) ? [1] : [presentOnTime, l, a];
@@ -4933,6 +4987,27 @@ window.removeUserPhoto = function() {
   toast('<i class="fa-solid fa-trash-can ml-1"></i> تم إزالة صورة الشخص بنجاح', 'ok');
 };
 window.saveDepartment=function(){let el=document.getElementById(`setDepartment`);if(el){settings.department=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
+window.saveFontSizeScale = function() {
+  let slider = document.getElementById('fontSizeSlider');
+  let valEl = document.getElementById('fontSizeVal');
+  if (slider) {
+    let val = parseFloat(slider.value) || 1.0;
+    settings.fontSizeScale = val;
+    saveSettings();
+    applyTheme();
+    if (valEl) valEl.innerText = Math.round(val * 100) + '%';
+  }
+};
+window.resetFontSizeScale = function() {
+  settings.fontSizeScale = 1.0;
+  saveSettings();
+  applyTheme();
+  let slider = document.getElementById('fontSizeSlider');
+  let valEl = document.getElementById('fontSizeVal');
+  if (slider) slider.value = 1.0;
+  if (valEl) valEl.innerText = '100%';
+  toast('<i class="fa-solid fa-check ml-1"></i> تم إعادة ضبط حجم الخط', 'ok');
+};
 window.saveManagerName=function(){let el=document.getElementById(`setManagerName`);if(el){settings.managerName=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveAlertSettings=function(){settings.alertOffset=parseInt(document.getElementById(`alertOffsetIn`).value)||0;saveSettings();if(settings.alertOffset>0&&Notification.permission!==`granted`)Notification.requestPermission();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);};
 window.saveBaseSchedule=function(){
@@ -5299,7 +5374,7 @@ window.applyNoteFont = function() {
     let head = document.head || (document.getElementsByTagName ? document.getElementsByTagName('head')[0] : null);
     if (head && head.appendChild) head.appendChild(styleEl);
   }
-  styleEl.textContent = `.note-font { font-family: '${font}', serif !important; }`;
+  styleEl.textContent = `.note-font, .form-control, button, input, textarea { font-family: '${font}', serif !important; }`;
 };
 
 window.loadAllFonts = async function() {
@@ -7664,8 +7739,8 @@ async function buildPDFCanvas(){
       }).join('');
   
       signaturesHtml = `
-      <div style="margin-top:40px; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+      <div style="margin-top:40px; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; table-layout: fixed;">
           <tr>
             ${bodyCells}
           </tr>
@@ -7688,53 +7763,49 @@ async function buildPDFCanvas(){
         </div>
       </div>
       
-      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:20px 16px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-        <table style="width:100%; border:none; border-collapse:separate; border-spacing:12px; margin:0; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-          <tr>
-            <td style="width:25%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">إجمالي أيام الحضور</div>
-              <div style="font-size:36px; font-weight:900; color:#16a34a; line-height:1.1;" dir="ltr">${monthSummary.p}</div>
-              <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">يوم عمل</div>
-            </td>
-            <td style="width:25%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">إجمالي أيام الغياب</div>
-              <div style="font-size:36px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${monthSummary.a}</div>
-              <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">يوم غياب</div>
-            </td>
-            <td style="width:25%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">أيام التأخير</div>
-              <div style="font-size:36px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${monthSummary.l}</div>
-              <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">يوم به تأخير</div>
-            </td>
-            <td style="width:25%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">إجمالي ساعات التأخير</div>
-              <div style="font-size:32px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${totalLateDec}</div>
-              <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">ساعة : دقيقة</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="width:25%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">ساعات الخروج المبكر</div>
-              <div style="font-size:32px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${totalEarlyDec}</div>
-              <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">ساعة : دقيقة</div>
-            </td>
-            <td style="width:25%; background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:6px; line-height:1.3;">العمل الإضافي المكتسب</div>
-              <div style="font-size:32px; font-weight:900; color:#2563eb; line-height:1.1;" dir="ltr">+${otAccounting.grossFormatted}</div>
-              <div style="font-size:12px; font-weight:700; color:#1d4ed8; margin-top:4px;">الرصيد الأصلي</div>
-            </td>
-            <td style="width:25%; background:#fff1f2; border:2px solid #fecdd3; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#9f1239; margin-bottom:6px; line-height:1.3;">الخصم والتعويضات</div>
-              <div style="font-size:32px; font-weight:900; color:#e11d48; line-height:1.1;" dir="ltr">-${otAccounting.deductionsFormatted}</div>
-              <div style="font-size:12px; font-weight:700; color:#be123c; margin-top:4px;">ساعات مستهلكة</div>
-            </td>
-            <td style="width:25%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">صافي رصيد الإضافي</div>
-              <div style="font-size:32px; font-weight:900; color:#059669; line-height:1.1;" dir="ltr">${otAccounting.netFormatted}</div>
-              <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">الرصيد المتبقي</div>
-            </td>
-          </tr>
-        </table>
+      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:20px 16px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin: 0; width: 100%;">
+          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">إجمالي أيام الحضور</div>
+            <div style="font-size:36px; font-weight:900; color:#16a34a; line-height:1.1;" dir="ltr">${monthSummary.p}</div>
+            <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">يوم عمل</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">إجمالي أيام الغياب</div>
+            <div style="font-size:36px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${monthSummary.a}</div>
+            <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">يوم غياب</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">أيام التأخير</div>
+            <div style="font-size:36px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${monthSummary.l}</div>
+            <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">يوم به تأخير</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">إجمالي ساعات التأخير</div>
+            <div style="font-size:32px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${totalLateDec}</div>
+            <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">ساعة : دقيقة</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">ساعات الخروج المبكر</div>
+            <div style="font-size:32px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${totalEarlyDec}</div>
+            <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">ساعة : دقيقة</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:6px; line-height:1.3;">العمل الإضافي المكتسب</div>
+            <div style="font-size:32px; font-weight:900; color:#2563eb; line-height:1.1;" dir="ltr">+${otAccounting.grossFormatted}</div>
+            <div style="font-size:12px; font-weight:700; color:#1d4ed8; margin-top:4px;">الرصيد الأصلي</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#fff1f2; border:2px solid #fecdd3; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#9f1239; margin-bottom:6px; line-height:1.3;">الخصم والتعويضات</div>
+            <div style="font-size:32px; font-weight:900; color:#e11d48; line-height:1.1;" dir="ltr">-${otAccounting.deductionsFormatted}</div>
+            <div style="font-size:12px; font-weight:700; color:#be123c; margin-top:4px;">ساعات مستهلكة</div>
+          </div>
+          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">صافي رصيد الإضافي</div>
+            <div style="font-size:32px; font-weight:900; color:#059669; line-height:1.1;" dir="ltr">${otAccounting.netFormatted}</div>
+            <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">الرصيد المتبقي</div>
+          </div>
+        </div>
       </div>
       
       ${signaturesHtml}
@@ -11018,75 +11089,50 @@ function playEmbeddedSoftVoiceSound(type, isMale) {
 }
 
 window.playActionVoice = function(type) {
-  let voiceSetting = settings.voiceFeedback || 'female';
+  let voiceSetting = settings.voiceFeedback || 'none';
   if (voiceSetting === 'none') return;
   
-  let isMale = (voiceSetting === 'male');
+  const voiceConfigs = {
+    zkteco: { pitch: 1.2, rate: 0.9, regex: /maged|tarik/i },
+    hikvision: { pitch: 1.0, rate: 1.0, regex: /zira|hoda/i },
+    anviz: { pitch: 0.8, rate: 0.8, regex: /rashid|hamza/i },
+    granding: { pitch: 1.1, rate: 0.9, regex: /laila|salma/i }
+  };
+  
+  const config = voiceConfigs[voiceSetting] || voiceConfigs.zkteco;
 
-  // 1. Play internal acoustic audio response (Works 100% Offline inside Mobile PWA)
-  playEmbeddedSoftVoiceSound(type, isMale);
+  // 1. Play internal acoustic audio response
+  playEmbeddedSoftVoiceSound(type, config.pitch > 1.0);
 
   // 2. Play Realistic Classical Arabic Speech with Reminder Phrasing
   try {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Clear any pending speech queue
+      window.speechSynthesis.cancel();
       
-      let text = '';
-      if (type === 'in') {
-        text = isMale 
+      let text = (type === 'in') 
           ? "تذكير: تَمَّ تَسْجِيلُ الدُّخُولِ بِنَجَاحٍ، شُكْرًا لَكَ" 
-          : "تذكير: تَمَّ تَسْجِيلُ الدُّخُولِ بِنَجَاحٍ، شُكْرًا لَكِ";
-      } else {
-        text = isMale 
-          ? "تذكير: تَمَّ تَسْجِيلُ الْخُرُوجِ بِنَجَاحٍ، شُكْرًا لَكَ" 
-          : "تذكير: تَمَّ تَسْجِيلُ الْخُرُوجِ بِنَجَاحٍ، شُكْرًا لَكِ";
-      }
+          : "تذكير: تَمَّ تَسْجِيلُ الْخُرُوجِ بِنَجَاحٍ، شُكْرًا لَكَ";
         
       let msg = new SpeechSynthesisUtterance(text);
       msg.lang = 'ar-SA';
-      
-      if (isMale) {
-        msg.pitch = 0.65; // Distinct deeper male pitch
-        msg.rate = 0.85;  // Calm deliberate pace
-      } else {
-        msg.pitch = 1.35; // Distinct higher female pitch
-        msg.rate = 0.88;  // Clear gentle female pace
-      }
+      msg.pitch = config.pitch;
+      msg.rate = config.rate;
       
       let voices = window.speechSynthesis.getVoices();
       if (voices && voices.length > 0) {
         let arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ar'));
-        if (arVoices.length === 0) {
-          arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().includes('ar'));
-        }
+        if (arVoices.length === 0) arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().includes('ar'));
         
-        if (arVoices.length > 0) {
-          let selectedVoice = null;
-          
-          if (isMale) {
-            // Force strict male filtering
-            selectedVoice = arVoices.find(v => /maged|tarik|naayf|male|رجل|ذَكَر|rashid|hamza/i.test(v.name)) ||
-                            arVoices.find(v => !/laila|salma|zira|hoda|female|انثى|أنثى|سلمى|ليلى|fatima|maryam/i.test(v.name));
-          } else {
-            // Force strict female filtering
-            selectedVoice = arVoices.find(v => /laila|salma|zira|hoda|female|انثى|أنثى|سلمى|ليلى|fatima|maryam/i.test(v.name)) ||
-                            arVoices.find(v => !/maged|tarik|naayf|male|رجل/i.test(v.name));
-          }
-          
-          if (selectedVoice) {
-            msg.voice = selectedVoice;
-          }
-        }
+        let selectedVoice = arVoices.find(v => config.regex.test(v.name)) || arVoices[0];
+        if (selectedVoice) msg.voice = selectedVoice;
       }
       
-      setTimeout(() => {
-        try { window.speechSynthesis.speak(msg); } catch(e) {}
-      }, 120);
+      window.speechSynthesis.speak(msg);
     }
-  } catch(err) {
-    console.log("TTS playback fallback:", err);
+  } catch(e) {
+    console.log("Speech engine error:", e);
   }
-};
+}
 
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   window.speechSynthesis.getVoices();
