@@ -11,6 +11,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>سجل الحضور الشخصي</title>
+  <meta name="description" content="تطبيق سجل الحضور والغياب الشخصي وتقارير الدوام">
+  <meta property="og:title" content="سجل الحضور الشخصي">
+  <meta property="og:description" content="تطبيق سجل الحضور والغياب الشخصي وتقارير الدوام">
   <script src="lib/tailwind.js"></script>
   <link href="fonts.css" rel="stylesheet">
   <link
@@ -36,7 +39,7 @@
       }
     };
   </script>
-  <script src="./assets/clean_app_source.js?v=2.0.5"></script>
+  <script src="./assets/clean_app_source.js?v=2.1.3"></script>
 
 <style>
     /* ══════════════════════════════════════════════
@@ -2134,8 +2137,8 @@
     <div class="orb w-40 h-40 -top-20 -right-20 bg-white/20"></div>
     <div class="orb w-32 h-32 -bottom-10 -left-10 bg-white/10"></div>
 
-    <div class="relative flex justify-between items-center">
-      <div class="flex-1">
+    <div class="relative flex justify-between items-center gap-3">
+      <div class="flex-1 min-w-0">
         <h1 class="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
           <i class="fa-solid fa-calendar-check text-xl opacity-90"></i>
           سجل الحضور الشخصي
@@ -2145,10 +2148,17 @@
           <p class="text-[13px] font-bold tracking-wide" id="hdrDate"></p>
         </div>
       </div>
-      <div class="flex flex-col items-end">
-        <div class="bg-white/20 backdrop-blur-md rounded-2xl px-4 py-2 text-center border border-white/10 shadow-lg">
-          <div class="text-xl font-black text-white text-number tracking-wider" id="hdrClock" dir="ltr"></div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <div class="bg-white/20 backdrop-blur-md rounded-2xl px-3.5 sm:px-4 py-2 text-center border border-white/10 shadow-lg">
+          <div class="text-lg sm:text-xl font-black text-white text-number tracking-wider" id="hdrClock" dir="ltr"></div>
         </div>
+        <!-- About App Button -->
+        <button onclick="openAboutM()"
+          class="w-10 h-10 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+          title="حول التطبيق"
+          aria-label="حول التطبيق">
+          <i class="fa-solid fa-circle-exclamation text-lg text-white/90"></i>
+        </button>
       </div>
     </div>
   </header>
@@ -2165,10 +2175,15 @@
             <!-- Compact Profile Header & Live Status -->
             <div class="p-3.5 sm:p-4" style="background: var(--c-surface2)">
               <div class="flex items-center gap-3">
-                <div class="relative group shrink-0">
-                  <div class="w-11 h-11 rounded-full tech-chip flex items-center justify-center text-lg font-black text-white" id="homeAvatar">
-                    <span class="relative z-10">أ</span>
+                <div class="relative group shrink-0 cursor-pointer" onclick="window.triggerUserPhotoUpload()" title="إرفاق أو تغيير صورة الشخص">
+                  <input type="file" id="userPhotoInput" accept="image/*" class="hidden" onchange="window.handleUserPhotoSelect(event)" />
+                  <div class="w-11 h-11 rounded-full tech-chip flex items-center justify-center text-lg font-black text-white overflow-hidden relative shadow-xs transition-all duration-200 group-hover:ring-2 group-hover:ring-indigo-400/60" id="homeAvatar">
+                    <span class="relative z-10" id="homeAvatarInitial">أ</span>
+                    <img id="homeAvatarImg" src="" class="w-full h-full object-cover hidden absolute inset-0 z-10" alt="صورة الشخص" />
                     <div class="absolute inset-0 circuit-bg opacity-30"></div>
+                  </div>
+                  <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-[9px] shadow-md border-2 border-slate-900 z-20 transition-all duration-200 group-hover:scale-110">
+                    <i class="fa-solid fa-camera"></i>
                   </div>
                   <div class="absolute -inset-1 rounded-full border border-emerald-500/20 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                 </div>
@@ -2602,6 +2617,22 @@
                   <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">رئيس القسم / المدير المباشر</label>
                   <input type="text" id="setManagerName" placeholder="اسم رئيس القسم..." class="form-control text-xs rounded-xl" onchange="saveManagerName()">
                 </div>
+                <div>
+                  <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 block">صورة الشخص (الهوية)</label>
+                  <div class="flex items-center gap-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800">
+                    <div class="w-10 h-10 rounded-full tech-chip flex items-center justify-center text-sm font-black text-white overflow-hidden relative shrink-0 shadow-xs" id="setAccountAvatar">
+                      <span id="setAccountAvatarInitial">أ</span>
+                      <img id="setAccountAvatarImg" src="" class="w-full h-full object-cover hidden absolute inset-0 z-10" alt="صورة الشخص" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[11px] font-bold text-slate-700 dark:text-slate-300">صورة الصفحة الرئيسية</div>
+                    </div>
+                    <button onclick="window.openUserPhotoModal()" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs">
+                      <i class="fa-solid fa-camera"></i>
+                      <span>تغيير الصورة</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2784,9 +2815,9 @@
                     <input type="checkbox" id="sig_show1" class="toggle-switch" style="width:36px; height:20px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title1" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (الترويسة)">
+                <input type="text" id="sig_title1" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: توقيع الموظف)">
                 <input type="text" id="sig_lbl1" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: الاسم:)">
-                <input type="text" id="sig_val1" class="form-control text-xs rounded-lg" placeholder="قيمة الحقل (NAME_PLACEHOLDER)">
+                <input type="text" id="sig_val1" class="form-control text-xs rounded-lg" placeholder="اسم الموظف (فارغ = تلقائي من الإعدادات)">
                 <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
                   <img id="sig_img_preview_col1" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
                   <div class="flex items-center justify-center gap-1">
@@ -2805,9 +2836,9 @@
                     <input type="checkbox" id="sig_show2" class="toggle-switch" style="width:36px; height:20px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title2" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (الترويسة)">
+                <input type="text" id="sig_title2" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: اعتماد المدير المباشر)">
                 <input type="text" id="sig_lbl2" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: رئيس القسم:)">
-                <input type="text" id="sig_val2" class="form-control text-xs rounded-lg" placeholder="قيمة الحقل (MANAGER_PLACEHOLDER)">
+                <input type="text" id="sig_val2" class="form-control text-xs rounded-lg" placeholder="اسم المدير (فارغ = تلقائي من الإعدادات)">
                 <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
                   <img id="sig_img_preview_col2" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
                   <div class="flex items-center justify-center gap-1">
@@ -2826,9 +2857,9 @@
                     <input type="checkbox" id="sig_show3" class="toggle-switch" style="width:36px; height:20px;">
                   </label>
                 </div>
-                <input type="text" id="sig_title3" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (الترويسة)">
-                <input type="text" id="sig_lbl3" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: الاعتماد:)">
-                <input type="text" id="sig_val3" class="form-control text-xs rounded-lg" placeholder="قيمة الحقل الافتراضي">
+                <input type="text" id="sig_title3" class="form-control text-xs rounded-lg" placeholder="عنوان العمود (مثال: الموارد البشرية)">
+                <input type="text" id="sig_lbl3" class="form-control text-xs rounded-lg" placeholder="تسمية الحقل (مثال: مسؤول الموارد:)">
+                <input type="text" id="sig_val3" class="form-control text-xs rounded-lg" placeholder="اسم المسؤول أو الجهة المعتمدة">
                 <div class="p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
                   <img id="sig_img_preview_col3" class="hidden mx-auto mb-1.5" style="max-height: 36px; object-fit: contain;" />
                   <div class="flex items-center justify-center gap-1">
@@ -3184,7 +3215,7 @@
                   <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-serif font-black text-sm">!</div>
                     <div>
-                      <div class="text-xs font-black text-slate-800 dark:text-slate-200">حول التطبيق والهوية</div>
+                      <div class="text-xs font-black text-slate-800 dark:text-slate-200">حول التطبيق</div>
                       <div class="text-[10px] text-slate-400">الإصدار وبيانات المطور والترخيص</div>
                     </div>
                   </div>
@@ -3607,6 +3638,18 @@
       <div class="overflow-y-auto flex-1 pr-1 pb-1">
         <!-- Tab 1: New Travel Assignment Form -->
         <div id="travelPane-new" class="travel-pane space-y-3.5">
+          <!-- Edit Mode Active Indicator Banner -->
+          <div id="travelEditBanner" class="hidden p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-bold flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-pen-to-square text-amber-600 dark:text-amber-400 text-sm"></i>
+              <span>تعديل التكليف: <strong id="travelEditingTargetName" class="underline"></strong></span>
+            </div>
+            <button type="button" onclick="cancelEditTravelAssignment()" class="text-xs font-black text-red-600 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1">
+              <i class="fa-solid fa-xmark"></i>
+              <span>إلغاء التعديل</span>
+            </button>
+          </div>
+
           <!-- Date Range Pickers -->
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -3657,7 +3700,7 @@
             </div>
           </div>
 
-          <button onclick="saveTravelAssignment()" class="btn btn-primary w-full py-3 text-sm font-black shadow-xl rounded-xl flex items-center justify-center gap-2">
+          <button id="saveTravelSubmitBtn" onclick="saveTravelAssignment()" class="btn btn-primary w-full py-3 text-sm font-black shadow-xl rounded-xl flex items-center justify-center gap-2">
             <span>تأكيد وحفظ التكليف</span>
             <i class="fa-solid fa-check text-sm"></i>
           </button>
@@ -3919,7 +3962,6 @@
 
         <!-- 5. Digital Signature & Developer Section -->
         <div class="w-full pt-2 border-t flex flex-col items-center" style="border-color: var(--c-border);">
-          <div class="text-[10px] font-black uppercase tracking-[0.3em] mb-2" style="color: var(--c-text-3);">POWERED BY DIGITAL IDENTITY</div>
           
           <div id="fpInteractiveBtn" class="relative w-20 h-20 flex items-center justify-center cursor-pointer group select-none"
                onclick="handleFingerprintTap()"
@@ -3949,6 +3991,16 @@
 
                <!-- Fingerprint Vector Icon -->
                <i id="fpIcon" class="fa-solid fa-fingerprint text-2xl transition-all duration-500 relative z-10" style="color: var(--theme-primary);"></i>
+
+               <!-- Checkmark Overlay Badge over Fingerprint Icon -->
+               <div id="fpCheckBadge" class="absolute inset-0 flex items-center justify-center bg-emerald-500/90 text-white rounded-full opacity-0 scale-50 pointer-events-none transition-all duration-500 z-30 shadow-[0_0_20px_#10b981] backdrop-blur-xs">
+                 <i class="fa-solid fa-check text-3xl font-black text-white"></i>
+               </div>
+            </div>
+
+            <!-- Corner Checkmark Badge -->
+            <div id="fpCornerCheckBadge" class="absolute -top-1 -right-1 w-7 h-7 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs font-black opacity-0 scale-0 pointer-events-none transition-all duration-500 z-30 shadow-[0_0_12px_#10b981] border-2 border-white dark:border-slate-900">
+              <i class="fa-solid fa-check"></i>
             </div>
           </div>
 
@@ -3959,8 +4011,13 @@
             <span id="fpStatusText" class="tracking-wide">LOCKED • مقفل</span>
           </div>
 
-          <!-- Developer Identity -->
-          <div id="fpDevSignature" class="text-[13px] font-black italic text-center mt-1.5 tracking-widest transition-all duration-500 select-none opacity-80" style="color: var(--c-text-2);">Aᵦᵤ AɢʰᵧₐD</div>
+          <!-- Developer Container -->
+          <div id="fpIdentityCard" class="mt-2 px-4 py-1.5 rounded-2xl border transition-all duration-500 flex flex-col items-center gap-0.5 w-full max-w-[260px] shadow-2xs select-none"
+               style="background-color: var(--c-surface-2); border-color: var(--c-border);">
+            <div id="fpDevSignature" class="text-[14px] font-black italic text-center tracking-widest transition-all duration-500" style="color: var(--c-text-2);">
+              Aᵦᵤ AɢʰᵧₐD
+            </div>
+          </div>
         </div>
 
         <!-- 6. Bottom Copyright -->
@@ -4108,6 +4165,48 @@
     </button>
   </div>
 
+  <!-- Modal for User Photo Upload & Management -->
+  <div id="userPhotoModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1001] flex items-center justify-center p-4" onclick="if(event.target===this) window.closeUserPhotoModal()">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 transition-all text-center relative animate-modal-in">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-base font-bold">
+            <i class="fa-solid fa-camera"></i>
+          </div>
+          <h3 class="text-sm font-black text-slate-800 dark:text-slate-100">صورة الشخص</h3>
+        </div>
+        <button onclick="window.closeUserPhotoModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center justify-center text-xs transition-colors cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Photo Preview Box -->
+      <div class="my-4 flex flex-col items-center justify-center">
+        <div class="w-28 h-28 rounded-full border-4 border-indigo-500/20 shadow-md overflow-hidden relative flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+          <img id="userPhotoModalPreview" src="" class="w-full h-full object-cover hidden" alt="صورة الشخص" />
+          <div id="userPhotoModalNoPhoto" class="text-slate-400 dark:text-slate-500 flex flex-col items-center gap-1">
+            <i class="fa-solid fa-user text-3xl opacity-50"></i>
+            <span class="text-[11px] font-bold">لا توجد صورة مخصصة</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2 mt-5">
+        <button onclick="document.getElementById('userPhotoInput').click()" class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>اختيار صورة جديدة</span>
+        </button>
+        <button id="userPhotoModalDeleteBtn" onclick="window.removeUserPhoto()" class="w-full py-2.5 px-4 rounded-xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-rose-200/50 dark:border-rose-900/40 hidden">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>إزالة الصورة الحالية</span>
+        </button>
+        <button onclick="window.closeUserPhotoModal()" class="w-full py-2 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all cursor-pointer">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="exportModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 transition-all">
       <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -4174,7 +4273,7 @@
     </div>
   </div>
   <div id="toast"
-    class="fixed bottom-24 left-0 right-0 mx-auto w-max text-center px-5 py-3 rounded-xl text-sm font-bold shadow-xl z-[150] opacity-0 translate-y-4 transition-all duration-300 pointer-events-none whitespace-nowrap">
+    class="fixed bottom-24 left-0 right-0 mx-auto w-max max-w-[92vw] text-center px-5 py-3 rounded-2xl text-sm font-bold shadow-2xl z-[99999] opacity-0 translate-y-4 transition-all duration-300 pointer-events-auto">
   </div>
 
   <!-- Modal for editing/adding employee name -->

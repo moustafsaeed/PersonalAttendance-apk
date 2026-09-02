@@ -9,7 +9,7 @@
 })();
 // ── Constants & State ──────────────────────────────────────
 var DEFAULT_SETTINGS={
-  name:``,workDays:[0,1,2,3,4,6],baseStart:`08:00`,baseEnd:`16:00`,baseOvertimeStart:``,
+  name:``,userPhoto:``,workDays:[0,1,2,3,4,6],baseStart:`08:00`,baseEnd:`16:00`,baseOvertimeStart:``,
   autoBackup:true, cloudAutoSync:false,
   backupInterval:'daily', backupTime:'00:00', backupDay:0, backupDate:1, lastBackupDate:'',
   daySchedules:{},schedules:[],alertOffset:15,
@@ -44,7 +44,7 @@ window.getFormattedSignatureDate = function() {
   }
   let d = new Date();
   if (type === 'custom' && settings.signatureCustomDate) {
-    let parsed = new Date(settings.signatureCustomDate);
+    let parsed = parseCalendarDate(settings.signatureCustomDate);
     if (!isNaN(parsed.getTime())) {
       d = parsed;
     }
@@ -56,6 +56,76 @@ window.getFormattedSignatureDate = function() {
 };
 var DAYS=[`الأحد`,`الاثنين`,`الثلاثاء`,`الأربعاء`,`الخميس`,`الجمعة`,`السبت`];
 var MONTHS=[`يناير`,`فبراير`,`مارس`,`أبريل`,`مايو`,`يونيو`,`يوليو`,`أغسطس`,`سبتمبر`,`أكتوبر`,`نوفمبر`,`ديسمبر`];
+
+// Centralized Calendar Date Model & Helpers (Timezone & UTC Immune)
+function parseCalendarDate(input) {
+  if (!input) return new Date();
+  if (input instanceof Date) {
+    return new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0);
+  }
+  const str = String(input).replace(/\//g, "-").trim();
+  const parts = str.split("-");
+  if (parts.length === 3) {
+    let y = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10) - 1;
+    let d = parseInt(parts[2], 10);
+    if (parts[0].length !== 4 && parts[2].length === 4) {
+      y = parseInt(parts[2], 10);
+      m = parseInt(parts[1], 10) - 1;
+      d = parseInt(parts[0], 10);
+    }
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d, 12, 0, 0);
+    }
+  }
+  let parsed = new Date(input);
+  if (!isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0);
+  }
+  return new Date();
+}
+
+function toISODateString(input) {
+  const cd = parseCalendarDate(input);
+  const y = cd.getFullYear();
+  const m = String(cd.getMonth() + 1).padStart(2, "0");
+  const d = String(cd.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function toSlashDateString(input) {
+  const cd = parseCalendarDate(input);
+  const y = cd.getFullYear();
+  const m = String(cd.getMonth() + 1).padStart(2, "0");
+  const d = String(cd.getDate()).padStart(2, "0");
+  return `${y}/${m}/${d}`;
+}
+
+function getCalendarDayName(input) {
+  const cd = parseCalendarDate(input);
+  return DAYS[cd.getDay()] || "";
+}
+
+function calculateCalendarDaysCount(startStr, endStr) {
+  const s = parseCalendarDate(startStr);
+  const e = parseCalendarDate(endStr);
+  if (e < s) return 0;
+  const diffMs = e.getTime() - s.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function addCalendarDays(startStr, daysToAdd) {
+  const cd = parseCalendarDate(startStr);
+  cd.setDate(cd.getDate() + daysToAdd);
+  return parseCalendarDate(cd);
+}
+window.parseCalendarDate = parseCalendarDate;
+window.toISODateString = toISODateString;
+window.toSlashDateString = toSlashDateString;
+window.getCalendarDayName = getCalendarDayName;
+window.calculateCalendarDaysCount = calculateCalendarDaysCount;
+window.addCalendarDays = addCalendarDays;
+
 var settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), records = [], viewYear, viewMonth, calYear, calMonth, periodMode=`current`;
 var monthSummary={p:0,a:0,l:0},timerHandle=null,clockInterval=null,chartInstances={};
 var todayDay=new Date().getDate(),alertedToday=false,initDate=new Date();
@@ -77,15 +147,88 @@ function trackError(src,msg,detail){
   try{IDB.set('pa_errors',_appErrors);}catch(e){}
 }
 
+// ── Confirmation Modal System ──────────────────────────────
+window.showConfirmDialog = function(title, message, confirmText = 'تأكيد', confirmClass = 'bg-red-600 hover:bg-red-700 text-white', onConfirm, onCancel) {
+  let existing = document.getElementById('customConfirmModal');
+  if (existing) existing.remove();
+
+  let isDanger = !confirmClass || confirmClass.includes('red') || confirmClass.includes('danger') || confirmClass.includes('error');
+  let iconClass = isDanger ? 'fa-trash-can text-red-600 dark:text-red-400' : 'fa-triangle-exclamation text-amber-600 dark:text-amber-400';
+  let iconBg = isDanger ? 'bg-red-100 dark:bg-red-950/50' : 'bg-amber-100 dark:bg-amber-950/50';
+
+  let modal = document.createElement('div');
+  modal.id = 'customConfirmModal';
+  modal.className = 'fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-modal-in';
+  modal.innerHTML = `
+    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-modal-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" onclick="event.stopPropagation()">
+      <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-4 ${iconBg}">
+        <i class="fa-solid ${iconClass} text-2xl"></i>
+      </div>
+      <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white mb-2">${title}</h3>
+      <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">${message}</p>
+      <div class="flex gap-3">
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">إلغاء</button>
+        <button id="confirmOkBtn" class="flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm ${confirmClass} transition shadow-md cursor-pointer active:scale-95">${confirmText}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  let closeConfirm = () => {
+    modal.style.pointerEvents = 'none';
+    modal.classList.add('opacity-0');
+    setTimeout(() => { if (modal && modal.parentNode) modal.remove(); }, 200);
+  };
+
+  document.getElementById('confirmCancelBtn').onclick = () => {
+    closeConfirm();
+    if (onCancel) onCancel();
+  };
+  document.getElementById('confirmOkBtn').onclick = () => {
+    closeConfirm();
+    if (onConfirm) onConfirm();
+  };
+  modal.onclick = (e) => {
+    if(e.target === modal) {
+      closeConfirm();
+      if (onCancel) onCancel();
+    }
+  };
+};
+
 // ── Undo system ──────────────────────────────────────────
 var _undoAction=null,_undoTimeout=null;
-function showUndoable(message,doUndo){
+function showUndoable(message,doUndo,duration=8500){
   _undoAction=doUndo;
+  window._undoAction=doUndo;
   if(_undoTimeout)clearTimeout(_undoTimeout);
-  toast(message+` <button onclick="performUndo()" style="color:#60a5fa;font-weight:900;margin-right:6px">تراجع</button>`,`ok`);
-  _undoTimeout=setTimeout(()=>{_undoAction=null;_undoTimeout=null;},8000);
+  let undoBtn = `<button type="button" id="toastUndoBtn" onclick="event.preventDefault(); event.stopPropagation(); window.performUndo(event);" class="bg-blue-600 hover:bg-blue-500 active:scale-90 text-white text-xs font-black px-4 py-2 rounded-xl shadow-lg cursor-pointer inline-flex items-center gap-1.5 mr-2 pointer-events-auto transition-transform select-none z-[100000]"><i class="fa-solid fa-rotate-left"></i><span>تراجع</span></button>`;
+  toast(`<div class="flex items-center justify-between gap-3 w-full"><span>${message}</span>${undoBtn}</div>`,`ok`,duration);
+  _undoTimeout=setTimeout(()=>{_undoAction=null;window._undoAction=null;_undoTimeout=null;},duration);
 }
-window.performUndo=function(){if(_undoAction){_undoAction();_undoAction=null;if(_undoTimeout)clearTimeout(_undoTimeout);_undoTimeout=null;}};
+window.showUndoable = showUndoable;
+
+async function performUndo(e){
+  if (e) {
+    if (typeof e.preventDefault === 'function') e.preventDefault();
+    if (typeof e.stopPropagation === 'function') e.stopPropagation();
+  }
+  let action = _undoAction || window._undoAction;
+  if(action){
+    _undoAction=null;
+    window._undoAction=null;
+    if(_undoTimeout){clearTimeout(_undoTimeout);_undoTimeout=null;}
+    let el=document.getElementById('toast');
+    if(el){el.classList.remove('animate-modal-in');el.classList.add('opacity-0','scale-95');}
+    try{
+      await action();
+    }catch(err){
+      console.error('Undo execution error:',err);
+      toast('حدث خطأ أثناء التراجع: ' + (err.message || err), 'err');
+    }
+  }
+}
+window.performUndo = performUndo;
 
 // ── App Folder & Path Config ───────────────────────────────
 var APP_FOLDER   = `Personal Attendance`;
@@ -487,11 +630,15 @@ function isPresent(s){return s!==`absent` && s!==`إجازة رسمية` && s!==
 function isTravel(s){return s===`تكليف سفر`}
 function isOTLeave(s){return s===`إجازة من الإضافي`}
 function formatMin(v){
-  if(!v||v<=0)return settings.timeFormat===`mins`?`0 د`:settings.timeFormat===`text`?`0 د`:`00:00`;
-  let h=Math.floor(v/60),m=Math.floor(v%60);
-  if(settings.timeFormat===`mins`) return `${Math.floor(v)} د`;
-  if(settings.timeFormat===`text`) return (h>0?`${h} س `:'') + (m>0||h===0?`${m} د`:'').trim();
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  if (v === null || v === undefined || isNaN(v)) v = 0;
+  if (v === 0) return settings.timeFormat===`mins`?`0 د`:settings.timeFormat===`text`?`0 د`:`00:00`;
+  let isNeg = v < 0;
+  let abs = Math.abs(v);
+  let h = Math.floor(abs / 60), m = Math.floor(abs % 60);
+  let prefix = isNeg ? '-' : '';
+  if(settings.timeFormat===`mins`) return `${prefix}${Math.floor(abs)} د`;
+  if(settings.timeFormat===`text`) return prefix + ((h>0?`${h} س `:'') + (m>0||h===0?`${m} د`:'')).trim();
+  return `${prefix}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 function getSchedule(y,m,dayObj=null){
   let key=`${y}-${String(m+1).padStart(2,`0`)}`,sch={start:settings.baseStart||`08:00`,end:settings.baseEnd||`16:00`,overtimeStart:settings.baseOvertimeStart||``,label:`دوام عادي`};
@@ -546,7 +693,7 @@ function earlyMin(co,e){
 
 function hasOvertime(r) {
   if(!r || !r.status || !isPresent(r.status) || !r.checkOut || !r.date) return false;
-  let d = new Date(slashToISO(r.date)), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
+  let d = parseCalendarDate(r.date), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
   let isHol = isHoliday(d) || !isWorkDay(d);
   if (isHol && r.checkIn && r.checkOut) {
     let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
@@ -1379,18 +1526,23 @@ function checkAlert(now){
 }
 
 // ── Toast ─────────────────────────────────────────────────
-function toast(msg,type){
-  let el=document.getElementById(`toast`);
-  if(!el) return;
-  el.innerHTML=msg;
-  // Modern High-Contrast Style (Fixed visible colors, centered horizontally, and wrap-safe for small screens)
-  el.className=`fixed bottom-24 left-4 right-4 mx-auto w-max max-w-[90vw] text-center px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl z-[200] transition-all duration-500 pointer-events-none toast-dark animate-modal-in ` + 
-    (type===`ok`?`text-emerald-400`:type===`err`?`text-red-400`:`text-cyan-400`);
+var _toastTimer = null;
+function toast(msg, type, duration = 3200) {
+  let el = document.getElementById(`toast`);
+  if (!el) return;
+  if (_toastTimer) {
+    clearTimeout(_toastTimer);
+    _toastTimer = null;
+  }
+  el.innerHTML = msg;
+  let borderClr = type === 'ok' ? 'border-emerald-500/40 text-emerald-300' : (type === 'err' ? 'border-red-500/40 text-red-300' : 'border-sky-500/40 text-sky-300');
+  el.className = `fixed bottom-24 left-4 right-4 mx-auto w-max max-w-[92vw] text-center px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl z-[99999] transition-all duration-300 pointer-events-auto bg-slate-900/95 text-white border ${borderClr} backdrop-blur-md animate-modal-in flex items-center justify-center gap-2`;
   
-  setTimeout(()=>{
-    el.classList.remove(`animate-modal-in`);
-    el.classList.add(`opacity-0`,`translate-y-8`,`scale-95`);
-  },2800);
+  _toastTimer = setTimeout(() => {
+    el.classList.remove('animate-modal-in');
+    el.classList.add('opacity-0', 'translate-y-8', 'scale-95');
+    _toastTimer = null;
+  }, duration);
 }
 
 // ── Notification banner ───────────────────────────────────
@@ -1404,7 +1556,7 @@ function showNotif(msg,icon,color){
 }
 
 // ── Navigation ────────────────────────────────────────────
-function go(page){
+window.go = function go(page){
   document.querySelectorAll(`.page`).forEach(p=>p.classList.remove(`active`));
   let pg=document.getElementById(`pg-`+page); if(pg) pg.classList.add(`active`);
   document.querySelectorAll(`.nav-i`).forEach(n=>{n.classList.remove(`on`);n.style.color=`var(--text2)`});
@@ -1471,9 +1623,20 @@ window.toggleHolidayWork = function() {
 function renderHome(){
   let name=settings.name||`المستخدم`;
   let av=document.getElementById(`homeAvatar`); if(av){ 
-    let span = av.querySelector('span');
-    if(span) span.textContent = name.charAt(0);
-    else av.textContent = name.charAt(0);
+    let avImg = document.getElementById('homeAvatarImg');
+    let avInit = document.getElementById('homeAvatarInitial');
+    if (settings.userPhoto) {
+      if (avImg) { avImg.src = settings.userPhoto; avImg.classList.remove('hidden'); }
+      if (avInit) avInit.classList.add('hidden');
+    } else {
+      if (avImg) avImg.classList.add('hidden');
+      if (avInit) {
+        avInit.classList.remove('hidden');
+        avInit.textContent = name.charAt(0) || 'أ';
+      } else {
+        av.textContent = name.charAt(0) || 'أ';
+      }
+    }
   }
   let gr=document.getElementById(`homeGreeting`); if(gr) gr.textContent=`مرحباً، `+name;
   let now=new Date(),sch=getSchedule(now.getFullYear(),now.getMonth(),now),isHol=isHoliday(now),isWork=isWorkDay(now);
@@ -1518,7 +1681,7 @@ function renderHome(){
         if(rec.checkOut){
           if(btnOut){btnOut.disabled=true;btnOut.classList.add(`opacity-50`,`cursor-not-allowed`,`disabled`);}
           if(timer) timer.classList.add(`hidden`); stopTimer();
-          let d=new Date(slashToISO(rec.date)),sch2=getSchedule(d.getFullYear(),d.getMonth(),d);
+          let d=parseCalendarDate(rec.date),sch2=getSchedule(d.getFullYear(),d.getMonth(),d);
           let [sh, sm] = (rec.checkIn && rec.checkIn.includes(":") ? rec.checkIn : "00:00").split(":").map(Number), [eh, em] = (rec.checkOut && rec.checkOut.includes(":") ? rec.checkOut : "00:00").split(":").map(Number);
           let ex=(eh*60+em)-(sh*60+sm); if(ex<0)ex+=1440;
           let html=`<div class="flex justify-between"><span>حضور</span><span class="font-bold" style="color:var(--stat-present-text)">${fmt12(rec.checkIn)}</span></div>`;
@@ -1605,7 +1768,7 @@ function renderHome(){
         monthRecs.forEach(r=>{
           if(r&&isPresent(r.status)){
             p++;
-            let d=new Date(slashToISO(r.date)),s=getSchedule(d.getFullYear(),d.getMonth(),d);
+            let d=parseCalendarDate(r.date),s=getSchedule(d.getFullYear(),d.getMonth(),d);
             if(lateMin(r.checkIn,s.start)>0)l++;
           }else if(r&&r.status===`absent`)a++;
         });
@@ -1771,7 +1934,7 @@ function searchMatch(r, q) {
   if (!q) return true;
   if (!r || typeof r !== 'object') return false;
   let rawDate = r.date || '';
-  let d = new Date(slashToISO(rawDate));
+  let d = parseCalendarDate(rawDate);
   let dayName = (!isNaN(d.getTime()) && DAYS[d.getDay()]) ? DAYS[d.getDay()] : '';
   let statusAr = r.status === 'present' ? 'حاضر' : r.status === 'absent' ? 'غائب' : (r.status === 'إجازة رسمية' || r.status === 'إجازة') ? 'إجازة' : (r.status || '');
   let recType = r.auto ? 'تلقائي' : 'يدوي';
@@ -1835,7 +1998,7 @@ async function renderRecords(){
   else if(sf===`travel`) filtered=filtered.filter(r=>r.status===`تكليف سفر`);
   else if(sf===`late`) filtered=filtered.filter(r=>{
     if(!isPresent(r.status))return false;
-    let d=new Date(slashToISO(r.date));
+    let d=parseCalendarDate(r.date);
     return lateMin(r.checkIn,getSchedule(d.getFullYear(),d.getMonth(),d).start)>0;
   });
   else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
@@ -1853,7 +2016,7 @@ async function renderRecords(){
 
   if(noRec) noRec.classList.add(`hidden`);
   if(body) body.innerHTML=filtered.map(r=>{
-    let d=new Date(slashToISO(r.date)), sch=getSchedule(d.getFullYear(),d.getMonth(),d);
+    let d=parseCalendarDate(r.date), sch=getSchedule(d.getFullYear(),d.getMonth(),d);
     let dayName = DAYS[d.getDay()];
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
@@ -1995,7 +2158,7 @@ function renderMonthSummary(recs){
   let p=0,a=0,l=0,t=0;
   let usedCompensations = settings.compensations || [];
   recs.forEach(r=>{
-    let d=new Date(slashToISO(r.date)),sch=getSchedule(d.getFullYear(),d.getMonth(),d);
+    let d=parseCalendarDate(r.date),sch=getSchedule(d.getFullYear(),d.getMonth(),d);
     let isHol = isHoliday(d) || !isWorkDay(d);
     
     let actuallyWorked = isPresent(r.status) || (isHol && r.checkIn);
@@ -2055,7 +2218,7 @@ window.onEditDateChange=async function(){
   let slash = isoToSlash(dateInput);
   let eIdElem = document.getElementById('eId'); if(eIdElem) { eIdElem.setAttribute('data-date', slash); if(eIdElem.dataset) eIdElem.dataset.date = slash; }
   
-  let d = new Date(dateInput);
+  let d = parseCalendarDate(dateInput);
   let dayName = !isNaN(d.getTime()) ? DAYS[d.getDay()] : '';
   let dateDisplay = document.getElementById('eDateDisplay');
   if(dateDisplay) {
@@ -2125,7 +2288,7 @@ window.openEdit=async function(id, dateStr){
 
   let dateDisplay = document.getElementById('eDateDisplay');
   if(dateDisplay) {
-    let d = new Date(slashToISO(rec.date));
+    let d = parseCalendarDate(rec.date);
     let dayName = !isNaN(d.getTime()) ? DAYS[d.getDay()] : '';
     dateDisplay.textContent = `${dayName} - ${rec.date}`;
   }
@@ -2270,72 +2433,107 @@ window.confirmExport = function(mode) {
 };
 
 window.delRec=async function(){
-  if(!acquireActionLock('delRec')) return;
-  try {
-    let eIdEl = document.getElementById('eId');
-    if(!eIdEl) return;
-    let id = eIdEl.value;
-    let dateInput = document.getElementById('eDate')?.value;
-    let eIdElem = document.getElementById('eId');
-    let date = dateInput ? isoToSlash(dateInput) : (eIdElem && eIdElem.dataset ? eIdElem.dataset.date : (eIdElem ? eIdElem.getAttribute('data-date') : ''));
-    if (!date) { closeEdit(); return; }
-    let normDate = normalizeSlashDate(date);
-    
-    let deleted = await RECDB.get(normDate);
-    if (!deleted) {
-      let all = await RECDB.getAll();
-      deleted = (all || []).find(r => r.id === id || r.date === normDate);
-    }
-    if (!deleted) { closeEdit(); return; }
-    
-    let d = new Date(slashToISO(deleted.date));
-    let restoredRec = {
-      id: uuid(),
-      date: deleted.date,
-      checkIn: null,
-      checkOut: null,
-      auto: true
-    };
-    
-    if (isHoliday(d)) {
-      restoredRec.status = 'إجازة';
-      restoredRec.absenceType = '';
-      restoredRec.note = getHolidayLabel(d);
-    } else if (!isWorkDay(d)) {
-      restoredRec.status = 'إجازة';
-      restoredRec.absenceType = '';
-      restoredRec.note = 'إجازة أسبوعية';
-    } else {
-      restoredRec.status = 'absent';
-      restoredRec.absenceType = '';
-      restoredRec.note = '';
-    }
-    
-    // Also remove any compensation records tied to this day
-    if (settings.compensations && settings.compensations.length > 0) {
-      settings.compensations = settings.compensations.filter(c => c.date !== deleted.date && c.sourceDate !== deleted.date);
-      saveSettings();
-    }
-    
-    await saveRecord(restoredRec);
-    _monthCacheKey = '';
-    closeEdit();
-    await renderRecords();
-    renderHome();
-    renderStats();
-    if (typeof renderCompensation === 'function') await renderCompensation();
-    
-    showUndoable('<i class="fa-solid fa-rotate-left ml-1"></i> تم إعادة ضبط السجل وإلغاء بيانات الدوام', async () => {
-      await saveRecord(deleted);
-      _monthCacheKey = '';
-      await renderRecords();
-      renderHome();
-      renderStats();
-      if (typeof renderCompensation === 'function') await renderCompensation();
-    });
-  } finally {
-    releaseActionLock('delRec');
+  let eIdEl = document.getElementById('eId');
+  if(!eIdEl) return;
+  let id = eIdEl.value;
+  let dateInput = document.getElementById('eDate')?.value;
+  let eIdElem = document.getElementById('eId');
+  let date = dateInput ? isoToSlash(dateInput) : (eIdElem && eIdElem.dataset ? eIdElem.dataset.date : (eIdElem ? eIdElem.getAttribute('data-date') : ''));
+  if (!date) { closeEdit(); return; }
+  let normDate = normalizeSlashDate(date);
+  
+  let deleted = await RECDB.get(normDate);
+  if (!deleted) {
+    let all = await RECDB.getAll();
+    deleted = (all || []).find(r => r.id === id || r.date === normDate);
   }
+  if (!deleted) {
+    deleted = (_monthCache || []).find(r => r.id === id || r.date === normDate);
+  }
+  if (!deleted) {
+    deleted = (records || []).find(r => r.id === id || r.date === normDate);
+  }
+  if (!deleted) {
+    deleted = {
+      id: id || uuid(),
+      date: normDate,
+      checkIn: document.getElementById('eCI')?.value || null,
+      checkOut: document.getElementById('eCO')?.value || null,
+      status: document.getElementById('eSt')?.value || 'absent',
+      absenceType: document.getElementById('eAT')?.value || '',
+      note: document.getElementById('eNote')?.value || ''
+    };
+  }
+
+  let d = parseCalendarDate(deleted.date);
+  let dayName = !isNaN(d.getTime()) ? DAYS[d.getDay()] : '';
+  let dateDisplayStr = dayName ? `${dayName} (${deleted.date})` : deleted.date;
+
+  showConfirmDialog(
+    "تأكيد حذف السجل",
+    `هل أنت متأكد من حذف بيانات دوام يوم ${dateDisplayStr}؟ سيتم إلغاء أوقات الحضور والانصراف وتفريغ اليوم.`,
+    "حذف السجل",
+    "bg-red-600 hover:bg-red-700 text-white",
+    async () => {
+      if(!acquireActionLock('delRec')) return;
+      try {
+        let deletedCopy = JSON.parse(JSON.stringify(deleted));
+        let oldComps = JSON.parse(JSON.stringify(settings.compensations || []));
+
+        let restoredRec = {
+          id: uuid(),
+          date: deleted.date,
+          checkIn: null,
+          checkOut: null,
+          auto: true
+        };
+        
+        if (isHoliday(d)) {
+          restoredRec.status = 'إجازة';
+          restoredRec.absenceType = '';
+          restoredRec.note = getHolidayLabel(d);
+        } else if (!isWorkDay(d)) {
+          restoredRec.status = 'إجازة';
+          restoredRec.absenceType = '';
+          restoredRec.note = 'إجازة أسبوعية';
+        } else {
+          restoredRec.status = 'absent';
+          restoredRec.absenceType = '';
+          restoredRec.note = '';
+        }
+        
+        // Also remove any compensation records tied to this day
+        if (settings.compensations && settings.compensations.length > 0) {
+          settings.compensations = settings.compensations.filter(c => c.date !== deleted.date && c.sourceDate !== deleted.date);
+          await saveSettings();
+        }
+        
+        await saveRecord(restoredRec);
+        _monthCacheKey = '';
+        closeEdit();
+        await renderRecords();
+        renderHome();
+        renderStats();
+        if (typeof renderCompensation === 'function') await renderCompensation();
+        
+        showUndoable(`<i class="fa-solid fa-trash ml-1"></i> تم حذف بيانات سجل ${dateDisplayStr}`, async () => {
+          await saveRecord(deletedCopy);
+          if (oldComps && oldComps.length > 0) {
+            settings.compensations = oldComps;
+            await saveSettings();
+          }
+          _monthCacheKey = '';
+          await renderRecords();
+          renderHome();
+          renderStats();
+          if (typeof renderCompensation === 'function') await renderCompensation();
+          toast('تمت استعادة السجل بنجاح', 'ok');
+        });
+      } finally {
+        releaseActionLock('delRec');
+      }
+    }
+  );
 };
 
 // ── Travel Assignment Management System ─────────────────────
@@ -2370,6 +2568,9 @@ window.closeTravelM = function() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
   }
+  if (typeof cancelEditTravelAssignment === 'function' && editingTravelId) {
+    cancelEditTravelAssignment();
+  }
 };
 
 window.switchTravelTab = function(tab) {
@@ -2394,14 +2595,11 @@ window.setQuickTravelDays = function(days) {
   let startEl = document.getElementById('travelStart');
   let endEl = document.getElementById('travelEnd');
   if(!startEl || !endEl) return;
-  let startVal = startEl.value;
-  let startD = startVal ? new Date(startVal) : new Date();
-  if (isNaN(startD.getTime())) startD = new Date();
-  let endD = new Date(startD);
-  endD.setDate(startD.getDate() + (parseInt(days)||1) - 1);
-  if (isNaN(endD.getTime())) endD = new Date();
-  startEl.value = startD.toISOString().split('T')[0];
-  endEl.value = endD.toISOString().split('T')[0];
+  let startVal = startEl.value || toISODateString(new Date());
+  let startCD = parseCalendarDate(startVal);
+  let endCD = addCalendarDays(startCD, (parseInt(days) || 1) - 1);
+  startEl.value = toISODateString(startCD);
+  endEl.value = toISODateString(endCD);
   if (typeof calcTravelDays === 'function') calcTravelDays();
 };
 
@@ -2411,9 +2609,7 @@ window.calcTravelDays = function() {
   const info = document.getElementById('travelDaysInfo');
   const count = document.getElementById('travelDaysCount');
   if (start && end) {
-    const startD = new Date(start);
-    const endD = new Date(end);
-    const diff = Math.round((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
+    const diff = calculateCalendarDaysCount(start, end);
     if (diff > 0) {
       if(count) count.textContent = diff;
       if(info) info.classList.remove('hidden');
@@ -2421,6 +2617,71 @@ window.calcTravelDays = function() {
       if(count) count.textContent = '0';
     }
   }
+};
+
+var editingTravelId = null;
+
+window.editTravelAssignment = function(assignmentId) {
+  let list = settings.travelAssignments || [];
+  let item = list.find(x => x.id === assignmentId);
+  if (!item) return;
+
+  editingTravelId = item.id;
+
+  let startEl = document.getElementById('travelStart');
+  let endEl = document.getElementById('travelEnd');
+  let destEl = document.getElementById('travelDestination');
+  let noteEl = document.getElementById('travelNote');
+
+  if (startEl) startEl.value = item.startDate;
+  if (endEl) endEl.value = item.endDate;
+  if (destEl) destEl.value = item.destination || '';
+  if (noteEl) noteEl.value = item.note || '';
+
+  let banner = document.getElementById('travelEditBanner');
+  let targetName = document.getElementById('travelEditingTargetName');
+  if (banner && targetName) {
+    targetName.textContent = item.destination || item.note || 'تكليف';
+    banner.classList.remove('hidden');
+  }
+
+  let submitBtn = document.getElementById('saveTravelSubmitBtn');
+  if (submitBtn) {
+    submitBtn.innerHTML = `<span>تحديث وحفظ التعديلات</span><i class="fa-solid fa-arrows-rotate text-sm"></i>`;
+    submitBtn.classList.remove('btn-primary');
+    submitBtn.classList.add('bg-amber-600', 'hover:bg-amber-700', 'text-white');
+  }
+
+  if (typeof calcTravelDays === 'function') calcTravelDays();
+  switchTravelTab('new');
+  toast('أنت الآن في وضع تعديل التكليف، قم بضبط البيانات ثم اضغط تحديث وحفظ', 'ok');
+};
+
+window.cancelEditTravelAssignment = function() {
+  editingTravelId = null;
+
+  let startEl = document.getElementById('travelStart');
+  let endEl = document.getElementById('travelEnd');
+  let destEl = document.getElementById('travelDestination');
+  let noteEl = document.getElementById('travelNote');
+
+  let nowISO = toISODateString(new Date());
+  if (startEl) startEl.value = nowISO;
+  if (endEl) endEl.value = nowISO;
+  if (destEl) destEl.value = '';
+  if (noteEl) noteEl.value = '';
+
+  let banner = document.getElementById('travelEditBanner');
+  if (banner) banner.classList.add('hidden');
+
+  let submitBtn = document.getElementById('saveTravelSubmitBtn');
+  if (submitBtn) {
+    submitBtn.innerHTML = `<span>تأكيد وحفظ التكليف</span><i class="fa-solid fa-check text-sm"></i>`;
+    submitBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700', 'text-white');
+    submitBtn.classList.add('btn-primary');
+  }
+
+  if (typeof calcTravelDays === 'function') calcTravelDays();
 };
 
 window.saveTravelAssignment = async function() {
@@ -2434,150 +2695,262 @@ window.saveTravelAssignment = async function() {
     if (!start) return toast('يرجى تحديد تاريخ البدء', 'err');
     if (!end) return toast('يرجى تحديد تاريخ الانتهاء', 'err');
 
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const startISO = toISODateString(start);
+    const endISO = toISODateString(end);
+    const startDate = parseCalendarDate(startISO);
+    const endDate = parseCalendarDate(endISO);
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return toast('صيغة التاريخ غير صالحة', 'err');
     if (endDate < startDate) return toast('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'err');
 
-    const days = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    const days = calculateCalendarDaysCount(startISO, endISO);
     if (days <= 0) return toast('فترة التكليف غير صالحة', 'err');
     if (days > 365) return toast('فترة التكليف يجب ألا تتجاوز 365 يوماً', 'err');
-    
-    toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري حفظ التكليف...`, `ok`);
 
-    let assignmentId = uuid();
     let fullNote = destination ? (note ? `${destination} - ${note}` : destination) : note;
 
-    // Save in settings travelAssignments array
-    settings.travelAssignments = settings.travelAssignments || [];
-    settings.travelAssignments.push({
-      id: assignmentId,
-      startDate: start,
-      endDate: end,
-      days: days,
-      destination: destination,
-      note: note,
-      createdAt: new Date().toISOString()
-    });
-    saveSettings();
-
-    for (let i = 0; i < days; i++) {
-      let current = new Date(startDate);
-      current.setDate(startDate.getDate() + i);
-      let d = current.getDate();
-      let m = current.getMonth() + 1;
-      let y = current.getFullYear();
-      let slashDate = makeDateKey(y, m-1, d);
-
-      let rec = await RECDB.get(slashDate);
-      if (!rec) {
-        rec = records.find(r => r.date === slashDate);
+    if (editingTravelId) {
+      toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري تحديث التكليف...`, `ok`);
+      let list = settings.travelAssignments || [];
+      let item = list.find(x => x.id === editingTravelId);
+      if (!item) {
+        cancelEditTravelAssignment();
+        return toast('تعذر العثور على التكليف المطلوب تعديله', 'err');
       }
-      
-      if (rec) {
-        rec.status = 'تكليف سفر';
-        rec.checkIn = null;
-        rec.checkOut = null;
-        rec.absenceType = '';
-        rec.note = fullNote;
-        rec.auto = false;
-        rec.travelAssignmentId = assignmentId;
-      } else {
-        rec = {
-          id: uuid(),
-          date: slashDate,
-          status: 'تكليف سفر',
-          checkIn: null,
-          checkOut: null,
-          absenceType: '',
-          note: fullNote,
-          auto: false,
-          travelAssignmentId: assignmentId
-        };
-        records.push(rec);
-      }
-      await saveRecord(rec);
-    }
 
-    _monthCacheKey = '';
-    await renderRecords();
-    renderHome();
-    renderStats();
-    
-    // Switch to history tab so user sees their new assignment right away
-    switchTravelTab('history');
-    toast(`<i class="fa-solid fa-plane-departure ml-1"></i> تم تسجيل تكليف السفر (${days} أيام) بنجاح`, `ok`);
-  } finally {
-    releaseActionLock('saveTravel');
-  }
-};
-
-window.deleteTravelAssignment = async function(assignmentId) {
-  if (!acquireActionLock('delTravel')) return;
-  try {
-    let list = settings.travelAssignments || [];
-    let item = list.find(x => x.id === assignmentId);
-    
-    if (!confirm(`هل أنت متأكد من إلغاء وحذف تكليف السفر؟ سيتم استعادة الأيام في سجل الحضور والغياب.`)) {
-      return;
-    }
-    
-    toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري حذف التكليف...`, `ok`);
-    
-    if (item) {
-      let startDate = new Date(item.startDate);
-      let endDate = new Date(item.endDate);
-      let days = (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) ? Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1 : 0;
-      
-      for (let i = 0; i < days; i++) {
-        let current = new Date(startDate);
-        current.setDate(startDate.getDate() + i);
-        let slashDate = makeDateKey(current.getFullYear(), current.getMonth(), current.getDate());
-        
+      // Revert old records from item.startDate to item.endDate
+      let oldDays = calculateCalendarDaysCount(item.startDate, item.endDate);
+      for (let i = 0; i < oldDays; i++) {
+        let currentCD = addCalendarDays(item.startDate, i);
+        let slashDate = toSlashDateString(currentCD);
         let rec = await RECDB.get(slashDate);
-        if (rec && rec.status === 'تكليف سفر') {
-          let d = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+        if (rec && rec.status === 'تكليف سفر' && (rec.travelAssignmentId === editingTravelId || !rec.travelAssignmentId)) {
+          let d = currentCD;
           if (isHoliday(d)) {
             rec.status = 'إجازة';
             rec.absenceType = '';
             rec.note = getHolidayLabel(d);
             rec.auto = true;
             rec.travelAssignmentId = null;
-            await saveRecord(rec);
           } else if (!isWorkDay(d)) {
             rec.status = 'إجازة';
             rec.absenceType = '';
             rec.note = 'إجازة أسبوعية';
             rec.auto = true;
             rec.travelAssignmentId = null;
-            await saveRecord(rec);
           } else {
             rec.status = 'absent';
             rec.absenceType = '';
             rec.note = '';
             rec.auto = true;
             rec.travelAssignmentId = null;
-            await saveRecord(rec);
           }
+          await saveRecord(rec);
         }
       }
-      
-      settings.travelAssignments = settings.travelAssignments.filter(x => x.id !== assignmentId);
-      saveSettings();
+
+      // Update assignment data
+      item.startDate = startISO;
+      item.endDate = endISO;
+      item.days = days;
+      item.destination = destination;
+      item.note = note;
+      item.updatedAt = new Date().toISOString();
+      await saveSettings();
+
+      // Apply new assignment records for startISO to endISO
+      for (let i = 0; i < days; i++) {
+        let currentCD = addCalendarDays(startISO, i);
+        let slashDate = toSlashDateString(currentCD);
+        let rec = await RECDB.get(slashDate);
+        if (!rec) rec = records.find(r => r.date === slashDate);
+        if (rec) {
+          rec.status = 'تكليف سفر';
+          rec.checkIn = null;
+          rec.checkOut = null;
+          rec.absenceType = '';
+          rec.note = fullNote;
+          rec.auto = false;
+          rec.travelAssignmentId = item.id;
+        } else {
+          rec = {
+            id: uuid(),
+            date: slashDate,
+            status: 'تكليف سفر',
+            checkIn: null,
+            checkOut: null,
+            absenceType: '',
+            note: fullNote,
+            auto: false,
+            travelAssignmentId: item.id
+          };
+          records.push(rec);
+        }
+        await saveRecord(rec);
+      }
+
+      cancelEditTravelAssignment();
+      _monthCacheKey = '';
+      await fillAbsences();
+      await renderRecords();
+      renderHome();
+      renderStats();
+      switchTravelTab('history');
+      toast(`<i class="fa-solid fa-check-double ml-1"></i> تم تحديث تكليف السفر (${days} أيام) بنجاح`, `ok`);
+    } else {
+      toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري حفظ التكليف...`, `ok`);
+
+      let assignmentId = uuid();
+
+      settings.travelAssignments = settings.travelAssignments || [];
+      settings.travelAssignments.push({
+        id: assignmentId,
+        startDate: startISO,
+        endDate: endISO,
+        days: days,
+        destination: destination,
+        note: note,
+        createdAt: new Date().toISOString()
+      });
+      await saveSettings();
+
+      for (let i = 0; i < days; i++) {
+        let currentCD = addCalendarDays(startISO, i);
+        let slashDate = toSlashDateString(currentCD);
+
+        let rec = await RECDB.get(slashDate);
+        if (!rec) {
+          rec = records.find(r => r.date === slashDate);
+        }
+
+        if (rec) {
+          rec.status = 'تكليف سفر';
+          rec.checkIn = null;
+          rec.checkOut = null;
+          rec.absenceType = '';
+          rec.note = fullNote;
+          rec.auto = false;
+          rec.travelAssignmentId = assignmentId;
+        } else {
+          rec = {
+            id: uuid(),
+            date: slashDate,
+            status: 'تكليف سفر',
+            checkIn: null,
+            checkOut: null,
+            absenceType: '',
+            note: fullNote,
+            auto: false,
+            travelAssignmentId: assignmentId
+          };
+          records.push(rec);
+        }
+        await saveRecord(rec);
+      }
+
+      cancelEditTravelAssignment();
+      _monthCacheKey = '';
+      await renderRecords();
+      renderHome();
+      renderStats();
+      switchTravelTab('history');
+      toast(`<i class="fa-solid fa-plane-departure ml-1"></i> تم تسجيل تكليف السفر (${days} أيام) بنجاح`, `ok`);
     }
-    
-    _monthCacheKey = '';
-    await fillAbsences();
-    await renderRecords();
-    renderHome();
-    renderStats();
-    renderTravelAssignmentsList();
-    renderTravelStats();
-    toast(`تم حذف تكليف السفر بنجاح واستعادة السجلات`, `ok`);
   } finally {
-    releaseActionLock('delTravel');
+    releaseActionLock('saveTravel');
   }
+};
+
+window.deleteTravelAssignment = async function(assignmentId) {
+  let list = settings.travelAssignments || [];
+  let item = list.find(x => x.id === assignmentId);
+  if (!item) return;
+  
+  showConfirmDialog(
+    "إلغاء تكليف السفر",
+    `هل أنت متأكد من إلغاء وحذف تكليف السفر (${item.destination || item.note || 'تكليف'})؟ سيتم استعادة الأيام في سجل الحضور والغياب.`,
+    "حذف التكليف",
+    "bg-red-600 hover:bg-red-700 text-white",
+    async () => {
+      if (!acquireActionLock('delTravel')) return;
+      try {
+        toast(`<i class="fa-solid fa-spinner fa-spin ml-1"></i> جاري حذف التكليف...`, `ok`);
+        
+        let oldItem = JSON.parse(JSON.stringify(item));
+        let days = calculateCalendarDaysCount(item.startDate, item.endDate);
+        
+        for (let i = 0; i < days; i++) {
+          let currentCD = addCalendarDays(item.startDate, i);
+          let slashDate = toSlashDateString(currentCD);
+          
+          let rec = await RECDB.get(slashDate);
+          if (rec && rec.status === 'تكليف سفر') {
+            let d = currentCD;
+            if (isHoliday(d)) {
+              rec.status = 'إجازة';
+              rec.absenceType = '';
+              rec.note = getHolidayLabel(d);
+              rec.auto = true;
+              rec.travelAssignmentId = null;
+              await saveRecord(rec);
+            } else if (!isWorkDay(d)) {
+              rec.status = 'إجازة';
+              rec.absenceType = '';
+              rec.note = 'إجازة أسبوعية';
+              rec.auto = true;
+              rec.travelAssignmentId = null;
+              await saveRecord(rec);
+            } else {
+              rec.status = 'absent';
+              rec.absenceType = '';
+              rec.note = '';
+              rec.auto = true;
+              rec.travelAssignmentId = null;
+              await saveRecord(rec);
+            }
+          }
+        }
+        
+        settings.travelAssignments = settings.travelAssignments.filter(x => x.id !== assignmentId);
+        await saveSettings();
+        
+        _monthCacheKey = '';
+        await fillAbsences();
+        await renderRecords();
+        renderHome();
+        renderStats();
+        renderTravelAssignmentsList();
+        renderTravelStats();
+        
+        showUndoable(`تم حذف تكليف السفر (${oldItem.destination || oldItem.note || ''})`, async () => {
+          settings.travelAssignments.push(oldItem);
+          await saveSettings();
+          let restoreDays = calculateCalendarDaysCount(oldItem.startDate, oldItem.endDate);
+          for (let i = 0; i < restoreDays; i++) {
+            let currentCD = addCalendarDays(oldItem.startDate, i);
+            let slashDate = toSlashDateString(currentCD);
+            let rec = await RECDB.get(slashDate);
+            if (rec) {
+              rec.status = 'تكليف سفر';
+              rec.note = oldItem.destination ? (oldItem.note ? `${oldItem.destination} - ${oldItem.note}` : oldItem.destination) : oldItem.note;
+              rec.travelAssignmentId = oldItem.id;
+              rec.auto = false;
+              await saveRecord(rec);
+            }
+          }
+          _monthCacheKey = '';
+          await fillAbsences();
+          await renderRecords();
+          renderHome();
+          renderStats();
+          renderTravelAssignmentsList();
+          renderTravelStats();
+          toast('تم التراجع واستعادة تكليف السفر بنجاح', 'ok');
+        });
+      } finally {
+        releaseActionLock('delTravel');
+      }
+    }
+  );
 };
 
 window.goToTravelRange = async function(startISO, endISO) {
@@ -2644,15 +3017,16 @@ async function renderTravelAssignmentsList() {
     return;
   }
   
-  let todayISO = new Date().toISOString().split('T')[0];
+  let todayISO = toISODateString(new Date());
   
   container.innerHTML = list.map(item => {
-    let startD = new Date(item.startDate);
-    let endD = new Date(item.endDate);
-    let startSlash = isoToSlash(item.startDate);
-    let endSlash = isoToSlash(item.endDate);
-    let startDayName = DAYS[startD.getDay()] || '';
-    let endDayName = DAYS[endD.getDay()] || '';
+    let startCD = parseCalendarDate(item.startDate);
+    let endCD = parseCalendarDate(item.endDate);
+    let startSlash = toSlashDateString(startCD);
+    let endSlash = toSlashDateString(endCD);
+    let startDayName = getCalendarDayName(startCD);
+    let endDayName = getCalendarDayName(endCD);
+    let daysCount = calculateCalendarDaysCount(item.startDate, item.endDate);
     
     let isCurrent = todayISO >= item.startDate && todayISO <= item.endDate;
     let isFuture = todayISO < item.startDate;
@@ -2685,7 +3059,7 @@ async function renderTravelAssignmentsList() {
           <div class="flex flex-col items-end gap-1">
             ${statusBadge}
             <span class="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
-              ${item.days} ${item.days === 1 ? 'يوم' : item.days === 2 ? 'يومان' : item.days <= 10 ? 'أيام' : 'يوماً'}
+              ${daysCount} ${daysCount === 1 ? 'يوم' : daysCount === 2 ? 'يومان' : daysCount <= 10 ? 'أيام' : 'يوماً'}
             </span>
           </div>
         </div>
@@ -2699,10 +3073,16 @@ async function renderTravelAssignmentsList() {
             <i class="fa-solid fa-arrow-left text-[9px]"></i>
           </button>
           
-          <button onclick="deleteTravelAssignment('${item.id}')" class="text-xs font-bold text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-1 cursor-pointer">
-            <i class="fa-solid fa-trash-can text-xs"></i>
-            <span>إلغاء التكليف</span>
-          </button>
+          <div class="flex items-center gap-1">
+            <button onclick="editTravelAssignment('${item.id}')" class="text-xs font-bold text-amber-600 hover:text-amber-700 p-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/20 flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
+              <span>تعديل</span>
+            </button>
+            <button onclick="deleteTravelAssignment('${item.id}')" class="text-xs font-bold text-red-600 hover:text-red-700 p-1 px-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+              <span>إلغاء التكليف</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -2715,9 +3095,9 @@ async function renderTravelStats() {
   
   let list = settings.travelAssignments || [];
   let totalMissions = list.length;
-  let totalDays = list.reduce((s, i) => s + (i.days || 0), 0);
+  let totalDays = list.reduce((s, i) => s + calculateCalendarDaysCount(i.startDate, i.endDate), 0);
   
-  let todayISO = new Date().toISOString().split('T')[0];
+  let todayISO = toISODateString(new Date());
   let activeMissions = list.filter(i => todayISO >= i.startDate && todayISO <= i.endDate).length;
   
   container.innerHTML = `
@@ -2810,7 +3190,7 @@ async function renderStats(){
   // Compute metrics for activeRecs
   activeRecs.forEach(r => {
     if (!r || !r.date) return;
-    let d = new Date(slashToISO(r.date));
+    let d = parseCalendarDate(r.date);
     if (isNaN(d.getTime())) return;
     let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     let isHol = isHoliday(d) || !isWorkDay(d);
@@ -2844,7 +3224,7 @@ async function renderStats(){
   // Calculate year breakdown for year-trend chart
   validYearRecs.forEach(r => {
     if (!r || !r.date) return;
-    let d = new Date(slashToISO(r.date));
+    let d = parseCalendarDate(r.date);
     if (isNaN(d.getTime())) return;
     let mIndex = d.getMonth();
     let isHol = isHoliday(d) || !isWorkDay(d);
@@ -3019,7 +3399,7 @@ async function renderStats(){
           labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4', 'الأسبوع 5'];
           let wCounts = [0, 0, 0, 0, 0];
           activeRecs.forEach(r => {
-            let d = new Date(slashToISO(r.date));
+            let d = parseCalendarDate(r.date);
             if(!isNaN(d.getTime()) && isPresent(r.status)) {
               let w = Math.min(4, Math.floor((d.getDate() - 1) / 7));
               wCounts[w]++;
@@ -3138,36 +3518,19 @@ async function calcOvertimeBalance() {
   });
 
   allRecs.forEach(r => {
-    let d = new Date(slashToISO(r.date));
+    let d = parseCalendarDate(r.date);
     let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     let isHol = isHoliday(d) || !isWorkDay(d) || r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'إجازة أسبوعية';
     
     if (!isPresent(r.status) && !isHol) return;
     if (!r.checkIn) return; // Must have checkIn
     
-    let ex = 0, lm = 0, em = 0;
-    
-    if (isHol && r.checkIn && r.checkOut) {
-      // If worked on a holiday/weekend, the entire duration is extra
-      let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em_m] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
-      ex = (eh*60+em_m) - (sh*60+sm);
-      if(ex < 0) ex += 1440;
-    } else if (isPresent(r.status)) {
-      // Calculate late minutes
+    let lm = 0, em = 0;
+    if (isPresent(r.status)) {
       lm = lateMin(r.checkIn, sch.start);
-      // Calculate early departure minutes
       em = r.checkOut ? earlyMin(r.checkOut, sch.end) : 0;
-      // Calculate overtime (extra) minutes
-      ex = r.checkOut && sch.overtimeStart ? extraMin(r.checkOut, sch.overtimeStart) : 0;
-      if(ex <= 0 && r.checkOut) {
-        let outArr = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
-        let endStr = (sch.overtimeStart || sch.end || "16:00");
-        let endArr = (endStr.includes(":") ? endStr : "16:00").split(":").map(Number);
-        let outM = outArr[0]*60 + outArr[1];
-        let endM = endArr[0]*60 + endArr[1];
-        if(outM > endM) ex = outM - endM;
-      }
     }
+    let ex = getRecordOvertimeMinutes(r, sch);
     
     let dayName = DAYS[d.getDay()] || '';
     let typeLabel = isHoliday(d) ? getHolidayLabel(d) : (!isWorkDay(d) ? 'عطلة أسبوعية' : 'يوم عمل اعتيادي');
@@ -3721,56 +4084,88 @@ window.saveOTLeave = async function() {
 };
 
 window.undoCompensation = async function(id) {
-  if (!acquireActionLock('undoCompensation')) return;
-  try {
-    let comp = settings.compensations.find(c => c.id === id);
-    if(!comp) return;
-    
-    if(comp.type === 'leave') {
-      let rec = await RECDB.get(comp.date);
-      if(rec && (rec.status === 'إجازة من الإضافي' || rec.absenceType === 'إجازة تعويض إضافي')) {
-        let d = new Date(slashToISO(comp.date));
-        if (isHoliday(d)) {
-          rec.status = 'إجازة';
-          rec.absenceType = '';
-          rec.note = getHolidayLabel(d);
-          rec.auto = true;
-          rec.checkIn = null;
-          rec.checkOut = null;
-          await saveRecord(rec);
-        } else if (!isWorkDay(d)) {
-          rec.status = 'إجازة';
-          rec.absenceType = '';
-          rec.note = 'إجازة أسبوعية';
-          rec.auto = true;
-          rec.checkIn = null;
-          rec.checkOut = null;
-          await saveRecord(rec);
-        } else {
-          rec.status = 'absent';
-          rec.absenceType = '';
-          rec.note = '';
-          rec.auto = true;
-          rec.checkIn = null;
-          rec.checkOut = null;
-          await saveRecord(rec);
+  let comp = settings.compensations.find(c => c.id === id);
+  if(!comp) return;
+
+  showConfirmDialog(
+    "إلغاء خصم التعويض",
+    `هل أنت متأكد من إلغاء خصم التعويض ليوم (${comp.date}) واستعادة رصيد الساعات الإضافية؟`,
+    "إلغاء الخصم",
+    "bg-red-600 hover:bg-red-700 text-white",
+    async () => {
+      if (!acquireActionLock('undoCompensation')) return;
+      try {
+        let oldComp = JSON.parse(JSON.stringify(comp));
+        if(comp.type === 'leave') {
+          let rec = await RECDB.get(comp.date);
+          if(rec && (rec.status === 'إجازة من الإضافي' || rec.absenceType === 'إجازة تعويض إضافي')) {
+            let d = parseCalendarDate(comp.date);
+            if (isHoliday(d)) {
+              rec.status = 'إجازة';
+              rec.absenceType = '';
+              rec.note = getHolidayLabel(d);
+              rec.auto = true;
+              rec.checkIn = null;
+              rec.checkOut = null;
+              await saveRecord(rec);
+            } else if (!isWorkDay(d)) {
+              rec.status = 'إجازة';
+              rec.absenceType = '';
+              rec.note = 'إجازة أسبوعية';
+              rec.auto = true;
+              rec.checkIn = null;
+              rec.checkOut = null;
+              await saveRecord(rec);
+            } else {
+              rec.status = 'absent';
+              rec.absenceType = '';
+              rec.note = '';
+              rec.auto = true;
+              rec.checkIn = null;
+              rec.checkOut = null;
+              await saveRecord(rec);
+            }
+          }
         }
+        
+        settings.compensations = settings.compensations.filter(c => c.id !== id);
+        saveSettings();
+        
+        _monthCacheKey = '';
+        await fillAbsences();
+        await renderCompensation();
+        await renderRecords();
+        renderHome();
+        renderStats();
+        
+        showUndoable('تم إلغاء خصم التعويض واستعادة الرصيد', async () => {
+          settings.compensations.push(oldComp);
+          saveSettings();
+          if (oldComp.type === 'leave') {
+            let rec = await RECDB.get(oldComp.date);
+            let sourceDesc = formatCompSourceText(oldComp, false);
+            let noteText = oldComp.note ? `${oldComp.note} (خصم ${formatMin(oldComp.minutes)} ${sourceDesc})` : `خصم ${formatMin(oldComp.minutes)} ${sourceDesc}`;
+            if (rec) {
+              rec.status = 'إجازة من الإضافي';
+              rec.absenceType = 'إجازة تعويض إضافي';
+              rec.note = noteText;
+              rec.auto = false;
+              await saveRecord(rec);
+            }
+          }
+          _monthCacheKey = '';
+          await fillAbsences();
+          await renderCompensation();
+          await renderRecords();
+          renderHome();
+          renderStats();
+          toast('تم التراجع واستعادة خصم التعويض بنجاح', 'ok');
+        });
+      } finally {
+        releaseActionLock('undoCompensation');
       }
     }
-    
-    settings.compensations = settings.compensations.filter(c => c.id !== id);
-    saveSettings();
-    
-    _monthCacheKey = '';
-    await fillAbsences();
-    await renderCompensation();
-    await renderRecords();
-    renderHome();
-    renderStats();
-    toast('تم التراجع عن التعويض وإلغاء الخصم بنجاح واستعادة السجل', 'ok');
-  } finally {
-    releaseActionLock('undoCompensation');
-  }
+  );
 };
 
 window.switchRecordsView = async function(view) {
@@ -4181,7 +4576,7 @@ function analyzeLatenessPatterns(recs) {
   recs.forEach(r => {
     if (!isPresent(r.status)) return;
     
-    let d = new Date(slashToISO(r.date));
+    let d = parseCalendarDate(r.date);
     let day = d.getDay();
     let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     
@@ -4209,6 +4604,16 @@ function renderSettingsPage(){
   let sn=document.getElementById(`setName`); if(sn) sn.value=settings.name||``;
   let sd=document.getElementById(`setDepartment`); if(sd) sd.value=settings.department||``;
   let sm=document.getElementById(`setManagerName`); if(sm) sm.value=settings.managerName||``;
+  
+  let setAvImg = document.getElementById('setAccountAvatarImg');
+  let setAvInit = document.getElementById('setAccountAvatarInitial');
+  if (settings.userPhoto) {
+    if (setAvImg) { setAvImg.src = settings.userPhoto; setAvImg.classList.remove('hidden'); }
+    if (setAvInit) setAvInit.classList.add('hidden');
+  } else {
+    if (setAvImg) setAvImg.classList.add('hidden');
+    if (setAvInit) { setAvInit.classList.remove('hidden'); setAvInit.textContent = (settings.name || 'أ').charAt(0); }
+  }
   let ao=document.getElementById(`alertOffsetIn`); if(ao) ao.value=settings.alertOffset; let vf=document.getElementById(`voiceFeedbackIn`); if(vf) vf.value=settings.voiceFeedback||"female";
   let bs=document.getElementById(`baseStartIn`); if(bs) bs.value=settings.baseStart||`08:00`;
   let be=document.getElementById(`baseEndIn`); if(be) be.value=settings.baseEnd||`16:00`;
@@ -4238,6 +4643,81 @@ function renderSettingsPage(){
   renderReportHeaders();
   renderReportFooters();
   
+  // Helper to cleanly resolve signature column without duplicating names or labels
+  window.resolveSignatureCol = function(col, colIndex) {
+    if (!col) col = {};
+    const cleanDots = (str) => {
+      if (!str) return '';
+      return String(str).replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
+    };
+
+    let title = cleanDots(col.title || (colIndex === 1 ? 'توقيع الموظف' : colIndex === 2 ? 'اعتماد المدير المباشر' : 'الموارد البشرية'));
+    let rawLabel = cleanDots(col.label1 || (colIndex === 1 ? 'الاسم:' : colIndex === 2 ? 'رئيس القسم:' : 'مسؤول الموارد:'));
+    let rawVal = (col.value1 !== undefined && col.value1 !== null ? String(col.value1) : '').trim();
+
+    let fallbackName = (colIndex === 1) ? (settings.name || '') : (colIndex === 2 ? (settings.managerName || '') : '');
+    
+    let resolvedVal = rawVal;
+    if (!resolvedVal || resolvedVal === 'NAME_PLACEHOLDER' || (colIndex === 1 && resolvedVal === 'MANAGER_PLACEHOLDER')) {
+      resolvedVal = fallbackName;
+    } else if (resolvedVal === 'MANAGER_PLACEHOLDER' && colIndex === 2) {
+      resolvedVal = settings.managerName || '';
+    }
+    resolvedVal = cleanDots(resolvedVal);
+
+    let finalLabel = rawLabel;
+    let finalVal = resolvedVal;
+
+    // 1. If rawLabel already contains the name (e.g. user typed "الاسم: عبده سعيد" or "عبده سعيد" in the label input)
+    if (rawLabel.includes(':')) {
+      let parts = rawLabel.split(':');
+      let prefix = parts[0].trim() + ':';
+      let afterColon = parts.slice(1).join(':').trim();
+      if (afterColon) {
+        finalLabel = prefix;
+        if (!rawVal || rawVal === 'NAME_PLACEHOLDER' || rawVal === fallbackName || rawVal === afterColon) {
+          finalVal = afterColon;
+        }
+      } else {
+        finalLabel = prefix;
+      }
+    } else {
+      if (fallbackName && rawLabel.trim() === fallbackName.trim()) {
+        finalLabel = (colIndex === 1 ? 'الاسم:' : colIndex === 2 ? 'رئيس القسم:' : 'الاعتماد:');
+        finalVal = fallbackName;
+      } else if (rawLabel) {
+        finalLabel = rawLabel + ':';
+      }
+    }
+
+    // 2. If finalVal starts with the label (e.g. "الاسم: عبده سعيد" or "الاسم : عبده سعيد")
+    if (finalVal && finalLabel) {
+      let cleanLbl = finalLabel.replace(/:/g, '').trim();
+      if (finalVal.startsWith(finalLabel)) {
+        finalVal = finalVal.substring(finalLabel.length).trim();
+      } else if (finalVal.startsWith(cleanLbl + ':')) {
+        finalVal = finalVal.substring((cleanLbl + ':').length).trim();
+      } else if (finalVal.startsWith(cleanLbl)) {
+        finalVal = finalVal.substring(cleanLbl.length).replace(/^[:\s-]+/, '').trim();
+      }
+    }
+
+    // 3. If finalLabel and finalVal are identical
+    if (finalLabel.replace(/:/g, '').trim() === finalVal.replace(/:/g, '').trim()) {
+      finalLabel = (colIndex === 1 ? 'الاسم:' : colIndex === 2 ? 'رئيس القسم:' : 'الاعتماد:');
+    }
+
+    return {
+      title: title,
+      label1: finalLabel,
+      value1: finalVal,
+      label2: cleanDots(col.label2 || 'التوقيع:'),
+      label3: cleanDots(col.label3 || 'التاريخ:'),
+      signatureImage: col.signatureImage || null,
+      show: col.show !== false
+    };
+  };
+
   // Populate Signature Settings
   if (!settings.signatures) {
     settings.signatures = {
@@ -4246,28 +4726,26 @@ function renderSettingsPage(){
       col3: { show: true, title: "الموارد البشرية", label1: "مسؤول الموارد:", value1: "", label2: "التوقيع:", label3: "التاريخ:" }
     };
   }
-  // Sanitize stored dots if any exist in the database from prior versions
-  const sanitizeDots = (str) => {
-    if (!str) return '';
-    return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
-  };
+
   for (let i = 1; i <= 3; i++) {
     let col = settings.signatures['col' + i] || {};
-    col.title = sanitizeDots(col.title || '');
-    col.label1 = sanitizeDots(col.label1 || '');
-    col.label2 = sanitizeDots(col.label2 || '');
-    col.label3 = sanitizeDots(col.label3 || '');
-    col.value1 = sanitizeDots(col.value1 || '');
-    if (col.value1 === 'NAME_PLACEHOLDER' || col.value1 === 'MANAGER_PLACEHOLDER') {
-      // keep placeholder
-    } else {
-      col.value1 = sanitizeDots(col.value1 || '');
-    }
+    let resolved = window.resolveSignatureCol(col, i);
     
     let showEl = document.getElementById('sig_show' + i); if (showEl) showEl.checked = col.show !== false;
-    let titleEl = document.getElementById('sig_title' + i); if (titleEl) titleEl.value = col.title || '';
-    let lblEl = document.getElementById('sig_lbl' + i); if (lblEl) lblEl.value = col.label1 || '';
-    let valEl = document.getElementById('sig_val' + i); if (valEl) valEl.value = col.value1 || '';
+    let titleEl = document.getElementById('sig_title' + i); if (titleEl) titleEl.value = resolved.title || '';
+    let lblEl = document.getElementById('sig_lbl' + i); if (lblEl) lblEl.value = resolved.label1 || '';
+    let valEl = document.getElementById('sig_val' + i);
+    if (valEl) {
+      if (col.value1 === 'NAME_PLACEHOLDER' || (!col.value1 && i === 1)) {
+        valEl.value = '';
+        valEl.placeholder = `الافتراضي: ${settings.name || 'اسم الموظف'}`;
+      } else if (col.value1 === 'MANAGER_PLACEHOLDER' || (!col.value1 && i === 2)) {
+        valEl.value = '';
+        valEl.placeholder = `الافتراضي: ${settings.managerName || 'اسم رئيس القسم'}`;
+      } else {
+        valEl.value = resolved.value1 || '';
+      }
+    }
   }
 
   // Populate Signature Date Settings
@@ -4348,6 +4826,100 @@ window.saveModalEmployeeName = function() {
     toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ الاسم بنجاح`, 'ok');
   }
 };
+
+window.triggerUserPhotoUpload = function() {
+  if (settings.userPhoto) {
+    window.openUserPhotoModal();
+  } else {
+    let inp = document.getElementById('userPhotoInput');
+    if (inp) inp.click();
+  }
+};
+
+window.openUserPhotoModal = function() {
+  let modal = document.getElementById('userPhotoModal');
+  let prevImg = document.getElementById('userPhotoModalPreview');
+  let noPhotoText = document.getElementById('userPhotoModalNoPhoto');
+  let deleteBtn = document.getElementById('userPhotoModalDeleteBtn');
+  
+  if (modal) {
+    if (settings.userPhoto) {
+      if (prevImg) {
+        prevImg.src = settings.userPhoto;
+        prevImg.classList.remove('hidden');
+      }
+      if (noPhotoText) noPhotoText.classList.add('hidden');
+      if (deleteBtn) deleteBtn.classList.remove('hidden');
+    } else {
+      if (prevImg) prevImg.classList.add('hidden');
+      if (noPhotoText) noPhotoText.classList.remove('hidden');
+      if (deleteBtn) deleteBtn.classList.add('hidden');
+    }
+    modal.classList.remove('hidden');
+  }
+};
+
+window.closeUserPhotoModal = function() {
+  let modal = document.getElementById('userPhotoModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+window.handleUserPhotoSelect = function(e) {
+  let file = e.target.files && e.target.files[0];
+  if (!file) return;
+  
+  if (!file.type.startsWith('image/')) {
+    toast('يرجى اختيار ملف صورة صالحة', 'err');
+    return;
+  }
+  
+  let reader = new FileReader();
+  reader.onload = function(evt) {
+    let img = new Image();
+    img.onload = function() {
+      let maxDim = 350;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      let canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      let ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      
+      settings.userPhoto = dataUrl;
+      saveSettings();
+      renderHome();
+      renderSettingsPage();
+      window.closeUserPhotoModal();
+      toast('<i class="fa-solid fa-camera ml-1"></i> تم حفظ صورة الشخص بنجاح', 'ok');
+    };
+    img.onerror = function() {
+      toast('تعذر تحميل الصورة', 'err');
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+};
+
+window.removeUserPhoto = function() {
+  settings.userPhoto = '';
+  saveSettings();
+  renderHome();
+  renderSettingsPage();
+  window.closeUserPhotoModal();
+  toast('<i class="fa-solid fa-trash-can ml-1"></i> تم إزالة صورة الشخص بنجاح', 'ok');
+};
 window.saveDepartment=function(){let el=document.getElementById(`setDepartment`);if(el){settings.department=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveManagerName=function(){let el=document.getElementById(`setManagerName`);if(el){settings.managerName=el.value.trim()||``;saveSettings();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);}};
 window.saveAlertSettings=function(){settings.alertOffset=parseInt(document.getElementById(`alertOffsetIn`).value)||0;saveSettings();if(settings.alertOffset>0&&Notification.permission!==`granted`)Notification.requestPermission();toast(`<i class="fa-solid fa-check ml-1"></i> تم الحفظ`,`ok`);};
@@ -4379,16 +4951,28 @@ window.saveSignatureSettings = function() {
     let valEl = document.getElementById('sig_val' + i);
     let oldImg = (settings.signatures['col' + i] && settings.signatures['col' + i].signatureImage) || null;
     
-    let rawVal = valEl ? valEl.value.trim() : '';
-    if (rawVal !== 'NAME_PLACEHOLDER' && rawVal !== 'MANAGER_PLACEHOLDER') {
-      rawVal = cleanDots(rawVal);
+    let rawTitle = titleEl ? cleanDots(titleEl.value) : '';
+    let rawLbl = lblEl ? cleanDots(lblEl.value) : '';
+    let rawVal = valEl ? cleanDots(valEl.value) : '';
+
+    if (!rawVal) {
+      if (i === 1) rawVal = 'NAME_PLACEHOLDER';
+      else if (i === 2) rawVal = 'MANAGER_PLACEHOLDER';
     }
+
+    let tempCol = {
+      title: rawTitle,
+      label1: rawLbl,
+      value1: rawVal,
+      signatureImage: oldImg
+    };
+    let resolved = window.resolveSignatureCol(tempCol, i);
 
     settings.signatures['col' + i] = {
       show: showEl ? showEl.checked : true,
-      title: titleEl ? cleanDots(titleEl.value) : '',
-      label1: lblEl ? cleanDots(lblEl.value) : '',
-      value1: rawVal,
+      title: resolved.title,
+      label1: resolved.label1,
+      value1: (resolved.value1 === settings.name && i === 1 && !valEl?.value.trim()) ? 'NAME_PLACEHOLDER' : (resolved.value1 === settings.managerName && i === 2 && !valEl?.value.trim()) ? 'MANAGER_PLACEHOLDER' : resolved.value1,
       label2: "التوقيع:",
       label3: "التاريخ:",
       signatureImage: oldImg
@@ -4401,6 +4985,7 @@ window.saveSignatureSettings = function() {
   if (scdEl) settings.signatureCustomDate = scdEl.value;
 
   saveSettings();
+  renderSettingsPage();
   toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعدادات التواقيع والاعتماد`, `ok`);
 };
 
@@ -4775,16 +5360,26 @@ window.addSched=function(){
   saveSettings();renderScheduleList();closeSchedM();renderHome();toast(`<i class="fa-solid fa-check ml-1"></i> تمت الإضافة`,`ok`);
 };
 window.delSched=function(key){
-  if(!confirm('هل أنت متأكد من حذف هذا الجدول؟')) return;
   let idx = settings.schedules.findIndex(s => s.key === key);
   if(idx === -1) return;
   let s = settings.schedules[idx];
-  settings.schedules.splice(idx, 1);
-  saveSettings();renderScheduleList();renderHome();
-  showUndoable('تم حذف الجدول', () => {
-      settings.schedules.splice(idx, 0, s);
+  let [y, m] = key.split('-');
+  let monthName = MONTHS[parseInt(m)-1] || '';
+  showConfirmDialog(
+    "حذف جدول الدوام",
+    `هل أنت متأكد من حذف جدول شهر (${monthName} ${y})؟`,
+    "حذف الجدول",
+    "bg-red-600 hover:bg-red-700 text-white",
+    () => {
+      settings.schedules.splice(idx, 1);
       saveSettings();renderScheduleList();renderHome();
-  });
+      showUndoable(`تم حذف جدول ${monthName} ${y}`, () => {
+        settings.schedules.splice(idx, 0, s);
+        saveSettings();renderScheduleList();renderHome();
+        toast('تمت استعادة الجدول بنجاح', 'ok');
+      });
+    }
+  );
 };
 
 // Holidays
@@ -4806,42 +5401,68 @@ window.addHol=function(){
   settings.holidays.push({date:d,label:l});saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();closeHolM();toast(`<i class="fa-solid fa-check ml-1"></i> تمت الإضافة`,`ok`);
 };
 window.delHol=function(date){
-  if(!confirm('هل أنت متأكد من حذف هذه الإجازة؟')) return;
   let idx = settings.holidays.findIndex(h => h.date === date);
   if(idx === -1) return;
   let h = settings.holidays[idx];
-  settings.holidays.splice(idx, 1);
-  saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();
-  showUndoable('تم حذف الإجازة', () => {
-      settings.holidays.splice(idx, 0, h);
+  showConfirmDialog(
+    "حذف الإجازة الرسمية",
+    `هل أنت متأكد من حذف إجازة (${h.label})؟`,
+    "حذف الإجازة",
+    "bg-red-600 hover:bg-red-700 text-white",
+    () => {
+      settings.holidays.splice(idx, 1);
       saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();
-  });
+      showUndoable(`تم حذف إجازة ${h.label}`, () => {
+        settings.holidays.splice(idx, 0, h);
+        saveSettings();fillAbsences();renderHolidayList();renderHome();renderRecords();
+        toast('تمت استعادة الإجازة بنجاح', 'ok');
+      });
+    }
+  );
 };
 window.openAbsModal=function(){document.getElementById(`absM`)?.classList?.remove(`hidden`);};
 window.closeAbsM=function(){document.getElementById(`absM`)?.classList?.add(`hidden`);};
 window.addAbsType=function(){let el=document.getElementById(`absIn`); if(!el) return; let v=el.value.trim();if(!v||settings.absenceTypes.includes(v))return;settings.absenceTypes.push(v);saveSettings();renderHolidayList();closeAbsM();el.value=``;toast(`<i class="fa-solid fa-check ml-1"></i> تم`,`ok`);};
 window.delAbs=function(i){
-  if(!confirm('هل أنت متأكد من حذف نوع الغياب؟')) return;
   let t = settings.absenceTypes[i];
-  settings.absenceTypes.splice(i,1);
-  saveSettings();renderHolidayList();
-  showUndoable('تم حذف نوع الغياب', () => {
-      settings.absenceTypes.splice(i, 0, t);
+  if(!t) return;
+  showConfirmDialog(
+    "حذف نوع الغياب",
+    `هل أنت متأكد من حذف نوع الغياب (${t})؟`,
+    "حذف",
+    "bg-red-600 hover:bg-red-700 text-white",
+    () => {
+      settings.absenceTypes.splice(i,1);
       saveSettings();renderHolidayList();
-  });
+      showUndoable(`تم حذف نوع الغياب (${t})`, () => {
+        settings.absenceTypes.splice(i, 0, t);
+        saveSettings();renderHolidayList();
+        toast('تمت استعادة نوع الغياب بنجاح', 'ok');
+      });
+    }
+  );
 };
 window.openStatusModal=function(){document.getElementById(`statusM`)?.classList?.remove(`hidden`);};
 window.closeStatusM=function(){document.getElementById(`statusM`)?.classList?.add(`hidden`);};
 window.addCustomStatus=function(){let el=document.getElementById(`statusIn`); if(!el) return; let v=el.value.trim();if(!v||settings.customStatuses.includes(v))return;settings.customStatuses.push(v);saveSettings();renderHolidayList();closeStatusM();el.value=``;toast(`<i class="fa-solid fa-check ml-1"></i> تم`,`ok`);};
 window.delCustomStatus=function(i){
-  if(!confirm('هل أنت متأكد من حذف الحالة؟')) return;
   let s = settings.customStatuses[i];
-  settings.customStatuses.splice(i,1);
-  saveSettings();renderHolidayList();
-  showUndoable('تم حذف الحالة', () => {
-      settings.customStatuses.splice(i, 0, s);
+  if(!s) return;
+  showConfirmDialog(
+    "حذف الحالة المخصصة",
+    `هل أنت متأكد من حذف الحالة المخصصة (${s})؟`,
+    "حذف",
+    "bg-red-600 hover:bg-red-700 text-white",
+    () => {
+      settings.customStatuses.splice(i,1);
       saveSettings();renderHolidayList();
-  });
+      showUndoable(`تم حذف الحالة (${s})`, () => {
+        settings.customStatuses.splice(i, 0, s);
+        saveSettings();renderHolidayList();
+        toast('تمت استعادة الحالة بنجاح', 'ok');
+      });
+    }
+  );
 };
 
 
@@ -5663,7 +6284,7 @@ window.parseAnyBackup = function(raw) {
       } else if (rawDate instanceof Date) {
         dateKey = makeDateKey(rawDate.getFullYear(), rawDate.getMonth(), rawDate.getDate());
       } else if (typeof rawDate === 'number') {
-        let d = new Date(rawDate);
+        let d = parseCalendarDate(rawDate);
         if (!isNaN(d.getTime())) {
           dateKey = makeDateKey(d.getFullYear(), d.getMonth(), d.getDate());
         }
@@ -6120,50 +6741,23 @@ window.restoreAutoBackup=async function(){
     let keys=Object.keys(backups).sort((a,b)=>b.localeCompare(a));
     if(!keys.length) return toast(`<i class="fa-solid fa-xmark ml-1"></i> لا توجد نسخ تلقائية محلياً`,`err`);
     let latest=backups[keys[0]];
-    if(!confirm(`هل تريد استعادة أحدث نسخة احتياطية بتاريخ ${keys[0]}؟ لا يمكن التراجع!`)) return;
-    await IDB.set(DB_KEYS.S,latest.S);
-    await RECDB.clearAll();
-    await RECDB.putAll(latest.R);
-    toast(`<i class="fa-solid fa-check ml-1"></i> تم الاستعادة بنجاح! جارٍ التحديث...`,`ok`);
-    if(typeof location !== 'undefined' && location.reload) location.reload(); else if(typeof window !== 'undefined' && window.location && window.location.reload) window.location.reload();
+    showConfirmDialog(
+      "استعادة نسخة احتياطية",
+      `هل تريد استعادة أحدث نسخة احتياطية تلقائية بتاريخ ${keys[0]}؟ سيتم استبدال البيانات الحالية.`,
+      "استعادة النسخة",
+      "bg-amber-600 hover:bg-amber-700 text-white",
+      async () => {
+        await IDB.set(DB_KEYS.S,latest.S);
+        await RECDB.clearAll();
+        await RECDB.putAll(latest.R);
+        toast(`<i class="fa-solid fa-check ml-1"></i> تم الاستعادة بنجاح! جارٍ التحديث...`,`ok`);
+        if(typeof location !== 'undefined' && location.reload) location.reload(); else if(typeof window !== 'undefined' && window.location && window.location.reload) window.location.reload();
+      }
+    );
   } catch(err){ toast(`<i class="fa-solid fa-xmark ml-1"></i> فشل الاستعادة: `+(err.message||err),`err`); }
 };
 
 // ── Data management ───────────────────────────────────────
-function showConfirmDialog(title, message, confirmText, confirmClass, onConfirm) {
-  let existing = document.getElementById('customConfirmModal');
-  if (existing) existing.remove();
-
-  let modal = document.createElement('div');
-  modal.id = 'customConfirmModal';
-  modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-modal-in';
-  modal.innerHTML = `
-    <div class="glass-surface rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-modal-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" onclick="event.stopPropagation()">
-      <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-4 ${confirmClass.includes('red') || confirmClass.includes('danger') ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">
-        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
-      </div>
-      <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">${title}</h3>
-      <p class="text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">${message}</p>
-      <div class="flex gap-3">
-        <button id="confirmCancelBtn" class="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition">إلغاء</button>
-        <button id="confirmOkBtn" class="flex-1 py-3 px-4 rounded-xl font-semibold text-white ${confirmClass} transition shadow-lg">${confirmText}</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  document.getElementById('confirmCancelBtn').onclick = () => {
-    modal.remove();
-  };
-  document.getElementById('confirmOkBtn').onclick = () => {
-    modal.remove();
-    onConfirm();
-  };
-  modal.onclick = (e) => {
-    if(e.target === modal) modal.remove();
-  };
-}
-
 window.clearRecs=async function(){
   showConfirmDialog(
     "تفريغ السجلات الحالية",
@@ -6177,7 +6771,7 @@ window.clearRecs=async function(){
         return;
       }
       let clearedRecs = backup.map(rec => {
-        let d = new Date(slashToISO(rec.date));
+        let d = parseCalendarDate(rec.date);
         let status = 'absent';
         let note = '';
         if (!isNaN(d.getTime())) {
@@ -6304,6 +6898,166 @@ window.saveExportColSettings = function(col, val) {
 
 // [DELETED REDUNDANT saveExportCols TO FIX CONFLICT]
 
+// Single Source of Truth for Overtime & Deductions Accounting
+function getRecordOvertimeMinutes(r, sch) {
+  if (!r || !r.date) return 0;
+  let d = parseCalendarDate(r.date);
+  if (isNaN(d.getTime())) return 0;
+  sch = sch || getSchedule(d.getFullYear(), d.getMonth(), d);
+  let isHol = isHoliday(d) || !isWorkDay(d) || r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'إجازة أسبوعية';
+  
+  if (!isPresent(r.status) && !isHol) return 0;
+  if (!r.checkIn) return 0;
+  
+  let ex = 0;
+  if (isHol && r.checkIn && r.checkOut) {
+    let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number);
+    let [eh, em_m] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+    ex = (eh * 60 + em_m) - (sh * 60 + sm);
+    if (ex < 0) ex += 1440;
+  } else if (r.checkOut) {
+    ex = sch.overtimeStart ? extraMin(r.checkOut, sch.overtimeStart) : 0;
+    if (ex <= 0) {
+      let outArr = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+      let endStr = (sch.overtimeStart || sch.end || "16:00");
+      let endArr = (endStr.includes(":") ? endStr : "16:00").split(":").map(Number);
+      let outM = outArr[0] * 60 + outArr[1];
+      let endM = endArr[0] * 60 + endArr[1];
+      if (outM > endM) ex = outM - endM;
+    }
+  }
+  return Math.max(0, ex);
+}
+window.getRecordOvertimeMinutes = getRecordOvertimeMinutes;
+
+function getOvertimeAccounting(recordsList, allCompensations, allDBRecords) {
+  allCompensations = allCompensations || (settings.compensations || []);
+  recordsList = recordsList || [];
+  
+  let periodDates = new Set();
+  let minPeriodDate = null;
+  
+  recordsList.forEach(r => {
+    if (r && r.date) {
+      periodDates.add(r.date);
+      let iso = slashToISO(r.date);
+      if (!minPeriodDate || iso < minPeriodDate) minPeriodDate = iso;
+    }
+  });
+
+  // 1. Calculate periodGross (overtime earned in recordsList)
+  let periodGross = 0;
+  recordsList.forEach(r => {
+    periodGross += getRecordOvertimeMinutes(r);
+  });
+
+  // 2. Calculate periodDeductions (deductions occurring within periodDates on event date c.date)
+  let periodDeductions = 0;
+  allCompensations.forEach(c => {
+    if (c && c.date && periodDates.has(c.date)) {
+      periodDeductions += (c.minutes || 0);
+    }
+  });
+
+  // 3. Calculate priorBalance (if allDBRecords provided and minPeriodDate exists)
+  let priorGross = 0;
+  let priorDeductions = 0;
+
+  if (Array.isArray(allDBRecords) && minPeriodDate) {
+    allDBRecords.forEach(r => {
+      if (r && r.date && slashToISO(r.date) < minPeriodDate) {
+        priorGross += getRecordOvertimeMinutes(r);
+      }
+    });
+
+    allCompensations.forEach(c => {
+      if (c && c.date && slashToISO(c.date) < minPeriodDate) {
+        priorDeductions += (c.minutes || 0);
+      }
+    });
+  }
+
+  let priorBalance = Math.max(0, priorGross - priorDeductions);
+  let totalGross = priorBalance + periodGross;
+  let finalNetBalance = totalGross - periodDeductions;
+
+  return {
+    priorBalance,
+    periodGross,
+    totalGross,
+    periodDeductions,
+    finalNetBalance,
+    
+    // Legacy compatibility aliases
+    grossExtra: totalGross,
+    periodNetBalance: finalNetBalance,
+    
+    priorFormatted: formatMin(priorBalance),
+    periodGrossFormatted: formatMin(periodGross),
+    grossFormatted: formatMin(totalGross),
+    deductionsFormatted: formatMin(periodDeductions),
+    netFormatted: formatMin(finalNetBalance),
+    isNegative: finalNetBalance < 0
+  };
+}
+window.getOvertimeAccounting = getOvertimeAccounting;
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  if (!text || typeof text !== 'string') return [];
+  let rawText = String(text).trim();
+  if (!rawText) return [];
+  
+  let paragraphs = rawText.split(/\r\n|\r|\n/);
+  let lines = [];
+  
+  paragraphs.forEach(para => {
+    let words = para.trim().split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) {
+      lines.push('');
+      return;
+    }
+    
+    let currentLine = '';
+    for (let w = 0; w < words.length; w++) {
+      let word = words[w];
+      let testLine = currentLine ? (currentLine + ' ' + word) : word;
+      let testWidth = ctx.measureText(testLine).width;
+      
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = '';
+        }
+        let wordWidth = ctx.measureText(word).width;
+        if (wordWidth <= maxWidth) {
+          currentLine = word;
+        } else {
+          // Word exceeds maxWidth: break character by character cleanly
+          let charChunk = '';
+          for (let c = 0; c < word.length; c++) {
+            let testChunk = charChunk + word[c];
+            if (ctx.measureText(testChunk).width <= maxWidth) {
+              charChunk = testChunk;
+            } else {
+              if (charChunk) lines.push(charChunk);
+              charChunk = word[c];
+            }
+          }
+          if (charChunk) currentLine = charChunk;
+        }
+      }
+    }
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+  });
+  
+  return lines.length > 0 ? lines : [''];
+}
+window.wrapCanvasText = wrapCanvasText;
+
 var pdfCanvasesCache=null;
 async function buildPDFCanvas(){
   console.log('[PDF DEBUG] buildPDFCanvas START');
@@ -6365,7 +7119,7 @@ async function buildPDFCanvas(){
   container.style.display = 'block';
   container.style.pointerEvents = 'none';
   container.style.zIndex = '-99999';
-  container.style.fontFamily=`'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif`;
+  container.style.fontFamily=`'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif`;
   container.style.letterSpacing=`normal`;
   container.style.wordSpacing=`normal`;
   container.style.textRendering=`optimizeLegibility`;
@@ -6403,7 +7157,7 @@ async function buildPDFCanvas(){
     else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
     else if(sf===`holiday`) filtered=filtered.filter(r=>r.status===`إجازة رسمية`||r.status===`إجازة`||r.status===`تكليف سفر`);
     else if(sf===`travel`) filtered=filtered.filter(r=>r.status===`تكليف سفر`);
-    else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let d=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(d.getFullYear(),d.getMonth(),d).start)>0;});
+    else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let d=parseCalendarDate(r.date);return lateMin(r.checkIn,getSchedule(d.getFullYear(),d.getMonth(),d).start)>0;});
     else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
   }
   filtered.sort((a,b)=>slashToISO(b.date).localeCompare(slashToISO(a.date)));
@@ -6415,20 +7169,13 @@ async function buildPDFCanvas(){
   let allRowsHtmlFiles = [];
   let allRowsUnits = [];
   filtered.forEach(r=>{
-    let d=new Date(slashToISO(r.date)),sch=getSchedule(d.getFullYear(),d.getMonth(),d);
+    let d=parseCalendarDate(r.date),sch=getSchedule(d.getFullYear(),d.getMonth(),d);
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
     let late=isPresent(r.status)?(isLateComp ? 0 : lateMin(r.checkIn,sch.start)):0;
     let early=r.checkOut?(isEarlyComp ? 0 : earlyMin(r.checkOut,sch.end)):0;
     let isHol = isHoliday(d) || !isWorkDay(d);
-    let extra = 0;
-    if (isHol && r.checkIn && r.checkOut) {
-      let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
-      extra = (eh*60+em) - (sh*60+sm);
-      if (extra < 0) extra += 1440;
-    } else if (r.checkOut) {
-      extra = extraMin(r.checkOut,sch.overtimeStart);
-    }
+    let extra = getRecordOvertimeMinutes(r, sch);
     sumLate += late; sumEarly += early; sumExtra += extra;
     let lateDec=isLateComp?'معوّض':(late>0?formatMin(late):`-`);
     let earlyDec=isEarlyComp?'معوّض':(early>0?formatMin(early):`-`);
@@ -6450,87 +7197,120 @@ async function buildPDFCanvas(){
       }
     }
 
-    let rowCells = [];
-    if (settings.exportColumns.date) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.date}</td>`);
-    }
-    if (settings.exportColumns.day) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#475569; border:1px solid #cbd5e1;">${DAYS[d.getDay()]}</td>`);
-    }
-    if (settings.exportColumns.checkIn) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkIn?fmt12(r.checkIn):`-`}</td>`);
-    }
-    if (settings.exportColumns.checkOut) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${r.checkOut?fmt12(r.checkOut):`-`}</td>`);
-    }
-    if (settings.exportColumns.status) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:${sc}">${r.status==='present'?'حاضر':(r.status==='absent'?'غائب':esc(r.status))}</td>`);
-    }
-    if (settings.exportColumns.late) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${lateDec}</td>`);
-    }
-    if (settings.exportColumns.early) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${earlyDec}</td>`);
-    }
-    if (settings.exportColumns.overtime) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${extra>0?'+'+formatMin(extra):'-'}</td>`);
-    }
-    if (settings.exportColumns.absenceType) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${r.status===`absent`&&r.absenceType?esc(r.absenceType):(r.status==='إجازة من الإضافي'?'إجازة تعويض إضافي':'')}</td>`);
-    }
-    if (settings.exportColumns.note) {
-      rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family: '${settings.noteFont||'Arial'}', sans-serif; color:#111827; border:1px solid #cbd5e1; text-align:right; max-width:260px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${esc(pdfNote)||``}</td>`);
-    }
-
-    if (rowCells.length > 0) {
-      rowCells[0] = rowCells[0].replace('border:1px solid #cbd5e1;', `border:1px solid #cbd5e1; border-right:5px solid ${rowBorder};`);
-    }
-
-    allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0;">
-      ${rowCells.join('')}
-    </tr>`);
-    
-    // Dynamic weight for row height and notes
+    // Split ultra-long notes into page-safe continuation slices
     let noteText = settings.exportColumns.note && pdfNote ? String(pdfNote).trim() : "";
     let absText = settings.exportColumns.absenceType && r.absenceType && r.status === 'absent' ? String(r.absenceType).trim() : "";
-    let noteLines = 1;
-    if (noteText) {
-      let explicitLines = noteText.split(/\r\n|\r|\n/);
-      noteLines = 0;
-      explicitLines.forEach(line => {
-        noteLines += Math.max(1, Math.ceil(line.length / 28));
-      });
+    
+    let explicitLines = noteText ? noteText.split(/\r\n|\r|\n/) : [];
+    let wrappedNoteLines = [];
+    explicitLines.forEach(line => {
+      if (line.length <= 28) {
+        wrappedNoteLines.push(line);
+      } else {
+        let words = line.split(/\s+/);
+        let cur = '';
+        words.forEach(w => {
+          if ((cur + ' ' + w).trim().length <= 28) {
+            cur = (cur + ' ' + w).trim();
+          } else {
+            if (cur) wrappedNoteLines.push(cur);
+            cur = w;
+          }
+        });
+        if (cur) wrappedNoteLines.push(cur);
+      }
+    });
+
+    let MAX_NOTE_LINES_PER_ROW = 16;
+    let noteChunks = [];
+    if (wrappedNoteLines.length <= MAX_NOTE_LINES_PER_ROW) {
+      noteChunks.push(wrappedNoteLines.join('\n'));
+    } else {
+      let offset = 0;
+      while (offset < wrappedNoteLines.length) {
+        noteChunks.push(wrappedNoteLines.slice(offset, offset + MAX_NOTE_LINES_PER_ROW).join('\n'));
+        offset += MAX_NOTE_LINES_PER_ROW;
+      }
     }
-    let absLines = absText ? Math.max(1, Math.ceil(absText.length / 18)) : 1;
-    let maxVisualLines = Math.max(1, noteLines, absLines);
-    let rowWeight = 1.0 + (maxVisualLines - 1) * 0.65;
-    allRowsUnits.push(rowWeight);
+
+    noteChunks.forEach((chunkText, chunkIdx) => {
+      let isFirstChunk = (chunkIdx === 0);
+      let displayDate = isFirstChunk ? r.date : `${r.date} (تابع)`;
+      let displayDay = isFirstChunk ? DAYS[d.getDay()] : '';
+      let displayCheckIn = isFirstChunk ? (r.checkIn ? fmt12(r.checkIn) : `-`) : '';
+      let displayCheckOut = isFirstChunk ? (r.checkOut ? fmt12(r.checkOut) : `-`) : '';
+      let displayStatus = isFirstChunk ? (r.status === 'present' ? 'حاضر' : (r.status === 'absent' ? 'غائب' : esc(r.status))) : '';
+      let displayLate = isFirstChunk ? lateDec : '';
+      let displayEarly = isFirstChunk ? earlyDec : '';
+      let displayOvertime = isFirstChunk ? (extra > 0 ? '+' + formatMin(extra) : '-') : '';
+      let displayAbsence = isFirstChunk ? (r.status === `absent` && r.absenceType ? esc(r.absenceType) : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '')) : '';
+
+      let rowCells = [];
+      if (settings.exportColumns.date) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayDate}</td>`);
+      }
+      if (settings.exportColumns.day) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#475569; border:1px solid #cbd5e1;">${displayDay}</td>`);
+      }
+      if (settings.exportColumns.checkIn) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckIn}</td>`);
+      }
+      if (settings.exportColumns.checkOut) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckOut}</td>`);
+      }
+      if (settings.exportColumns.status) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:${sc}">${displayStatus}</td>`);
+      }
+      if (settings.exportColumns.late) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${displayLate}</td>`);
+      }
+      if (settings.exportColumns.early) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${displayEarly}</td>`);
+      }
+      if (settings.exportColumns.overtime) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${displayOvertime}</td>`);
+      }
+      if (settings.exportColumns.absenceType) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${displayAbsence}</td>`);
+      }
+      if (settings.exportColumns.note) {
+        rowCells.push(`<td style="padding:10px 8px; font-size:15px; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#0f172a; border:1px solid #cbd5e1; text-align:right; max-width:280px; word-wrap:break-word; word-break:break-word; white-space:pre-wrap; line-height:1.45; vertical-align:middle;">${esc(chunkText) || ``}</td>`);
+      }
+
+      if (rowCells.length > 0) {
+        rowCells[0] = rowCells[0].replace('border:1px solid #cbd5e1;', `border:1px solid #cbd5e1; border-right:5px solid ${rowBorder};`);
+      }
+
+      allRowsHtmlFiles.push(`<tr style="background:${rowBg}; border-bottom:1px solid #e2e8f0;">
+        ${rowCells.join('')}
+      </tr>`);
+
+      let chunkLinesCount = chunkText ? chunkText.split('\n').length : 1;
+      let absLines = (isFirstChunk && absText) ? Math.max(1, Math.ceil(absText.length / 18)) : 1;
+      let visualLines = Math.max(1, chunkLinesCount, absLines);
+      let rowWeight = 1.0 + (visualLines - 1) * 0.55;
+      allRowsUnits.push(rowWeight);
+    });
   });
 
   let totalLateDec = formatMin(sumLate);
   let totalEarlyDec = formatMin(sumEarly);
   let totalExtraDec = formatMin(sumExtra);
+  let allDBRecords = (typeof RECDB !== 'undefined' && RECDB.getAll) ? await RECDB.getAll() : [];
+  let otAccounting = getOvertimeAccounting(filtered, settings.compensations, allDBRecords);
 
   themePri = settings.themeColor===`green`?`#10b981` : `#3b82f6`;
   themeLight = settings.themeColor===`green`?`#ecfdf5` : `#eff6ff`;
   let repTitle = (document.getElementById('expReportTitle') && document.getElementById('expReportTitle').value.trim()) || 'تقرير الحضور والغياب';
 
-  let PAGE_MAX_UNITS = 31; // Fills ~92% of A4 page without overlapping footer
-  let totalUnits = allRowsUnits.reduce((a, b) => a + b, 0);
-  let numChunks = Math.max(1, Math.ceil(totalUnits / PAGE_MAX_UNITS));
-  let targetUnitsPerChunk = totalUnits / numChunks;
-
+  let PAGE_MAX_UNITS = 26; // Fills A4 page perfectly with zero overlap
   let chunks = [];
   let currentChunk = [];
   let currentUnits = 0;
 
   for(let j = 0; j < allRowsHtmlFiles.length; j++) {
     let u = allRowsUnits[j];
-    if (chunks.length < numChunks - 1 && (currentUnits >= targetUnitsPerChunk || currentUnits + u > PAGE_MAX_UNITS) && currentChunk.length > 0) {
-      chunks.push(currentChunk);
-      currentChunk = [];
-      currentUnits = 0;
-    } else if (currentUnits + u > PAGE_MAX_UNITS && currentChunk.length > 0) {
+    if (currentUnits + u > PAGE_MAX_UNITS && currentChunk.length > 0) {
       chunks.push(currentChunk);
       currentChunk = [];
       currentUnits = 0;
@@ -6560,26 +7340,26 @@ async function buildPDFCanvas(){
     let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
 
     let defaultDualLangHeader = `<!-- Professional Dual-Language PDF Header -->
-      <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+      <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; margin:0; padding:0; background:transparent;">
           <tr>
-            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
-              <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
-              <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
+            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
+              <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
             </td>
-            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
-              <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; margin:0;">${subEn}</div>
+            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
+              <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0;">${subEn}</div>
             </td>
           </tr>
         </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
           <tr>
-            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
-              تاريخ التقرير: <span style="color:#1B3D6D; font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${todayKey()}</span>
+            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              تاريخ التقرير: <span style="color:#1B3D6D; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${todayKey()}</span>
             </td>
-            <td style="text-align:left; border:none; padding:4px 0; direction:ltr; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">
-              Page <span style="color:#1B3D6D; font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${pageNumber}</span> of <span style="font-weight:800; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${totalPages}</span>
+            <td style="text-align:left; border:none; padding:4px 0; direction:ltr; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              Page <span style="color:#1B3D6D; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${pageNumber}</span> of <span style="font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${totalPages}</span>
             </td>
           </tr>
         </table>
@@ -6608,7 +7388,7 @@ async function buildPDFCanvas(){
 
     if (customFooterContent) {
       return `<!-- Custom User Footer -->
-        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
+        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
           <div style="width:100%; box-sizing:border-box; margin:0; padding:0;">
             ${customFooterContent}
           </div>
@@ -6625,16 +7405,16 @@ async function buildPDFCanvas(){
     let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
     return `<!-- Professional Footer Banner -->
-      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; background:#ffffff; color:#64748b; padding:8px 16px; margin:0;">
           <tr>
-            <td style="text-align:right; border:none; padding:10px 18px; font-size:11px; font-weight:600; direction:rtl; font-family:'Arial','Tahoma',sans-serif; letter-spacing:0px !important; color:#64748b;">
+            <td style="text-align:right; border:none; padding:10px 18px; font-size:11px; font-weight:600; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; color:#64748b;">
               ${contactAr}
             </td>
-            <td style="text-align:center; border:none; padding:10px 6px; font-size:12px; font-weight:700; font-family:'Arial','Tahoma',sans-serif; white-space:nowrap; color:#0f172a; direction: ltr;">
+            <td style="text-align:center; border:none; padding:10px 6px; font-size:12px; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; white-space:nowrap; color:#0f172a; direction: ltr;">
               Page ${pageNumber} of ${totalPages}
             </td>
-            <td style="text-align:left; border:none; padding:10px 18px; font-size:10px; font-weight:500; font-family:'Arial','Tahoma',sans-serif; direction:ltr; color:#94a3b8;">
+            <td style="text-align:left; border:none; padding:10px 18px; font-size:10px; font-weight:500; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; direction:ltr; color:#94a3b8;">
               ${contactEn}
             </td>
           </tr>
@@ -6647,48 +7427,48 @@ async function buildPDFCanvas(){
 
     let ths = [];
     if (settings.exportColumns.date) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">التاريخ</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">التاريخ</th>`);
     }
     if (settings.exportColumns.day) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">اليوم</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">اليوم</th>`);
     }
     if (settings.exportColumns.checkIn) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الحضور</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحضور</th>`);
     }
     if (settings.exportColumns.checkOut) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الانصراف</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الانصراف</th>`);
     }
     if (settings.exportColumns.status) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">الحالة</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحالة</th>`);
     }
     if (settings.exportColumns.late) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">تأخير</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">تأخير</th>`);
     }
     if (settings.exportColumns.early) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">مبكر</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">مبكر</th>`);
     }
     if (settings.exportColumns.overtime) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">إضافي</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">إضافي</th>`);
     }
     if (settings.exportColumns.absenceType) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">نوع الغياب</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">نوع الغياب</th>`);
     }
     if (settings.exportColumns.note) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:1px solid ${themePri}; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important;">ملاحظات</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">ملاحظات</th>`);
     }
 
     if (ths.length > 0) {
       ths[0] = ths[0].replace(`border:1px solid ${themePri};`, `border:1px solid ${themePri}; border-right:5px solid ${themePri};`);
     }
 
-    return `<div style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
+    return `<div style="font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
       ${customHeaderContent}
       
       <!-- Table Body -->
       <div style="padding:15px 40px 80px;">
-        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
           <thead>
-            <tr style="background:${themePri}; color:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+            <tr style="background:${themePri}; color:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
               ${ths.join('')}
             </tr>
           </thead>
@@ -6740,13 +7520,15 @@ async function buildPDFCanvas(){
      let isLast = (i === chunks.length - 1);
      let sumBlock = "";
      if(isLast) {
-       sumBlock = `<div style="display:flex; justify-content:space-between; background:#f8fafc; border:2px dashed #cbd5e1; padding:16px 24px; margin-top:20px; font-weight:bold; font-size:17px; color:#334155; font-feature-settings:'tnum'; border-radius:12px;">
+       sumBlock = `<div style="display:flex; justify-content:space-between; background:#f8fafc; border:2px dashed #cbd5e1; padding:14px 20px; margin-top:20px; font-weight:bold; font-size:15px; color:#334155; font-feature-settings:'tnum'; border-radius:12px;">
       <div><span lang="en" dir="rtl">${periodLabel}</span> (إجمالي)</div>
       <div>حضور: <span lang="en" dir="ltr" style="color:${themePri}">${monthSummary.p}</span></div>
       <div style="color:#dc2626;">غياب: <span lang="en" dir="ltr">${monthSummary.a}</span></div>
       <div style="color:#d97706;">تأخير: <span lang="en" dir="rtl">${totalLateDec}</span></div>
       <div style="color:#dc2626;">مبكر: <span lang="en" dir="rtl">${totalEarlyDec}</span></div>
-      <div style="color:#059669;">إضافي: <span lang="en" dir="rtl">${totalExtraDec}</span></div>
+      <div style="color:#2563eb;">إضافي أصلي: <span lang="en" dir="rtl">+${otAccounting.grossFormatted}</span></div>
+      <div style="color:#dc2626;">خصم: <span lang="en" dir="rtl">-${otAccounting.deductionsFormatted}</span></div>
+      <div style="color:#059669;">صافي الإضافي: <span lang="en" dir="rtl">${otAccounting.netFormatted}</span></div>
     </div>`;
      }
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
@@ -6835,72 +7617,43 @@ async function buildPDFCanvas(){
     let signaturesHtml = '';
     if (activeCols.length > 0) {
       let colWidth = (100 / activeCols.length).toFixed(2) + '%';
-      
-      const cleanDotsHTML = (str) => {
-        if (!str) return '';
-        return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
-      };
 
-      let bodyCells = activeCols.map((col, idx) => {
+      let bodyCells = activeCols.map((rawCol, idx) => {
+        let col = window.resolveSignatureCol ? window.resolveSignatureCol(rawCol, idx + 1) : rawCol;
+        let cTitle = col.title || 'اعتماد';
+        let cLabel1 = col.label1 || 'الاسم:';
         let resolvedValue = col.value1 || '';
-        if (resolvedValue === 'NAME_PLACEHOLDER') {
-          resolvedValue = settings.name || '';
-        } else if (resolvedValue === 'MANAGER_PLACEHOLDER') {
-          resolvedValue = settings.managerName || '';
-        }
-        resolvedValue = cleanDotsHTML(resolvedValue);
+        let cLabel2 = col.label2 || 'التوقيع:';
+        let cLabel3 = col.label3 || 'التاريخ:';
   
         let sigHtml = col.signatureImage 
           ? `<div style="text-align: center;"><img src="${col.signatureImage}" style="max-height: 42px; object-fit: contain; margin-top:-3px; margin-bottom:-3px;" /></div>` 
           : `&nbsp;`;
-          
-        let cTitle = cleanDotsHTML(col.title || 'اعتماد');
-        let cLabel1 = cleanDotsHTML(col.label1 || 'الاسم:');
-        let cLabel2 = cleanDotsHTML(col.label2 || 'التوقيع:');
-        let cLabel3 = cleanDotsHTML(col.label3 || 'التاريخ:');
 
-        return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:10px 14px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; direction:rtl; letter-spacing:0px !important;">
+        return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:10px 14px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; direction:rtl; letter-spacing:0px !important;">
           <div style="border:1.5px solid #cbd5e1; border-radius:12px; background-color:#f8fafc; padding:16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">
-            <div style="font-size:14px; font-weight:800; color:#1B3D6D; text-align:center; padding-bottom:10px; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#1B3D6D; text-align:center; padding-bottom:10px; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
               ${esc(cTitle)}
             </div>
-            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:10px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <tr>
-                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-                  ${esc(cLabel1)}
-                </td>
-                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:6px; height:22px; letter-spacing:0px !important;">
-                  ${esc(resolvedValue)}
-                </td>
-              </tr>
-            </table>
-            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:10px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <tr>
-                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-                  ${esc(cLabel2)}
-                </td>
-                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; height:22px; position:relative; letter-spacing:0px !important;">
-                  ${sigHtml}
-                </td>
-              </tr>
-            </table>
-            <table style="width:100%; border:none; border-collapse:collapse; margin-bottom:2px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <tr>
-                <td style="width:70px; font-size:12px; font-weight:800; color:#475569; text-align:right; border:none; padding:3px 0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; white-space:nowrap; letter-spacing:0px !important;">
-                  ${esc(cLabel3)}
-                </td>
-                <td style="border:none; padding:3px 0; font-size:12px; font-weight:800; color:#0f172a; text-align:right; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; padding-right:6px; height:22px; letter-spacing:0px !important;">
-                  ${esc(window.getFormattedSignatureDate())}
-                </td>
-              </tr>
-            </table>
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
+              <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel1)}</span>
+              <span style="color:#0f172a; letter-spacing:0px !important; word-break:break-word;">${esc(resolvedValue)}</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; min-height:36px; gap:6px;">
+              <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel2)}</span>
+              <div style="flex:1; text-align:center;">${sigHtml}</div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:2px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
+              <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel3)}</span>
+              <span style="color:#0f172a; letter-spacing:0px !important;">${esc(window.getFormattedSignatureDate())}</span>
+            </div>
           </div>
         </td>`;
       }).join('');
   
       signaturesHtml = `
-      <div style="margin-top:40px; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+      <div style="margin-top:40px; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
           <tr>
             ${bodyCells}
           </tr>
@@ -6908,55 +7661,65 @@ async function buildPDFCanvas(){
       </div>`;
     }
 
-  container.innerHTML = `<div style="font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
+  container.innerHTML = `<div style="font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
     ${finalPageHeader}
     
-    <div style="padding:10px 40px 0 40px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-      <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-        <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
-        <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
-          <span style="display:inline-block; margin:0 8px;">الموظف:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${settings.name || '-'}</b></span>
+    <div style="padding:10px 40px 0 40px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+      <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+        <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
+        <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+          <span style="display:inline-block; margin:0 8px;">الموظف:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${settings.name || '-'}</b></span>
           <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
-          <span style="display:inline-block; margin:0 8px;">نوع التقرير:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${displayRepType}</b></span>
+          <span style="display:inline-block; margin:0 8px;">نوع التقرير:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${displayRepType}</b></span>
           <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
-          <span style="display:inline-block; margin:0 8px;">الفترة:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">${periodLabel}</b></span>
+          <span style="display:inline-block; margin:0 8px;">الفترة:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${periodLabel}</b></span>
         </div>
       </div>
       
-      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:24px 20px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-        <table style="width:100%; border:none; border-collapse:separate; border-spacing:16px; margin:0; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
+      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:20px 16px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+        <table style="width:100%; border:none; border-collapse:separate; border-spacing:12px; margin:0; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
           <tr>
-            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الحضور</div>
-              <div style="font-size:42px; font-weight:900; color:#16a34a; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.p}</div>
-              <div style="font-size:13px; font-weight:700; color:#15803d; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم عمل</div>
+            <td style="width:25%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">إجمالي أيام الحضور</div>
+              <div style="font-size:36px; font-weight:900; color:#16a34a; line-height:1.1;" dir="ltr">${monthSummary.p}</div>
+              <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">يوم عمل</div>
             </td>
-            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي أيام الغياب</div>
-              <div style="font-size:42px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.a}</div>
-              <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم غياب</div>
+            <td style="width:25%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">إجمالي أيام الغياب</div>
+              <div style="font-size:36px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${monthSummary.a}</div>
+              <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">يوم غياب</div>
             </td>
-            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">أيام التأخير</div>
-              <div style="font-size:42px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${monthSummary.l}</div>
-              <div style="font-size:13px; font-weight:700; color:#b45309; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">يوم به تأخير</div>
+            <td style="width:25%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">أيام التأخير</div>
+              <div style="font-size:36px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${monthSummary.l}</div>
+              <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">يوم به تأخير</div>
+            </td>
+            <td style="width:25%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">إجمالي ساعات التأخير</div>
+              <div style="font-size:32px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${totalLateDec}</div>
+              <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">ساعة : دقيقة</div>
             </td>
           </tr>
           <tr>
-            <td style="width:33.33%; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي ساعات التأخير</div>
-              <div style="font-size:38px; font-weight:900; color:#d97706; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalLateDec}</div>
-              <div style="font-size:13px; font-weight:700; color:#b45309; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            <td style="width:25%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">ساعات الخروج المبكر</div>
+              <div style="font-size:32px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${totalEarlyDec}</div>
+              <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">ساعة : دقيقة</div>
             </td>
-            <td style="width:33.33%; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#991b1b; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعات الخروج المبكر</div>
-              <div style="font-size:38px; font-weight:900; color:#dc2626; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalEarlyDec}</div>
-              <div style="font-size:13px; font-weight:700; color:#b91c1c; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            <td style="width:25%; background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:6px; line-height:1.3;">العمل الإضافي المكتسب</div>
+              <div style="font-size:32px; font-weight:900; color:#2563eb; line-height:1.1;" dir="ltr">+${otAccounting.grossFormatted}</div>
+              <div style="font-size:12px; font-weight:700; color:#1d4ed8; margin-top:4px;">الرصيد الأصلي</div>
             </td>
-            <td style="width:33.33%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:22px 14px; text-align:center; vertical-align:middle; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;">
-              <div style="font-size:15px; font-weight:800; color:#166534; margin-bottom:8px; line-height:1.4; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">إجمالي العمل الإضافي</div>
-              <div style="font-size:38px; font-weight:900; color:#059669; line-height:1.1; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif;" dir="ltr">${totalExtraDec}</div>
-              <div style="font-size:13px; font-weight:700; color:#15803d; margin-top:6px; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Segoe UI Arabic', Arial, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ساعة : دقيقة</div>
+            <td style="width:25%; background:#fff1f2; border:2px solid #fecdd3; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#9f1239; margin-bottom:6px; line-height:1.3;">الخصم والتعويضات</div>
+              <div style="font-size:32px; font-weight:900; color:#e11d48; line-height:1.1;" dir="ltr">-${otAccounting.deductionsFormatted}</div>
+              <div style="font-size:12px; font-weight:700; color:#be123c; margin-top:4px;">ساعات مستهلكة</div>
+            </td>
+            <td style="width:25%; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; vertical-align:middle; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">صافي رصيد الإضافي</div>
+              <div style="font-size:32px; font-weight:900; color:#059669; line-height:1.1;" dir="ltr">${otAccounting.netFormatted}</div>
+              <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">الرصيد المتبقي</div>
             </td>
           </tr>
         </table>
@@ -7151,6 +7914,15 @@ function loadCanvasImage(src) {
 async function generateDirectRealReportPDF(jspdfLib, options) {
   console.log('[DIRECT PDF] Starting real report PDF generation with full visual parity');
   
+  // Ensure typography fonts are fully loaded before rendering
+  if (document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch (e) {
+      console.warn('[DIRECT PDF] Font ready warning:', e);
+    }
+  }
+
   let doc = new jspdfLib('p', 'mm', 'a4');
   console.log('[DIRECT PDF] jsPDF available');
   
@@ -7181,7 +7953,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     else if (sf === 'absent') filtered = filtered.filter(r => r.status === 'absent');
     else if (sf === 'holiday') filtered = filtered.filter(r => r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'تكليف سفر');
     else if (sf === 'travel') filtered = filtered.filter(r => r.status === 'تكليف سفر');
-    else if (sf === 'late') filtered = filtered.filter(r => { if (!isPresent(r.status)) return false; let d = new Date(slashToISO(r.date)); return lateMin(r.checkIn, getSchedule(d.getFullYear(), d.getMonth(), d).start) > 0; });
+    else if (sf === 'late') filtered = filtered.filter(r => { if (!isPresent(r.status)) return false; let d = parseCalendarDate(r.date); return lateMin(r.checkIn, getSchedule(d.getFullYear(), d.getMonth(), d).start) > 0; });
     else if (sf === 'overtime') filtered = filtered.filter(r => hasOvertime(r));
   }
   filtered.sort((a, b) => slashToISO(b.date).localeCompare(slashToISO(a.date)));
@@ -7276,24 +8048,52 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   let sumLate = 0, sumEarly = 0, sumExtra = 0;
   let calcP = 0, calcA = 0, calcL = 0;
   let rowDataList = [];
-  let allRowsUnits = [];
+
+  let allDBRecords = (typeof RECDB !== 'undefined' && RECDB.getAll) ? await RECDB.getAll() : [];
+  let otAccounting = getOvertimeAccounting(filtered, settings.compensations, allDBRecords);
+
+  // Table Columns Setup
+  let colDefs = [];
+  if (settings.exportColumns.date) colDefs.push({ key: 'date', label: 'التاريخ', width: 110, align: 'right' });
+  if (settings.exportColumns.day) colDefs.push({ key: 'day', label: 'اليوم', width: 85, align: 'right' });
+  if (settings.exportColumns.checkIn) colDefs.push({ key: 'checkIn', label: 'الحضور', width: 95, align: 'center' });
+  if (settings.exportColumns.checkOut) colDefs.push({ key: 'checkOut', label: 'الانصراف', width: 95, align: 'center' });
+  if (settings.exportColumns.status) colDefs.push({ key: 'status', label: 'الحالة', width: 105, align: 'right' });
+  if (settings.exportColumns.late) colDefs.push({ key: 'late', label: 'تأخير', width: 85, align: 'center' });
+  if (settings.exportColumns.early) colDefs.push({ key: 'early', label: 'مبكر', width: 85, align: 'center' });
+  if (settings.exportColumns.overtime) colDefs.push({ key: 'overtime', label: 'إضافي', width: 85, align: 'center' });
+  if (settings.exportColumns.absenceType) colDefs.push({ key: 'absenceType', label: 'نوع الغياب', width: 125, align: 'right' });
+  if (settings.exportColumns.note) colDefs.push({ key: 'note', label: 'ملاحظات', width: 250, align: 'right' });
+
+  let totalColWidth = colDefs.reduce((s, c) => s + c.width, 0);
+  let scaleCol = 1120 / Math.max(1, totalColWidth);
+  colDefs.forEach(c => c.actualWidth = Math.floor(c.width * scaleCol));
+
+  let currentX = 1160;
+  colDefs.forEach(col => {
+    col.xRight = currentX;
+    col.xLeft = currentX - col.actualWidth;
+    currentX -= col.actualWidth;
+  });
+
+  // Dummy canvas for text width measurement
+  let measureCanvas = document.createElement('canvas');
+  let measureCtx = measureCanvas.getContext('2d');
+  measureCtx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+
+  let noteColDef = colDefs.find(c => c.key === 'note');
+  let absColDef = colDefs.find(c => c.key === 'absenceType');
+  let noteMaxWidth = noteColDef ? (noteColDef.actualWidth - 20) : 230;
+  let absMaxWidth = absColDef ? (absColDef.actualWidth - 16) : 110;
 
   filtered.forEach(r => {
-    let d = new Date(slashToISO(r.date)), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
+    let d = parseCalendarDate(r.date), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
     let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
     let isEarlyComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'early');
     let late = isPresent(r.status) ? (isLateComp ? 0 : lateMin(r.checkIn, sch.start)) : 0;
     let early = r.checkOut ? (isEarlyComp ? 0 : earlyMin(r.checkOut, sch.end)) : 0;
     let isHol = isHoliday(d) || !isWorkDay(d);
-    let extra = 0;
-    if (isHol && r.checkIn && r.checkOut) {
-      let [sh, sm] = (r.checkIn && r.checkIn.includes(':') ? r.checkIn : '00:00').split(':').map(Number);
-      let [eh, em] = (r.checkOut && r.checkOut.includes(':') ? r.checkOut : '00:00').split(':').map(Number);
-      extra = (eh * 60 + em) - (sh * 60 + sm);
-      if (extra < 0) extra += 1440;
-    } else if (r.checkOut) {
-      extra = extraMin(r.checkOut, sch.overtimeStart);
-    }
+    let extra = getRecordOvertimeMinutes(r, sch);
     sumLate += late; sumEarly += early; sumExtra += extra;
 
     if (isPresent(r.status)) {
@@ -7325,20 +8125,10 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     let statusText = r.status === 'present' ? 'حاضر' : (r.status === 'absent' ? 'غائب' : (r.status || 'حاضر'));
     let absenceTypeText = r.status === 'absent' && r.absenceType ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '');
 
-    let noteText = settings.exportColumns.note && pdfNote ? String(pdfNote).trim() : "";
-    let absText = settings.exportColumns.absenceType && absenceTypeText ? String(absenceTypeText).trim() : "";
-    let noteLines = 1;
-    if (noteText) {
-      let explicitLines = noteText.split(/\r\n|\r|\n/);
-      noteLines = 0;
-      explicitLines.forEach(line => {
-        noteLines += Math.max(1, Math.ceil(line.length / 26));
-      });
-    }
-    let absLines = absText ? Math.max(1, Math.ceil(absText.length / 16)) : 1;
-    let maxVisualLines = Math.max(1, noteLines, absLines);
-    let rowWeight = 1.0 + (maxVisualLines - 1) * 0.65;
-    allRowsUnits.push(rowWeight);
+    let noteLinesArr = wrapCanvasText(measureCtx, pdfNote, noteMaxWidth);
+    let absLinesArr = wrapCanvasText(measureCtx, absenceTypeText, absMaxWidth);
+    let maxVisualLines = Math.max(1, noteLinesArr.length, absLinesArr.length);
+    let rowH = Math.max(42, 16 + maxVisualLines * 20);
 
     rowDataList.push({
       date: r.date,
@@ -7351,10 +8141,12 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       overtime: extra > 0 ? '+' + formatMin(extra) : '-',
       absenceType: absenceTypeText,
       note: pdfNote,
+      noteLinesArr,
+      absLinesArr,
       rowBg,
       rowBorder,
       statusColor: sc,
-      rowWeight,
+      rowH,
       maxVisualLines
     });
   });
@@ -7363,30 +8155,6 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   let totalEarlyDec = formatMin(sumEarly);
   let totalExtraDec = formatMin(sumExtra);
   let repSummary = { p: calcP, a: calcA, l: calcL };
-
-  // Table Columns Setup
-  let colDefs = [];
-  if (settings.exportColumns.date) colDefs.push({ key: 'date', label: 'التاريخ', width: 110, align: 'right' });
-  if (settings.exportColumns.day) colDefs.push({ key: 'day', label: 'اليوم', width: 85, align: 'right' });
-  if (settings.exportColumns.checkIn) colDefs.push({ key: 'checkIn', label: 'الحضور', width: 95, align: 'center' });
-  if (settings.exportColumns.checkOut) colDefs.push({ key: 'checkOut', label: 'الانصراف', width: 95, align: 'center' });
-  if (settings.exportColumns.status) colDefs.push({ key: 'status', label: 'الحالة', width: 105, align: 'right' });
-  if (settings.exportColumns.late) colDefs.push({ key: 'late', label: 'تأخير', width: 85, align: 'center' });
-  if (settings.exportColumns.early) colDefs.push({ key: 'early', label: 'مبكر', width: 85, align: 'center' });
-  if (settings.exportColumns.overtime) colDefs.push({ key: 'overtime', label: 'إضافي', width: 85, align: 'center' });
-  if (settings.exportColumns.absenceType) colDefs.push({ key: 'absenceType', label: 'نوع الغياب', width: 125, align: 'right' });
-  if (settings.exportColumns.note) colDefs.push({ key: 'note', label: 'ملاحظات', width: 250, align: 'right' });
-
-  let totalColWidth = colDefs.reduce((s, c) => s + c.width, 0);
-  let scaleCol = 1120 / Math.max(1, totalColWidth);
-  colDefs.forEach(c => c.actualWidth = Math.floor(c.width * scaleCol));
-
-  let currentX = 1160;
-  colDefs.forEach(col => {
-    col.xRight = currentX;
-    col.xLeft = currentX - col.actualWidth;
-    currentX -= col.actualWidth;
-  });
 
   // Header & Footer Dynamic Layout Geometry
   let headerImgH = 0;
@@ -7443,50 +8211,68 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     }
   }
   let maxContentY = footerTop - 10;
-
   let availableRowHeight = maxContentY - (tableY + 42);
-  let pageMaxUnits = Math.max(10, Math.floor(availableRowHeight / 42));
-  let lastPageMaxUnits = Math.max(8, Math.floor((availableRowHeight - 78) / 42));
+
+  // Multi-page row splitter for ultra-long rows / notes
+  let splitRowDataList = [];
+  let maxSingleRowLines = Math.max(10, Math.floor((availableRowHeight - 40) / 20) - 2);
+
+  for (let j = 0; j < rowDataList.length; j++) {
+    let r = rowDataList[j];
+    let noteLines = r.noteLinesArr || [];
+    let absLines = r.absLinesArr || [];
+    let totalLines = Math.max(noteLines.length, absLines.length);
+
+    if (totalLines <= maxSingleRowLines) {
+      splitRowDataList.push(r);
+    } else {
+      let offset = 0;
+      let partIdx = 1;
+      while (offset < totalLines) {
+        let chunkNote = noteLines.slice(offset, offset + maxSingleRowLines);
+        let chunkAbs = absLines.slice(offset, offset + maxSingleRowLines);
+        let chunkVisual = Math.max(1, chunkNote.length, chunkAbs.length);
+        let chunkH = Math.max(42, 16 + chunkVisual * 20);
+
+        splitRowDataList.push({
+          ...r,
+          date: partIdx === 1 ? r.date : `${r.date} (تابع)`,
+          day: partIdx === 1 ? r.day : '',
+          checkIn: partIdx === 1 ? r.checkIn : '',
+          checkOut: partIdx === 1 ? r.checkOut : '',
+          status: partIdx === 1 ? r.status : '',
+          late: partIdx === 1 ? r.late : '',
+          early: partIdx === 1 ? r.early : '',
+          overtime: partIdx === 1 ? r.overtime : '',
+          absenceType: chunkAbs.join(' '),
+          note: chunkNote.join(' '),
+          noteLinesArr: chunkNote,
+          absLinesArr: chunkAbs,
+          rowH: chunkH,
+          maxVisualLines: chunkVisual
+        });
+
+        offset += maxSingleRowLines;
+        partIdx++;
+      }
+    }
+  }
 
   let pageChunks = [];
   let currentChunk = [];
-  let currentUnits = 0;
+  let currentChunkH = 0;
 
-  for (let j = 0; j < rowDataList.length; j++) {
-    let u = allRowsUnits[j];
-    if (currentUnits + u > pageMaxUnits && currentChunk.length > 0) {
+  for (let j = 0; j < splitRowDataList.length; j++) {
+    let r = splitRowDataList[j];
+    if (currentChunkH + r.rowH > availableRowHeight && currentChunk.length > 0) {
       pageChunks.push(currentChunk);
       currentChunk = [];
-      currentUnits = 0;
+      currentChunkH = 0;
     }
-    currentChunk.push(rowDataList[j]);
-    currentUnits += u;
+    currentChunk.push(r);
+    currentChunkH += r.rowH;
   }
   if (currentChunk.length > 0) pageChunks.push(currentChunk);
-
-  if (pageChunks.length > 0) {
-    let lastChunk = pageChunks[pageChunks.length - 1];
-    let lastChunkUnits = lastChunk.reduce((s, r) => s + r.rowWeight, 0);
-    if (lastChunkUnits > lastPageMaxUnits && lastChunk.length > 1) {
-      let keptChunk = [];
-      let spilledChunk = [];
-      let keptUnits = 0;
-      for (let k = 0; k < lastChunk.length; k++) {
-        let u = lastChunk[k].rowWeight;
-        if (keptUnits + u <= lastPageMaxUnits || keptChunk.length === 0) {
-          keptChunk.push(lastChunk[k]);
-          keptUnits += u;
-        } else {
-          spilledChunk.push(lastChunk[k]);
-        }
-      }
-      if (spilledChunk.length > 0) {
-        pageChunks[pageChunks.length - 1] = keptChunk;
-        pageChunks.push(spilledChunk);
-      }
-    }
-  }
-
   if (pageChunks.length === 0) pageChunks.push([]);
 
   let totalPages = pageChunks.length + 1; // Last page is summary + signatures
@@ -7508,7 +8294,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.direction = 'rtl';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#1B3D6D';
-        ctx.font = 'bold 22px sans-serif';
+        ctx.font = 'bold 22px "Cairo", "Tajawal", "Segoe UI", sans-serif';
         customHeaderLines.forEach(line => {
           ctx.fillText(line, 600, startY + 18);
           startY += 30;
@@ -7520,25 +8306,25 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       startY += headerImgH + 15;
     }
 
-    // Always draw default dual-language header underneath
+    // Always draw default dual-language header underneath (LEVEL 1 & LEVEL 6)
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#1B3D6D';
-    ctx.font = 'bold 30px sans-serif';
+    ctx.font = '900 34px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerTitleAr, 1160, startY + 33);
 
     ctx.fillStyle = '#475569';
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerSubAr, 1160, startY + 59);
 
     ctx.direction = 'ltr';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#1B3D6D';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = '900 24px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerTitleEn, 40, startY + 33);
 
     ctx.fillStyle = '#475569';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerSubEn, 40, startY + 59);
 
     let lineY = startY + 77;
@@ -7552,7 +8338,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#475569';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
 
     ctx.direction = 'ltr';
@@ -7582,7 +8368,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.direction = 'rtl';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#64748b';
-        ctx.font = 'bold 14px sans-serif';
+        ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
         customFooterLines.forEach(line => {
           ctx.fillText(line, 600, currentY + 12);
           currentY += 25;
@@ -7606,18 +8392,18 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#64748b';
-    ctx.font = '12px sans-serif';
+    ctx.font = '600 12px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(footerContactAr, 1160, 1668);
 
     ctx.direction = 'ltr';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = '800 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 600, 1668);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px sans-serif';
+    ctx.font = '500 11px "Cairo", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(footerContactEn, 40, 1668);
   };
 
@@ -7636,13 +8422,13 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
     renderHeaderOnCanvas(ctx, currentNum, totalPages);
 
-    // Table Header Bar
+    // Table Header Bar (LEVEL 4)
     ctx.fillStyle = themePri;
     ctx.fillRect(40, tableY, 1120, 42);
 
     colDefs.forEach((col, idx) => {
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 16px sans-serif';
+      ctx.font = '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif';
       if (col.align === 'center') {
         ctx.textAlign = 'center';
         ctx.fillText(col.label, (col.xRight + col.xLeft) / 2, tableY + 27);
@@ -7665,7 +8451,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     let currentY = tableY + 42;
 
     rows.forEach((row) => {
-      let rowH = Math.floor(42 * row.rowWeight);
+      let rowH = row.rowH;
 
       ctx.fillStyle = row.rowBg;
       ctx.fillRect(40, currentY, 1120, rowH);
@@ -7683,32 +8469,33 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       colDefs.forEach(col => {
         let val = row[col.key] || '-';
         ctx.fillStyle = col.key === 'status' ? row.statusColor : (col.key === 'late' ? '#d97706' : (col.key === 'early' ? '#dc2626' : (col.key === 'overtime' ? '#2563eb' : '#0f172a')));
-        ctx.font = (col.key === 'date' || col.key === 'status') ? 'bold 16px sans-serif' : '16px sans-serif';
+        ctx.font = (col.key === 'date' || col.key === 'status') ? '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif' : '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
 
         if (col.align === 'center') {
           ctx.textAlign = 'center';
           ctx.fillText(String(val).substring(0, 20), (col.xRight + col.xLeft) / 2, currentY + 26);
-        } else if (col.key === 'note' && row.note) {
+        } else if (col.key === 'note' && row.noteLinesArr && row.noteLinesArr.length > 0) {
           ctx.direction = 'rtl';
           ctx.textAlign = 'right';
-          ctx.font = '800 16px sans-serif';
-          let explicitLines = String(row.note).split(/\r\n|\r|\n/);
-          let noteLinesArr = [];
-          explicitLines.forEach(l => {
-            if (l.length <= 26) noteLinesArr.push(l);
-            else {
-              for (let i = 0; i < l.length; i += 26) noteLinesArr.push(l.substring(i, i + 26));
-            }
+          ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+          let lineY = currentY + 22;
+          row.noteLinesArr.forEach(nl => {
+            ctx.fillText(nl, col.xRight - 10, lineY);
+            lineY += 20;
           });
-          let lineY = currentY + 24;
-          noteLinesArr.slice(0, 4).forEach(nl => {
-            ctx.fillText(nl, col.xRight - 12, lineY);
+        } else if (col.key === 'absenceType' && row.absLinesArr && row.absLinesArr.length > 0) {
+          ctx.direction = 'rtl';
+          ctx.textAlign = 'right';
+          ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+          let lineY = currentY + 22;
+          row.absLinesArr.forEach(al => {
+            ctx.fillText(al, col.xRight - 10, lineY);
             lineY += 20;
           });
         } else {
           ctx.direction = 'rtl';
           ctx.textAlign = 'right';
-          ctx.fillText(String(val).substring(0, 32), col.xRight - 12, currentY + 26);
+          ctx.fillText(String(val).substring(0, 32), col.xRight - 10, currentY + 26);
         }
 
         ctx.strokeStyle = '#cbd5e1';
@@ -7728,24 +8515,30 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.direction = 'rtl';
         ctx.textAlign = 'right';
         ctx.fillStyle = '#334155';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.fillText(`${periodLabel} (إجمالي):`, 1160 - 20, sumY + 36);
+        ctx.font = '800 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+        ctx.fillText(`${periodLabel} (إجمالي):`, 1160 - 15, sumY + 35);
 
         ctx.textAlign = 'center';
         ctx.fillStyle = themePri;
-        ctx.fillText(`حضور: ${repSummary.p}`, 880, sumY + 36);
+        ctx.fillText(`حضور: ${repSummary.p}`, 930, sumY + 35);
 
         ctx.fillStyle = '#dc2626';
-        ctx.fillText(`غياب: ${repSummary.a}`, 710, sumY + 36);
+        ctx.fillText(`غياب: ${repSummary.a}`, 810, sumY + 35);
 
         ctx.fillStyle = '#d97706';
-        ctx.fillText(`تأخير: ${totalLateDec}`, 540, sumY + 36);
+        ctx.fillText(`تأخير: ${totalLateDec}`, 680, sumY + 35);
 
         ctx.fillStyle = '#dc2626';
-        ctx.fillText(`مبكر: ${totalEarlyDec}`, 370, sumY + 36);
+        ctx.fillText(`مبكر: ${totalEarlyDec}`, 530, sumY + 35);
+
+        ctx.fillStyle = '#2563eb';
+        ctx.fillText(`إضافي أصلي: +${otAccounting.grossFormatted}`, 370, sumY + 35);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillText(`خصم: -${otAccounting.deductionsFormatted}`, 220, sumY + 35);
 
         ctx.fillStyle = '#059669';
-        ctx.fillText(`إضافي: ${totalExtraDec}`, 200, sumY + 36);
+        ctx.fillText(`صافي الإضافي: ${otAccounting.netFormatted}`, 90, sumY + 35);
       }
     }
 
@@ -7763,7 +8556,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
   renderHeaderOnCanvas(ctx, totalPages, totalPages);
 
-  // Summary Title Card
+  // Summary Title Card (LEVEL 2 & LEVEL 5)
   let cardTopY = tableY;
   drawCanvasRoundRect(ctx, 40, cardTopY, 1120, 100, 14, '#f8fafc', '#cbd5e1', 2);
   ctx.fillStyle = '#1B3D6D';
@@ -7772,33 +8565,35 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#1B3D6D';
-  ctx.font = 'bold 28px sans-serif';
+  ctx.font = '900 28px "Cairo", "Tajawal", "Segoe UI", sans-serif';
   ctx.fillText('ملخص الإحصائيات والاعتماد النهائي', 600, cardTopY + 48);
 
   let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
   let displayRepType = cleanRepTitle || repTitle;
 
   ctx.fillStyle = '#475569';
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
   ctx.fillText(`الموظف: ${settings.name || '-'}   |   نوع التقرير: ${displayRepType}   |   الفترة: ${periodLabel}`, 600, cardTopY + 80);
 
-  // 6 Statistics Cards Grid (3x2 Grid)
-  let statsY = cardTopY + 125;
+  // 8 Statistics Cards Grid (4x2 Grid) - LEVEL 3, LEVEL 6, & HIGH-CONTRAST BIG NUMBERS
+  let statsY = cardTopY + 120;
   let statCards = [
     { title: 'إجمالي أيام الحضور', count: String(monthSummary.p), sub: 'يوم عمل', bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', countColor: '#16a34a', subColor: '#15803d' },
     { title: 'إجمالي أيام الغياب', count: String(monthSummary.a), sub: 'يوم غياب', bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', countColor: '#dc2626', subColor: '#b91c1c' },
     { title: 'أيام التأخير', count: String(monthSummary.l), sub: 'يوم به تأخير', bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', countColor: '#d97706', subColor: '#b45309' },
     { title: 'إجمالي ساعات التأخير', count: totalLateDec, sub: 'ساعة : دقيقة', bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', countColor: '#d97706', subColor: '#b45309' },
     { title: 'ساعات الخروج المبكر', count: totalEarlyDec, sub: 'ساعة : دقيقة', bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', countColor: '#dc2626', subColor: '#b91c1c' },
-    { title: 'إجمالي العمل الإضافي', count: totalExtraDec, sub: 'ساعة : دقيقة', bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', countColor: '#059669', subColor: '#15803d' }
+    { title: 'العمل الإضافي المكتسب', count: '+' + otAccounting.grossFormatted, sub: 'الرصيد الأصلي', bg: '#eff6ff', border: '#bfdbfe', titleColor: '#1e40af', countColor: '#2563eb', subColor: '#1d4ed8' },
+    { title: 'الخصم والتعويضات', count: '-' + otAccounting.deductionsFormatted, sub: 'ساعات مستهلكة', bg: '#fff1f2', border: '#fecdd3', titleColor: '#9f1239', countColor: '#e11d48', subColor: '#be123c' },
+    { title: 'صافي رصيد الإضافي', count: otAccounting.netFormatted, sub: 'الرصيد المتبقي', bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', countColor: '#059669', subColor: '#15803d' }
   ];
 
-  let cardW = 350, cardH = 150;
-  let gapX = 35, gapY = 24;
+  let cardW = 262, cardH = 145;
+  let gapX = 24, gapY = 20;
 
   statCards.forEach((c, idx) => {
-    let colIdx = idx % 3; // 0, 1, 2
-    let rowIdx = Math.floor(idx / 3); // 0, 1
+    let colIdx = idx % 4; // 0, 1, 2, 3
+    let rowIdx = Math.floor(idx / 4); // 0, 1
 
     let cx = 1160 - (colIdx + 1) * cardW - colIdx * gapX;
     let cy = statsY + rowIdx * (cardH + gapY);
@@ -7807,19 +8602,19 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = c.titleColor;
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillText(c.title, cx + cardW / 2, cy + 34);
+    ctx.font = '800 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.fillText(c.title, cx + cardW / 2, cy + 32);
 
     ctx.fillStyle = c.countColor;
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText(c.count, cx + cardW / 2, cy + 86);
+    ctx.font = '900 32px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.fillText(c.count, cx + cardW / 2, cy + 82);
 
     ctx.fillStyle = c.subColor;
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(c.sub, cx + cardW / 2, cy + 124);
+    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.fillText(c.sub, cx + cardW / 2, cy + 120);
   });
 
-  // Signatures Block
+  // Signatures Block (LEVEL 3 & LEVEL 6)
   let sigsY = statsY + 2 * cardH + gapY + 30;
   let sigs = settings.signatures || {
     col1: { show: true, title: "توقيع الموظف", label1: "الاسم:", value1: "NAME_PLACEHOLDER", label2: "التوقيع:", label3: "التاريخ:" },
@@ -7837,27 +8632,22 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     let sigColW = 1120 / activeCols.length;
 
     activeCols.forEach((colObj, idx) => {
-      let col = colObj.data;
+      let rawCol = colObj.data;
       let colKey = colObj.key;
       let scx = 1160 - (idx + 1) * sigColW;
 
-      const cleanDotsCanvas = (str) => {
-        if (!str) return '';
-        return str.replace(/\.\.+/g, '').replace(/\.+$/, '').trim();
-      };
+      let col = window.resolveSignatureCol ? window.resolveSignatureCol(rawCol, idx + 1) : rawCol;
+      let cTitle = col.title || 'اعتماد';
+      let cLabel1 = col.label1 || 'الاسم:';
+      let resolvedVal = col.value1 || '';
+      let cLabel2 = col.label2 || 'التوقيع:';
+      let cLabel3 = col.label3 || 'التاريخ:';
 
-      let cTitle = cleanDotsCanvas(col.title || 'اعتماد');
-      let cLabel1 = cleanDotsCanvas(col.label1 || 'الاسم:');
-      let cLabel2 = cleanDotsCanvas(col.label2 || 'التوقيع:');
-      let cLabel3 = cleanDotsCanvas(col.label3 || 'التاريخ:');
-
-      // Draw beautifully bordered card frame for each signature box
       let cardX = scx + 12;
       let cardW = sigColW - 24;
       let cardY = sigsY;
       let cardH = sigBoxH;
 
-      // Draw soft official background fill
       ctx.fillStyle = '#f8fafc';
       if (ctx.roundRect) {
         ctx.beginPath();
@@ -7867,7 +8657,6 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.fillRect(cardX, cardY, cardW, cardH);
       }
 
-      // Draw elegant solid border line
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1.5;
       if (ctx.roundRect) {
@@ -7878,7 +8667,6 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.strokeRect(cardX, cardY, cardW, cardH);
       }
 
-      // Draw neat header separator line inside each card
       ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -7889,43 +8677,40 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       ctx.direction = 'rtl';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#1B3D6D';
-      ctx.font = 'bold 16px sans-serif';
+      ctx.font = '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillText(cTitle, scx + sigColW / 2, sigsY + 34);
 
-      let resolvedVal = col.value1 || '';
-      if (resolvedVal === 'NAME_PLACEHOLDER') resolvedVal = settings.name || '';
-      else if (resolvedVal === 'MANAGER_PLACEHOLDER') resolvedVal = settings.managerName || '';
-      resolvedVal = cleanDotsCanvas(resolvedVal);
-
       ctx.textAlign = 'right';
+      let rX = scx + sigColW - 32;
       
       // Label 1: Name
-      ctx.font = 'bold 13px sans-serif';
+      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(cLabel1, scx + sigColW - 32, sigsY + 92);
+      ctx.fillText(cLabel1, rX, sigsY + 92);
+      let l1W = ctx.measureText(cLabel1).width;
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(resolvedVal, scx + sigColW - 105, sigsY + 92);
+      ctx.fillText(resolvedVal, rX - l1W - 8, sigsY + 92);
 
       // Label 2: Signature
-      ctx.font = 'bold 13px sans-serif';
+      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(cLabel2, scx + sigColW - 32, sigsY + 145);
+      ctx.fillText(cLabel2, rX, sigsY + 145);
       
-      // Draw electronic signature image if it exists
       if (sigImgObjs && sigImgObjs[colKey]) {
         let imgW = 130;
         let imgH = 40;
         let imgX = scx + (sigColW - imgW) / 2;
-        let imgY = sigsY + 112; // Beautifully centered overlay
+        let imgY = sigsY + 112;
         ctx.drawImage(sigImgObjs[colKey], imgX, imgY, imgW, imgH);
       }
 
       // Label 3: Date
-      ctx.font = 'bold 13px sans-serif';
+      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(cLabel3, scx + sigColW - 32, sigsY + 195);
+      ctx.fillText(cLabel3, rX, sigsY + 195);
+      let l3W = ctx.measureText(cLabel3).width;
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(window.getFormattedSignatureDate(), scx + sigColW - 105, sigsY + 195);
+      ctx.fillText(window.getFormattedSignatureDate(), rX - l3W - 8, sigsY + 195);
     });
   }
 
@@ -8462,7 +9247,7 @@ window.exeExpExcel=async function(mode){
           let sf=document.getElementById(`statusFilter`) ? document.getElementById(`statusFilter`).value : '';
           if(sf===`present`) filtered=filtered.filter(r=>isPresent(r.status));
           else if(sf===`absent`) filtered=filtered.filter(r=>r.status===`absent`);
-          else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let dt=new Date(slashToISO(r.date));return lateMin(r.checkIn,getSchedule(dt.getFullYear(),dt.getMonth(),dt).start)>0;});
+          else if(sf===`late`) filtered=filtered.filter(r=>{if(!isPresent(r.status))return false;let dt=parseCalendarDate(r.date);return lateMin(r.checkIn,getSchedule(dt.getFullYear(),dt.getMonth(),dt).start)>0;});
           else if(sf===`overtime`) filtered=filtered.filter(r=>hasOvertime(r));
       }
       
@@ -8512,7 +9297,7 @@ window.exeExpExcel=async function(mode){
   </xml>
   <![endif]-->
   <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; }
+    body { font-family: 'Cairo', 'Segoe UI', Arial, sans-serif; direction: rtl; }
     .report-title { font-size: 18pt; font-weight: bold; color: #1B3D6D; text-align: center; }
     .report-sub { font-size: 11pt; color: #475569; text-align: center; }
     .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -8597,9 +9382,11 @@ window.exeExpExcel=async function(mode){
 
       let sumLate = 0, sumEarly = 0, sumExtra = 0;
       let calcP = 0, calcA = 0, calcL = 0;
+      let allDBRecords = (typeof RECDB !== 'undefined' && RECDB.getAll) ? await RECDB.getAll() : [];
+      let otAccounting = getOvertimeAccounting(filtered, settings.compensations, allDBRecords);
 
       for (let r of filtered) {
-        let dt = new Date(slashToISO(r.date));
+        let dt = parseCalendarDate(r.date);
         let sch = getSchedule(dt.getFullYear(), dt.getMonth(), dt);
         
         let isLateComp = (settings.compensations || []).some(c => c.date === r.date && c.type === 'late');
@@ -8608,16 +9395,7 @@ window.exeExpExcel=async function(mode){
         let late = isPresent(r.status) ? (isLateComp ? 0 : lateMin(r.checkIn, sch.start)) : 0;
         let early = r.checkOut ? (isEarlyComp ? 0 : earlyMin(r.checkOut, sch.end)) : 0;
         let isHol = isHoliday(dt) || !isWorkDay(dt);
-        
-        let extra = 0;
-        if (isHol && r.checkIn && r.checkOut) {
-          let [sh, sm] = (r.checkIn && r.checkIn.includes(':') ? r.checkIn : '00:00').split(':').map(Number);
-          let [eh, em] = (r.checkOut && r.checkOut.includes(':') ? r.checkOut : '00:00').split(':').map(Number);
-          extra = (eh * 60 + em) - (sh * 60 + sm);
-          if (extra < 0) extra += 1440;
-        } else if (r.checkOut) {
-          extra = extraMin(r.checkOut, sch.overtimeStart);
-        }
+        let extra = getRecordOvertimeMinutes(r, sch);
 
         sumLate += late; 
         sumEarly += early; 
@@ -8725,8 +9503,14 @@ window.exeExpExcel=async function(mode){
           <tr>
             <td class="summary-cell">ساعات الخروج المبكر:</td>
             <td class="summary-val" style="color: #991b1b;">${sumEarly > 0 ? formatMin(sumEarly) : '00:00'}</td>
-            <td class="summary-cell">إجمالي العمل الإضافي:</td>
-            <td class="summary-val" style="color: #166534;">${sumExtra > 0 ? formatMin(sumExtra) : '00:00'}</td>
+            <td class="summary-cell">العمل الإضافي المكتسب:</td>
+            <td class="summary-val" style="color: #2563eb;">+${otAccounting.grossFormatted} (الرصيد الأصلي)</td>
+          </tr>
+          <tr>
+            <td class="summary-cell">الخصم والتعويضات:</td>
+            <td class="summary-val" style="color: #dc2626;">-${otAccounting.deductionsFormatted} (ساعات مستهلكة)</td>
+            <td class="summary-cell">صافي رصيد الإضافي:</td>
+            <td class="summary-val" style="color: #166534; font-weight: bold;">${otAccounting.netFormatted} (الرصيد المتبقي)</td>
           </tr>
         </table>
       </div>
@@ -9264,6 +10048,105 @@ function triggerHaptic(type) {
   } catch(e) {}
 }
 
+// Helper to activate green checkmark and green identity upon fingerprint verification success
+window.applySuccessGreenIdentity = function applySuccessGreenIdentity() {
+  const checkBadge = document.getElementById('fpCheckBadge');
+  const cornerBadge = document.getElementById('fpCornerCheckBadge');
+  const idCard = document.getElementById('fpIdentityCard');
+  const idLabel = document.getElementById('fpIdentityLabel');
+  const idIcon = document.getElementById('fpIdentityIcon');
+  const sigEl = document.getElementById('fpDevSignature');
+  const lockBadge = document.getElementById('fpLockStatusBadge');
+  const lockIcon = document.getElementById('fpLockIcon');
+  const progressCircle = document.getElementById('fpProgressCircle');
+  const circle = document.getElementById('fpCircleContainer');
+
+  if (checkBadge) {
+    checkBadge.classList.remove('opacity-0', 'scale-50');
+    checkBadge.classList.add('opacity-100', 'scale-100');
+  }
+  if (cornerBadge) {
+    cornerBadge.classList.remove('opacity-0', 'scale-0');
+    cornerBadge.classList.add('opacity-100', 'scale-100');
+  }
+  if (circle) {
+    circle.style.borderColor = '#10B981';
+    circle.style.boxShadow = '0 0 25px rgba(16, 185, 129, 0.7)';
+  }
+  if (progressCircle) {
+    progressCircle.style.stroke = '#10B981';
+  }
+  if (sigEl) {
+    sigEl.style.color = '#10B981';
+    sigEl.style.opacity = '1';
+    sigEl.style.transform = 'scale(1.1)';
+    sigEl.style.textShadow = '0 0 16px rgba(16, 185, 129, 0.6)';
+  }
+  if (idCard) {
+    idCard.style.backgroundColor = 'rgba(16, 185, 129, 0.12)';
+    idCard.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    idCard.style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.2)';
+  }
+  if (idLabel) {
+    idLabel.style.color = '#10B981';
+    idLabel.innerHTML = `<i class="fa-solid fa-shield-check text-emerald-500 ml-1"></i> الهوية مؤكدة ومعتمدة`;
+  }
+  if (idIcon) idIcon.style.color = '#10B981';
+  if (lockBadge) {
+    lockBadge.style.backgroundColor = 'rgba(16, 185, 129, 0.12)';
+    lockBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+    lockBadge.style.color = '#10B981';
+  }
+  if (lockIcon) {
+    lockIcon.className = 'fa-solid fa-shield-check text-xs text-emerald-500 transition-transform duration-300 scale-110';
+    lockIcon.style.color = '#10B981';
+  }
+};
+
+window.resetSuccessGreenIdentity = function resetSuccessGreenIdentity() {
+  const checkBadge = document.getElementById('fpCheckBadge');
+  const cornerBadge = document.getElementById('fpCornerCheckBadge');
+  const idCard = document.getElementById('fpIdentityCard');
+  const idLabel = document.getElementById('fpIdentityLabel');
+  const idIcon = document.getElementById('fpIdentityIcon');
+  const sigEl = document.getElementById('fpDevSignature');
+  const lockBadge = document.getElementById('fpLockStatusBadge');
+  const progressCircle = document.getElementById('fpProgressCircle');
+
+  if (checkBadge) {
+    checkBadge.classList.remove('opacity-100', 'scale-100');
+    checkBadge.classList.add('opacity-0', 'scale-50');
+  }
+  if (cornerBadge) {
+    cornerBadge.classList.remove('opacity-100', 'scale-100');
+    cornerBadge.classList.add('opacity-0', 'scale-0');
+  }
+  if (progressCircle) {
+    progressCircle.style.stroke = 'var(--theme-primary)';
+  }
+  if (sigEl) {
+    sigEl.style.color = 'var(--c-text-2)';
+    sigEl.style.opacity = '0.8';
+    sigEl.style.transform = 'none';
+    sigEl.style.textShadow = 'none';
+  }
+  if (idCard) {
+    idCard.style.backgroundColor = 'var(--c-surface-2)';
+    idCard.style.borderColor = 'var(--c-border)';
+    idCard.style.boxShadow = '';
+  }
+  if (idLabel) {
+    idLabel.style.color = 'var(--c-text-2)';
+    idLabel.textContent = 'الهوية الرقمية للتطبيق';
+  }
+  if (idIcon) idIcon.style.color = '';
+  if (lockBadge) {
+    lockBadge.style.backgroundColor = 'var(--c-surface-2)';
+    lockBadge.style.borderColor = 'var(--c-border)';
+    lockBadge.style.color = 'var(--c-text-2)';
+  }
+};
+
 function triggerSingleTapSignature() {
   clearFpTimers();
   currentFpState = FP_STATE.DETECTING;
@@ -9337,21 +10220,12 @@ function triggerSingleTapSignature() {
     triggerHaptic('success');
     
     if (scanLine) scanLine.style.opacity = '0';
-    if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
-      lockIcon.style.color = 'var(--theme-primary)';
-    }
     morphTopButton('unlock');
     
     if (statusEl) {
-      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-circle-check text-xs"></i> IDENTITY VERIFIED • تم التحقق</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-circle-check text-xs"></i> IDENTITY VERIFIED • تم التحقق من الهوية</span>`;
     }
-    if (sigEl) {
-      sigEl.style.color = 'var(--theme-primary)';
-      sigEl.style.opacity = '1';
-      sigEl.style.transform = 'scale(1.06)';
-      sigEl.style.textShadow = '0 0 20px var(--c-blue-lt)';
-    }
+    applySuccessGreenIdentity();
   }, 1900);
   fpActiveTimers.push(t4);
   
@@ -9391,20 +10265,11 @@ function triggerDoubleTapSignature() {
     updateFpProgress(100);
     if (circle) circle.style.transform = 'scale(1)';
     if (icon) icon.style.transform = 'rotate(360deg)';
-    if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
-      lockIcon.style.color = 'var(--theme-primary)';
-    }
     morphTopButton('unlock');
     if (statusEl) {
-      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-lock-open text-xs"></i> IDENTITY UNLOCKED • تم فتح الهوية</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-lock-open text-xs"></i> IDENTITY UNLOCKED • تم فتح الهوية</span>`;
     }
-    if (sigEl) {
-      sigEl.style.color = 'var(--theme-primary)';
-      sigEl.style.opacity = '1';
-      sigEl.style.transform = 'scale(1.06)';
-      sigEl.style.textShadow = '0 0 20px var(--c-blue-lt)';
-    }
+    applySuccessGreenIdentity();
   }, 600);
   fpActiveTimers.push(t1);
   
@@ -9441,20 +10306,11 @@ function triggerTripleTapSignature() {
   const t1 = setTimeout(() => {
     currentFpState = FP_STATE.SUCCESS;
     updateFpProgress(100);
-    if (lockIcon) {
-      lockIcon.className = 'fa-solid fa-lock-open text-xs transition-transform duration-300 scale-110';
-      lockIcon.style.color = 'var(--theme-primary)';
-    }
     morphTopButton('unlock');
     if (statusEl) {
-      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center" style="color:var(--theme-primary)"><i class="fa-solid fa-sparkles text-xs"></i> Aᵦᵤ AɢʰᵧₐD DIGITAL SIGNATURE</span>`;
+      statusEl.innerHTML = `<span class="font-bold flex items-center gap-1 justify-center text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-sparkles text-xs"></i> Aᵦᵤ AɢʰᵧₐD DIGITAL SIGNATURE</span>`;
     }
-    if (sigEl) {
-      sigEl.style.color = 'var(--theme-primary)';
-      sigEl.style.opacity = '1';
-      sigEl.style.transform = 'scale(1.08)';
-      sigEl.style.textShadow = '0 0 25px var(--c-blue-lt)';
-    }
+    applySuccessGreenIdentity();
   }, 800);
   fpActiveTimers.push(t1);
 
@@ -9479,10 +10335,12 @@ window.resetSignatureState = function() {
   
   updateFpProgress(0);
   morphTopButton('lock');
+  resetSuccessGreenIdentity();
   
   if (circle) {
     circle.style.transform = 'none';
     circle.style.boxShadow = '';
+    circle.style.borderColor = '';
   }
   if (scanLine) scanLine.style.opacity = '0';
   if (lockIcon) {
@@ -9491,12 +10349,6 @@ window.resetSignatureState = function() {
   }
   if (statusEl) {
     statusEl.innerHTML = 'LOCKED • مقفل (انقر للبصمة بالأسفل)';
-  }
-  if (sigEl) {
-    sigEl.style.color = 'var(--c-text-2)';
-    sigEl.style.opacity = '0.8';
-    sigEl.style.transform = 'none';
-    sigEl.style.textShadow = 'none';
   }
   if (ring) ring.style.borderColor = 'var(--c-blue-lt)';
   if (orbitRing) {
