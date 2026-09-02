@@ -3173,11 +3173,17 @@
                       <div class="text-[10px] text-slate-400">صوت جهاز البصمة ونطق الحالة</div>
                     </div>
                   </div>
-                  <select id="voiceFeedbackIn" class="form-control text-xs rounded-xl font-bold" style="max-width: 105px; padding: 0.35rem;" onchange="saveVoiceSettings()">
-                    <option value="none">بدون</option>
-                    <option value="female">صوت نسائي</option>
-                    <option value="male">صوت رجالي</option>
-                  </select>
+                  <div class="flex items-center gap-1.5">
+                    <select id="voiceFeedbackIn" class="form-control text-xs rounded-xl font-bold" style="max-width: 110px; padding: 0.35rem;" onchange="saveVoiceSettings()">
+                      <option value="none">بدون</option>
+                      <option value="female">صوت نسائي (طبيعي)</option>
+                      <option value="male">صوت رجالي (طبيعي)</option>
+                    </select>
+                    <button type="button" onclick="testVoicePreview()" class="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-lg font-bold flex items-center gap-1 transition-all" title="استماع لتجربة الصوت">
+                      <i class="fa-solid fa-volume-high text-[10px]"></i>
+                      <span>تجربة</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3957,6 +3963,8 @@
              style="background-color: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);">
           <p id="aboutAppDesc">"نظام احترافي ذكي لإدارة ومتابعة الحضور والانصراف، حساب التأخير والساعات الإضافية، واستخرج التقارير بدقة عالية وسهولة فائقة."</p>
         </div>
+
+
 
 
 

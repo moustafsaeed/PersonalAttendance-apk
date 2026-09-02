@@ -10917,78 +10917,204 @@ window.generateFakeYearData = function() {
     }
   );
 };
+// Global Audio Unlocker & Speech Engine
+let _sharedAudioCtx = null;
+
+function getAppAudioContext() {
+  if (!_sharedAudioCtx && typeof window !== 'undefined') {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      _sharedAudioCtx = new AudioCtx();
+    }
+  }
+  if (_sharedAudioCtx && _sharedAudioCtx.state === 'suspended') {
+    _sharedAudioCtx.resume().catch(() => {});
+  }
+  return _sharedAudioCtx;
+}
+
+// Mobile User Gesture Audio Unlocker
+if (typeof window !== 'undefined') {
+  const unlockAudioEvents = ['touchstart', 'touchend', 'click', 'pointerdown'];
+  const unlockHandler = function() {
+    getAppAudioContext();
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.getVoices(); } catch(e) {}
+    }
+  };
+  unlockAudioEvents.forEach(evt => {
+    window.addEventListener(evt, unlockHandler, { passive: true });
+  });
+}
+
 window.saveVoiceSettings = function() {
   let el = document.getElementById('voiceFeedbackIn');
   if (el) {
     settings.voiceFeedback = el.value;
     saveSettings();
     toast(`<i class="fa-solid fa-check ml-1"></i> تم حفظ إعداد الصوت`, 'ok');
+    if (el.value !== 'none') {
+      window.playActionVoice('in');
+    }
   }
 };
+
+window.testVoicePreview = function() {
+  window.playActionVoice('in');
+};
+
+// Internal Embedded Soft Audio Synthesizer (Works 100% Offline inside the app)
+function playEmbeddedSoftVoiceSound(type, isMale) {
+  try {
+    const ctx = getAppAudioContext();
+    if (!ctx) return;
+    
+    let now = ctx.currentTime;
+    // Harmonic frequencies for soft speech-like chords
+    let baseFreqs = isMale 
+      ? (type === 'in' ? [220, 277.18, 329.63, 440] : [440, 329.63, 277.18, 220])
+      : (type === 'in' ? [440, 554.37, 659.25, 880] : [880, 659.25, 554.37, 440]);
+      
+    baseFreqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      
+      // Warm sine/triangle wave for soft acoustic voice feel
+      osc.type = isMale ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now + (i * 0.12));
+      
+      // Formant filter for vocal softness
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(isMale ? 1200 : 2400, now + (i * 0.12));
+      
+      // Soft gentle envelope
+      gain.gain.setValueAtTime(0, now + (i * 0.12));
+      gain.gain.linearRampToValueAtTime(0.18, now + (i * 0.12) + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.12) + 0.35);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now + (i * 0.12));
+      osc.stop(now + (i * 0.12) + 0.36);
+    });
+  } catch(e) {
+    console.log("Embedded sound engine error:", e);
+  }
+}
+
 window.playActionVoice = function(type) {
   let voiceSetting = settings.voiceFeedback || 'female';
   if (voiceSetting === 'none') return;
   
-  // 1. 1000000% Reliable Offline Audio Feedback via Web Audio API (Chime Melodies)
+  let isMale = (voiceSetting === 'male');
+
+  // 1. Play internal acoustic audio response (Works 100% Offline inside Mobile PWA)
+  playEmbeddedSoftVoiceSound(type, isMale);
+
+  // 2. Play Realistic Classical Arabic Speech with Reminder Phrasing
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
-      let now = ctx.currentTime;
-      let baseFreq = voiceSetting === 'male' ? 320 : 640;
-      
-      // Play a pleasant multi-note chime sequence
-      let notes = type === 'in' ? [baseFreq, baseFreq * 1.25, baseFreq * 1.5] : [baseFreq * 1.5, baseFreq * 1.25, baseFreq];
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = voiceSetting === 'male' ? 'triangle' : 'sine';
-        osc.frequency.setValueAtTime(freq, now + (i * 0.08));
-        
-        gain.gain.setValueAtTime(0, now + (i * 0.08));
-        gain.gain.linearRampToValueAtTime(0.3, now + (i * 0.08) + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.08) + 0.25);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(now + (i * 0.08));
-        osc.stop(now + (i * 0.08) + 0.25);
-      });
-    }
-  } catch(e) {}
-  
-  // 2. Offline Text-to-Speech with cancel & robust fallback
-  try {
-    if ('speechSynthesis' in window) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel(); // Clear any pending speech queue
-      let text = type === 'in' ? "تم تسجيل الدخول بنجاح" : "تم تسجيل الخروج بنجاح";
+      
+      let text = '';
+      if (type === 'in') {
+        text = isMale 
+          ? "تذكير: تَمَّ تَسْجِيلُ الدُّخُولِ بِنَجَاحٍ، شُكْرًا لَكَ" 
+          : "تذكير: تَمَّ تَسْجِيلُ الدُّخُولِ بِنَجَاحٍ، شُكْرًا لَكِ";
+      } else {
+        text = isMale 
+          ? "تذكير: تَمَّ تَسْجِيلُ الْخُرُوجِ بِنَجَاحٍ، شُكْرًا لَكَ" 
+          : "تذكير: تَمَّ تَسْجِيلُ الْخُرُوجِ بِنَجَاحٍ، شُكْرًا لَكِ";
+      }
+        
       let msg = new SpeechSynthesisUtterance(text);
       msg.lang = 'ar-SA';
       
-      if (voiceSetting === 'male') {
-        msg.pitch = 0.7;
-        msg.rate = 0.95;
+      if (isMale) {
+        msg.pitch = 0.65; // Distinct deeper male pitch
+        msg.rate = 0.85;  // Calm deliberate pace
       } else {
-        msg.pitch = 1.25;
-        msg.rate = 1.0;
+        msg.pitch = 1.35; // Distinct higher female pitch
+        msg.rate = 0.88;  // Clear gentle female pace
       }
       
       let voices = window.speechSynthesis.getVoices();
-      if(voices && voices.length > 0) {
-        let arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().includes('ar'));
-        if(arVoices.length > 0) {
-          msg.voice = arVoices[0];
+      if (voices && voices.length > 0) {
+        let arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ar'));
+        if (arVoices.length === 0) {
+          arVoices = voices.filter(v => v.lang && v.lang.toLowerCase().includes('ar'));
+        }
+        
+        if (arVoices.length > 0) {
+          let selectedVoice = null;
+          
+          if (isMale) {
+            // Force strict male filtering
+            selectedVoice = arVoices.find(v => /maged|tarik|naayf|male|رجل|ذَكَر|rashid|hamza/i.test(v.name)) ||
+                            arVoices.find(v => !/laila|salma|zira|hoda|female|انثى|أنثى|سلمى|ليلى|fatima|maryam/i.test(v.name));
+          } else {
+            // Force strict female filtering
+            selectedVoice = arVoices.find(v => /laila|salma|zira|hoda|female|انثى|أنثى|سلمى|ليلى|fatima|maryam/i.test(v.name)) ||
+                            arVoices.find(v => !/maged|tarik|naayf|male|رجل/i.test(v.name));
+          }
+          
+          if (selectedVoice) {
+            msg.voice = selectedVoice;
+          }
         }
       }
       
-      window.speechSynthesis.speak(msg);
+      setTimeout(() => {
+        try { window.speechSynthesis.speak(msg); } catch(e) {}
+      }, 120);
     }
   } catch(err) {
-    console.log("Speech synthesis offline fallback active:", err);
+    console.log("TTS playback fallback:", err);
   }
 };
+
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   window.speechSynthesis.getVoices();
-  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => {
+    try { window.speechSynthesis.getVoices(); } catch(e) {}
+  };
 }
+
+window.copyMasterPrompt = function() {
+  const masterPromptText = `قم بناء وتطوير تطبيق "سجل الحضور الشخصي" (Personal Attendance & Shift Manager) كبرنامج ويب احترافي متكامل (PWA) باللغة العربية بالكامل (RTL) وبأعلى معايير الجودة والتصميم النظيف (Anti-Slop Design):
+
+1. الهيكل والوظائف الأساسية:
+- إدارة الحضور والانصراف اليومي، حساب ساعات العمل، التأخير، والانصراف المبكر والساعات الإضافية بدقة تامة.
+- لوحة تحكم رئيسية متطورة تعرض إحصائيات الحضور، معدل الالتزام، الرسوم البيانية التفاعلية (Chart.js / D3)، وسجلات السجل اليومي.
+- نظام إدخال وإدارة نوبتجيات العمل وأوقات الدوام الرسمي.
+- إدارة الإجازات، الغياب، الاستئذان، والمهام اليومية مع إمكانية التصفية المتقدمة والبحث اللحظي.
+
+2. محرك التنبيهات والأصوات (Offline Voice & Chime Engine):
+- محرك صوتي داخلي مدمج مكتفي ذاتياً (Web Audio API Harmonic Synthesizer) يعمل 100% أوفلاين على الجوال والويب.
+- نطق صوتي فصيح ومصحوب بالتشكيل الكامل وبصيغة التذكير الودود (صوت نسائي ناعم وصوت رجالي هادئ ومميز).
+- مستشعر نقرات ذكي لفك قنوات الصوت تلقائياً على أجهزة الجوال (Mobile Gesture Audio Unlocker).
+
+3. التقارير والتصدير الشامل:
+- استخراج تقارير احترافية بصيغة PDF (بتنسيق Enterprise Report مع شعار، جداول منسقة، وإجماليات دقيقة ودعم تام لـ RTL).
+- تصدير واستيراد البيانات بصيغة Excel (XLSX) و CSV.
+- نظام نسخ احتياطي واستعادة البيانات الآمن (Backup & Restore).
+
+4. التصميم والتجربة (UI/UX & RTL):
+- تصميم بصري أنيق ومريح (Light & Dark Mode) مع ألوان محايدة متطورة، مسافات متناسقة، ودعم تام للاتجاه من اليمين لليسار (RTL).
+- متوافق تماماً مع الهواتف الذكية والأجهزة اللوحية وأجهزة الكمبيوتر (Responsive PWA).`;
+
+  navigator.clipboard.writeText(masterPromptText).then(() => {
+    toast('<i class="fa-solid fa-check ml-1"></i> تم نسخ البرومبت الشامل بنجاح', 'ok');
+  }).catch(() => {
+    let ta = document.createElement('textarea');
+    ta.value = masterPromptText;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('<i class="fa-solid fa-check ml-1"></i> تم نسخ البرومبت الشامل بنجاح', 'ok');
+  });
+};
