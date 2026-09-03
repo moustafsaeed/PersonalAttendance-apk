@@ -1,4 +1,4 @@
-/* Cairo Font Family - Complete Arabic & Latin Weights */
+/* Tajawal Font Family - Complete Arabic & Latin Weights */
 
 /* 200 */
 @font-face {
@@ -145,5 +145,5 @@
 }
 
 body, button, input, select, textarea {
-  font-family: 'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif !important;
+  font-family: 'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif !important;
 }

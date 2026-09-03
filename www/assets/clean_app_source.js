@@ -98,7 +98,7 @@ function toSlashDateString(input) {
   const y = cd.getFullYear();
   const m = String(cd.getMonth() + 1).padStart(2, "0");
   const d = String(cd.getDate()).padStart(2, "0");
-  return `${y}/${m}/${d}`;
+  return `${d}/${m}/${y}`;
 }
 
 function getCalendarDayName(input) {
@@ -626,7 +626,10 @@ function makeDateKey(y,m,d){
 }
 function fmt12(t){if(!t||typeof t!==`string`||t===`---`||!t.includes(`:`))return t||`---`;let[h,m]=t.split(`:`).map(Number),p=h>=12?`مساءً`:`صباحاً`,hh=h%12||12;return`${String(hh).padStart(2,`0`)}:${String(m).padStart(2,`0`)} ${p}`}
 function nowHHMM(){let d=new Date;return`${String(d.getHours()).padStart(2,`0`)}:${String(d.getMinutes()).padStart(2,`0`)}`}
-function isPresent(s){return s!==`absent` && s!==`إجازة رسمية` && s!==`إجازة` && s!==`إجازة من الإضافي`}
+function isPresent(s){
+  if(!s || typeof s !== 'string') return false;
+  return s!==`absent` && s!==`إجازة رسمية` && s!==`إجازة` && s!==`عطلة` && s!==`إجازة أسبوعية` && s!==`إجازة من الإضافي`;
+}
 function isTravel(s){return s===`تكليف سفر`}
 function isOTLeave(s){return s===`إجازة من الإضافي`}
 function formatMin(v){
@@ -692,15 +695,19 @@ function earlyMin(co,e){
 }
 
 function hasOvertime(r) {
-  if(!r || !r.status || !isPresent(r.status) || !r.checkOut || !r.date) return false;
-  let d = parseCalendarDate(r.date), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
-  let isHol = isHoliday(d) || !isWorkDay(d);
+  if(!r || !r.date || !r.checkOut) return false;
+  let d = parseCalendarDate(r.date);
+  if(isNaN(d.getTime())) return false;
+  let isHol = isHoliday(d) || !isWorkDay(d) || r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'إجازة أسبوعية' || r.status === 'عطلة';
+  if(!isPresent(r.status) && !isHol) return false;
   if (isHol && r.checkIn && r.checkOut) {
-    let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+    let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number);
+    let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
     let extra = (eh*60+em) - (sh*60+sm);
     if (extra < 0) extra += 1440;
     return extra > 0;
   }
+  let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
   return extraMin(r.checkOut, sch.overtimeStart) > 0;
 }
 function extraMin(co,e){
@@ -2179,7 +2186,7 @@ async function renderRecords(){
         <td>${timingHTML}</td>
         <td>${extraHTML}</td>
         <td class="text-[11px] opacity-80 align-middle font-semibold">${absenceTypeHTML}</td>
-        <td style="font-family: '${settings.noteFont||'Cairo'}', serif; font-size:12px;" class="align-middle">${noteHTML}</td>
+        <td style="font-family: '${settings.noteFont||'Tajawal'}', serif; font-size:12px;" class="align-middle">${noteHTML}</td>
         <td style="text-align:center">
           <button onclick="openEdit('${r.id}', '${r.date}')" class="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[11px] transition-transform hover:scale-105 active:scale-95 cursor-pointer" style="background:var(--c-surface2);color:var(--text1)" title="تعديل السجل">
             <i class="fa-solid fa-pen-to-square"></i>
@@ -3433,7 +3440,7 @@ async function renderStats(){
                   boxWidth: 10,
                   boxHeight: 10,
                   padding: 12,
-                  font: { family: 'Cairo', size: 10, weight: 'bold' },
+                  font: { family: 'Tajawal', size: 10, weight: 'bold' },
                   color: textColor2
                 }
               }
@@ -3484,7 +3491,7 @@ async function renderStats(){
                 y: { display: false, beginAtZero: true },
                 x: {
                   grid: { display: false },
-                  ticks: { font: { family: 'Cairo', size: 9, weight: 'bold' }, color: textColor2 }
+                  ticks: { font: { family: 'Tajawal', size: 9, weight: 'bold' }, color: textColor2 }
                 }
               },
               plugins: { legend: { display: false } }
@@ -3529,7 +3536,7 @@ async function renderStats(){
               scales: {
                 x: {
                   grid: { display: false },
-                  ticks: { font: { family: 'Cairo', size: 9, weight: 'bold' }, color: textColor2 }
+                  ticks: { font: { family: 'Tajawal', size: 9, weight: 'bold' }, color: textColor2 }
                 },
                 y: { display: false, min: 0 }
               },
@@ -4829,7 +4836,7 @@ function renderSettingsPage(){
   let fSel = document.getElementById('noteFontIn');
   if(fSel) {
     fSel.innerHTML = `
-      <option value="Cairo">Cairo (الافتراضي)</option>
+      <option value="Tajawal">Tajawal (الافتراضي)</option>
       <option value="Amiri">Amiri (رسمي 1)</option>
       <option value="Tajawal">Tajawal (رسمي 2)</option>
       <option value="Arial Black">Arial Black (عريض)</option>
@@ -4848,7 +4855,7 @@ function renderSettingsPage(){
         fSel.innerHTML += `<option value="${esc(f.name)}">${esc(f.name)} (مخصص)</option>`;
       });
     }
-    fSel.value = settings.noteFont || 'Cairo';
+    fSel.value = settings.noteFont || 'Tajawal';
   }
   if(window.syncChips) window.syncChips();
 }
@@ -5365,7 +5372,7 @@ async function loadFontToBrowser(name, b64) {
 }
 
 window.applyNoteFont = function() {
-  let font = settings.noteFont || 'Cairo';
+  let font = settings.noteFont || 'Tajawal';
   let styleId = 'note-font-style';
   let styleEl = document.getElementById(styleId);
   if(!styleEl) {
@@ -7168,12 +7175,12 @@ async function buildPDFCanvas(){
       await Promise.race([
         Promise.all([
           document.fonts.ready,
-          document.fonts.load('900 24px Cairo'),
-          document.fonts.load('800 24px Cairo'),
-          document.fonts.load('700 22px Cairo'),
-          document.fonts.load('600 14px Cairo'),
-          document.fonts.load('500 14px Cairo'),
-          document.fonts.load('400 16px Cairo')
+          document.fonts.load('900 24px Tajawal'),
+          document.fonts.load('800 24px Tajawal'),
+          document.fonts.load('700 22px Tajawal'),
+          document.fonts.load('600 14px Tajawal'),
+          document.fonts.load('500 14px Tajawal'),
+          document.fonts.load('400 16px Tajawal')
         ]),
         new Promise(resolve => setTimeout(resolve, 1500))
       ]);
@@ -7206,7 +7213,7 @@ async function buildPDFCanvas(){
   container.style.display = 'block';
   container.style.pointerEvents = 'none';
   container.style.zIndex = '-99999';
-  container.style.fontFamily=`'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif`;
+  container.style.fontFamily=`'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif`;
   container.style.letterSpacing=`normal`;
   container.style.wordSpacing=`normal`;
   container.style.textRendering=`optimizeLegibility`;
@@ -7334,34 +7341,34 @@ async function buildPDFCanvas(){
 
       let rowCells = [];
       if (settings.exportColumns.date) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayDate}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayDate}</td>`);
       }
       if (settings.exportColumns.day) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#475569; border:1px solid #cbd5e1;">${displayDay}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#475569; border:1px solid #cbd5e1;">${displayDay}</td>`);
       }
       if (settings.exportColumns.checkIn) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckIn}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckIn}</td>`);
       }
       if (settings.exportColumns.checkOut) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckOut}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1;" lang="en" dir="ltr">${displayCheckOut}</td>`);
       }
       if (settings.exportColumns.status) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:${sc}">${displayStatus}</td>`);
+        rowCells.push(`<td style="padding:8px; font-size:15px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:${sc}; max-width:115px; word-break:break-word; white-space:normal; line-height:1.35; vertical-align:middle;">${displayStatus}</td>`);
       }
       if (settings.exportColumns.late) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${displayLate}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#d97706;" lang="en" dir="ltr">${displayLate}</td>`);
       }
       if (settings.exportColumns.early) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${displayEarly}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#dc2626;" lang="en" dir="ltr">${displayEarly}</td>`);
       }
       if (settings.exportColumns.overtime) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${displayOvertime}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; border:1px solid #cbd5e1; color:#2563eb;" lang="en" dir="ltr">${displayOvertime}</td>`);
       }
       if (settings.exportColumns.absenceType) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${displayAbsence}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:16px; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#111827; border:1px solid #cbd5e1; max-width:140px; word-break: break-word; line-height: 1.4; vertical-align: middle;">${displayAbsence}</td>`);
       }
       if (settings.exportColumns.note) {
-        rowCells.push(`<td style="padding:10px 8px; font-size:15px; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; color:#0f172a; border:1px solid #cbd5e1; text-align:right; max-width:280px; word-wrap:break-word; word-break:break-word; white-space:pre-wrap; line-height:1.45; vertical-align:middle;">${esc(chunkText) || ``}</td>`);
+        rowCells.push(`<td style="padding:10px 8px; font-size:15px; font-weight:700; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; color:#0f172a; border:1px solid #cbd5e1; text-align:right; max-width:280px; word-wrap:break-word; word-break:break-word; white-space:pre-wrap; line-height:1.45; vertical-align:middle;">${esc(chunkText) || ``}</td>`);
       }
 
       if (rowCells.length > 0) {
@@ -7374,7 +7381,8 @@ async function buildPDFCanvas(){
 
       let chunkLinesCount = chunkText ? chunkText.split('\n').length : 1;
       let absLines = (isFirstChunk && absText) ? Math.max(1, Math.ceil(absText.length / 18)) : 1;
-      let visualLines = Math.max(1, chunkLinesCount, absLines);
+      let statusLines = (isFirstChunk && displayStatus) ? Math.max(1, Math.ceil(displayStatus.length / 10)) : 1;
+      let visualLines = Math.max(1, chunkLinesCount, absLines, statusLines);
       let rowWeight = 1.0 + (visualLines - 1) * 0.55;
       allRowsUnits.push(rowWeight);
     });
@@ -7427,26 +7435,26 @@ async function buildPDFCanvas(){
     let subEn = sanitizeReportText(settings.headerSubEn || `Employee: ${settings.name}`);
 
     let defaultDualLangHeader = `<!-- Professional Dual-Language PDF Header -->
-      <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+      <div style="padding:26px 40px 20px; background:#ffffff; border-top:6px solid #1B3D6D; border-bottom:2px solid #e2e8f0; margin-bottom:20px; direction:rtl; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; margin:0; padding:0; background:transparent;">
           <tr>
-            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
-              <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
-              <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
+            <td style="width:50%; text-align:right; vertical-align:middle; border:none; padding:0; direction:rtl; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              <div style="font-size:32px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0; letter-spacing:0px !important;">${titleAr}</div>
+              <div style="font-size:14px; font-weight:700; color:#475569; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0; letter-spacing:0px !important;">${subAr}</div>
             </td>
-            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-              <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
-              <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0;">${subEn}</div>
+            <td style="width:50%; text-align:left; vertical-align:middle; border:none; padding:0; direction:ltr; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+              <div style="font-size:26px; font-weight:900; color:#1B3D6D; line-height:1.2; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0 0 6px 0;">${titleEn}</div>
+              <div style="font-size:13px; font-weight:700; color:#475569; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; margin:0;">${subEn}</div>
             </td>
           </tr>
         </table>
-        <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#475569; font-weight:700; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
           <tr>
-            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
-              تاريخ التقرير: <span style="color:#1B3D6D; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${todayKey()}</span>
+            <td style="text-align:right; border:none; padding:4px 0; direction:rtl; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              تاريخ التقرير: <span style="color:#1B3D6D; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${todayKey()}</span>
             </td>
-            <td style="text-align:left; border:none; padding:4px 0; direction:ltr; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
-              Page <span style="color:#1B3D6D; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${pageNumber}</span> of <span style="font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${totalPages}</span>
+            <td style="text-align:left; border:none; padding:4px 0; direction:ltr; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">
+              Page <span style="color:#1B3D6D; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${pageNumber}</span> of <span style="font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${totalPages}</span>
             </td>
           </tr>
         </table>
@@ -7475,7 +7483,7 @@ async function buildPDFCanvas(){
 
     if (customFooterContent) {
       return `<!-- Custom User Footer -->
-        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
+        <div style="position:absolute; bottom:0; left:0; right:0; width:100%; z-index:30; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important; box-sizing:border-box; padding:0; margin:0; background:#ffffff;">
           <div style="width:100%; box-sizing:border-box; margin:0; padding:0;">
             ${customFooterContent}
           </div>
@@ -7492,16 +7500,16 @@ async function buildPDFCanvas(){
     let contactEn = sanitizeReportText(settings.footerContactEn || 'Generated automatically by Personal Attendance System');
 
     return `<!-- Professional Footer Banner -->
-      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+      <div style="position:absolute; bottom:0; left:0; right:0; width:100%; border-top:1px solid #e2e8f0; padding:0; margin:0; background:#ffffff; box-sizing:border-box; z-index:30; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
         <table style="width:100%; border:none; border-collapse:collapse; background:#ffffff; color:#64748b; padding:8px 16px; margin:0;">
           <tr>
-            <td style="text-align:right; border:none; padding:10px 18px; font-size:11px; font-weight:600; direction:rtl; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; color:#64748b;">
+            <td style="text-align:right; border:none; padding:10px 18px; font-size:11px; font-weight:600; direction:rtl; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; letter-spacing:0px !important; color:#64748b;">
               ${contactAr}
             </td>
-            <td style="text-align:center; border:none; padding:10px 6px; font-size:12px; font-weight:700; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; white-space:nowrap; color:#0f172a; direction: ltr;">
+            <td style="text-align:center; border:none; padding:10px 6px; font-size:12px; font-weight:700; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; white-space:nowrap; color:#0f172a; direction: ltr;">
               Page ${pageNumber} of ${totalPages}
             </td>
-            <td style="text-align:left; border:none; padding:10px 18px; font-size:10px; font-weight:500; font-family:'Cairo', 'Tajawal', 'Segoe UI', sans-serif; direction:ltr; color:#94a3b8;">
+            <td style="text-align:left; border:none; padding:10px 18px; font-size:10px; font-weight:500; font-family:'Tajawal', 'Tajawal', 'Segoe UI', sans-serif; direction:ltr; color:#94a3b8;">
               ${contactEn}
             </td>
           </tr>
@@ -7514,48 +7522,48 @@ async function buildPDFCanvas(){
 
     let ths = [];
     if (settings.exportColumns.date) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">التاريخ</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">التاريخ</th>`);
     }
     if (settings.exportColumns.day) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">اليوم</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">اليوم</th>`);
     }
     if (settings.exportColumns.checkIn) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحضور</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحضور</th>`);
     }
     if (settings.exportColumns.checkOut) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الانصراف</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الانصراف</th>`);
     }
     if (settings.exportColumns.status) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحالة</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">الحالة</th>`);
     }
     if (settings.exportColumns.late) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">تأخير</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">تأخير</th>`);
     }
     if (settings.exportColumns.early) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">مبكر</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">مبكر</th>`);
     }
     if (settings.exportColumns.overtime) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">إضافي</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">إضافي</th>`);
     }
     if (settings.exportColumns.absenceType) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">نوع الغياب</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">نوع الغياب</th>`);
     }
     if (settings.exportColumns.note) {
-      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:1px solid ${themePri}; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">ملاحظات</th>`);
+      ths.push(`<th style="padding:12px 8px; font-size:17px; font-weight:700; text-align:right; border:1px solid ${themePri}; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important;">ملاحظات</th>`);
     }
 
     if (ths.length > 0) {
       ths[0] = ths[0].replace(`border:1px solid ${themePri};`, `border:1px solid ${themePri}; border-right:5px solid ${themePri};`);
     }
 
-    return `<div style="font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
+    return `<div style="font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden;">
       ${customHeaderContent}
       
       <!-- Table Body -->
       <div style="padding:15px 40px 80px;">
-        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:16px; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
           <thead>
-            <tr style="background:${themePri}; color:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <tr style="background:${themePri}; color:#ffffff; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
               ${ths.join('')}
             </tr>
           </thead>
@@ -7607,15 +7615,21 @@ async function buildPDFCanvas(){
      let isLast = (i === chunks.length - 1);
      let sumBlock = "";
      if(isLast) {
-       sumBlock = `<div style="display:flex; justify-content:space-between; background:#f8fafc; border:2px dashed #cbd5e1; padding:14px 20px; margin-top:20px; font-weight:bold; font-size:15px; color:#334155; font-feature-settings:'tnum'; border-radius:12px;">
-      <div><span lang="en" dir="rtl">${periodLabel}</span> (إجمالي)</div>
-      <div>حضور: <span lang="en" dir="ltr" style="color:${themePri}">${monthSummary.p}</span></div>
-      <div style="color:#dc2626;">غياب: <span lang="en" dir="ltr">${monthSummary.a}</span></div>
-      <div style="color:#d97706;">تأخير: <span lang="en" dir="rtl">${totalLateDec}</span></div>
-      <div style="color:#dc2626;">مبكر: <span lang="en" dir="rtl">${totalEarlyDec}</span></div>
-      <div style="color:#2563eb;">إضافي أصلي: <span lang="en" dir="rtl">+${otAccounting.grossFormatted}</span></div>
-      <div style="color:#dc2626;">خصم: <span lang="en" dir="rtl">-${otAccounting.deductionsFormatted}</span></div>
-      <div style="color:#059669;">صافي الإضافي: <span lang="en" dir="rtl">${otAccounting.netFormatted}</span></div>
+       sumBlock = `<div style="background:#f8fafc; border:2px dashed #cbd5e1; padding:12px 20px; margin-top:20px; font-weight:bold; font-size:15px; color:#334155; font-feature-settings:'tnum'; border-radius:12px; display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #e2e8f0; padding-bottom:8px;">
+        <div><span lang="en" dir="rtl">${periodLabel}</span> (إجمالي)</div>
+        <div style="display:flex; gap:32px;">
+          <div>حضور: <span lang="en" dir="ltr" style="color:${themePri}">${monthSummary.p}</span></div>
+          <div style="color:#dc2626;">غياب: <span lang="en" dir="ltr">${monthSummary.a}</span></div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px;">
+        <div style="color:#d97706;">تأخير: <span lang="en" dir="rtl">${totalLateDec}</span></div>
+        <div style="color:#dc2626;">مبكر: <span lang="en" dir="rtl">${totalEarlyDec}</span></div>
+        <div style="color:#2563eb;">إضافي أصلي: <span lang="en" dir="rtl">+${otAccounting.grossFormatted}</span></div>
+        <div style="color:#dc2626;">خصم: <span lang="en" dir="rtl">-${otAccounting.deductionsFormatted}</span></div>
+        <div style="color:#059669;">صافي الإضافي: <span lang="en" dir="rtl">${otAccounting.netFormatted}</span></div>
+      </div>
     </div>`;
      }
      container.innerHTML = baseHeader(i+1, chunks.length + 1) + chunks[i].join('') + baseFooter(i+1, chunks.length + 1, sumBlock);
@@ -7717,20 +7731,20 @@ async function buildPDFCanvas(){
           ? `<div style="text-align: center;"><img src="${col.signatureImage}" style="max-height: 42px; object-fit: contain; margin-top:-3px; margin-bottom:-3px;" /></div>` 
           : `&nbsp;`;
 
-        return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:10px 14px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; direction:rtl; letter-spacing:0px !important;">
+        return `<td style="width:${colWidth}; vertical-align:top; border:none; padding:10px 14px; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; direction:rtl; letter-spacing:0px !important;">
           <div style="border:1.5px solid #cbd5e1; border-radius:12px; background-color:#f8fafc; padding:16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">
-            <div style="font-size:14px; font-weight:800; color:#1B3D6D; text-align:center; padding-bottom:10px; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+            <div style="font-size:14px; font-weight:800; color:#1B3D6D; text-align:center; padding-bottom:10px; margin-bottom:14px; border-bottom:1.5px solid #e2e8f0; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
               ${esc(cTitle)}
             </div>
-            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
               <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel1)}</span>
               <span style="color:#0f172a; letter-spacing:0px !important; word-break:break-word;">${esc(resolvedValue)}</span>
             </div>
-            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; min-height:36px; gap:6px;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:10px; font-size:12px; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; min-height:36px; gap:6px;">
               <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel2)}</span>
               <div style="flex:1; text-align:center;">${sigHtml}</div>
             </div>
-            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:2px; font-size:12px; font-weight:800; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin-bottom:2px; font-size:12px; font-weight:800; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; gap:6px;">
               <span style="color:#475569; white-space:nowrap; letter-spacing:0px !important;">${esc(cLabel3)}</span>
               <span style="color:#0f172a; letter-spacing:0px !important;">${esc(window.getFormattedSignatureDate())}</span>
             </div>
@@ -7739,8 +7753,8 @@ async function buildPDFCanvas(){
       }).join('');
   
       signaturesHtml = `
-      <div style="margin-top:40px; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
-        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; table-layout: fixed;">
+      <div style="margin-top:40px; background:#ffffff; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
+        <table style="width:100%; border:none; border-collapse:collapse; margin:0; background:#ffffff; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; table-layout: fixed;">
           <tr>
             ${bodyCells}
           </tr>
@@ -7748,59 +7762,59 @@ async function buildPDFCanvas(){
       </div>`;
     }
 
-  container.innerHTML = `<div style="font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
+  container.innerHTML = `<div style="font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; letter-spacing:0px !important; word-spacing:normal !important; font-feature-settings:'liga' 1,'calt' 1; font-kerning:normal; width:1200px; height:1697px; background:#ffffff; color:#1e293b; padding:0; direction:rtl; margin:0 auto; position:relative; overflow:hidden; box-sizing:border-box;">
     ${finalPageHeader}
     
-    <div style="padding:10px 40px 0 40px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-      <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
-        <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
-        <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
-          <span style="display:inline-block; margin:0 8px;">الموظف:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${settings.name || '-'}</b></span>
+    <div style="padding:10px 40px 0 40px; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+      <div style="text-align:center; background:#f8fafc; border:2px solid #cbd5e1; border-top:5px solid #1B3D6D; border-radius:14px; padding:22px 24px; margin-bottom:24px; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+        <h2 style="font-size:32px; font-weight:900; color:#1B3D6D; margin:0 0 12px 0; line-height:1.4; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">ملخص الإحصائيات والاعتماد النهائي</h2>
+        <div style="font-size:16px; color:#475569; font-weight:700; line-height:1.6; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; letter-spacing:0px !important; word-spacing:normal !important;">
+          <span style="display:inline-block; margin:0 8px;">الموظف:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${settings.name || '-'}</b></span>
           <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
-          <span style="display:inline-block; margin:0 8px;">نوع التقرير:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${displayRepType}</b></span>
+          <span style="display:inline-block; margin:0 8px;">نوع التقرير:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${displayRepType}</b></span>
           <span style="display:inline-block; margin:0 12px; color:#cbd5e1;">|</span>
-          <span style="display:inline-block; margin:0 8px;">الفترة:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${periodLabel}</b></span>
+          <span style="display:inline-block; margin:0 8px;">الفترة:&nbsp;<b style="color:#0f172a; font-weight:900; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">${periodLabel}</b></span>
         </div>
       </div>
       
-      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:20px 16px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
+      <div style="border:2px solid #cbd5e1; border-radius:18px; padding:20px 16px; background:#ffffff; box-shadow:0 4px 12px rgba(0,0,0,0.03); font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden;">
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin: 0; width: 100%;">
-          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">إجمالي أيام الحضور</div>
             <div style="font-size:36px; font-weight:900; color:#16a34a; line-height:1.1;" dir="ltr">${monthSummary.p}</div>
             <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">يوم عمل</div>
           </div>
-          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">إجمالي أيام الغياب</div>
             <div style="font-size:36px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${monthSummary.a}</div>
             <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">يوم غياب</div>
           </div>
-          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">أيام التأخير</div>
             <div style="font-size:36px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${monthSummary.l}</div>
             <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">يوم به تأخير</div>
           </div>
-          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#fffbeb; border:2px solid #fde68a; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#92400e; margin-bottom:6px; line-height:1.3;">إجمالي ساعات التأخير</div>
             <div style="font-size:32px; font-weight:900; color:#d97706; line-height:1.1;" dir="ltr">${totalLateDec}</div>
             <div style="font-size:12px; font-weight:700; color:#b45309; margin-top:4px;">ساعة : دقيقة</div>
           </div>
-          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#fef2f2; border:2px solid #fecaca; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#991b1b; margin-bottom:6px; line-height:1.3;">ساعات الخروج المبكر</div>
             <div style="font-size:32px; font-weight:900; color:#dc2626; line-height:1.1;" dir="ltr">${totalEarlyDec}</div>
             <div style="font-size:12px; font-weight:700; color:#b91c1c; margin-top:4px;">ساعة : دقيقة</div>
           </div>
-          <div style="flex: 1 1 200px; background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:6px; line-height:1.3;">العمل الإضافي المكتسب</div>
             <div style="font-size:32px; font-weight:900; color:#2563eb; line-height:1.1;" dir="ltr">+${otAccounting.grossFormatted}</div>
             <div style="font-size:12px; font-weight:700; color:#1d4ed8; margin-top:4px;">الرصيد الأصلي</div>
           </div>
-          <div style="flex: 1 1 200px; background:#fff1f2; border:2px solid #fecdd3; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#fff1f2; border:2px solid #fecdd3; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#9f1239; margin-bottom:6px; line-height:1.3;">الخصم والتعويضات</div>
             <div style="font-size:32px; font-weight:900; color:#e11d48; line-height:1.1;" dir="ltr">-${otAccounting.deductionsFormatted}</div>
             <div style="font-size:12px; font-weight:700; color:#be123c; margin-top:4px;">ساعات مستهلكة</div>
           </div>
-          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Cairo', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
+          <div style="flex: 1 1 200px; background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:18px 10px; text-align:center; font-family:'Tajawal', 'Tajawal', 'Segoe UI', -apple-system, sans-serif;">
             <div style="font-size:14px; font-weight:800; color:#166534; margin-bottom:6px; line-height:1.3;">صافي رصيد الإضافي</div>
             <div style="font-size:32px; font-weight:900; color:#059669; line-height:1.1;" dir="ltr">${otAccounting.netFormatted}</div>
             <div style="font-size:12px; font-weight:700; color:#15803d; margin-top:4px;">الرصيد المتبقي</div>
@@ -8162,12 +8176,14 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   // Dummy canvas for text width measurement
   let measureCanvas = document.createElement('canvas');
   let measureCtx = measureCanvas.getContext('2d');
-  measureCtx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+  measureCtx.font = '700 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
 
   let noteColDef = colDefs.find(c => c.key === 'note');
   let absColDef = colDefs.find(c => c.key === 'absenceType');
+  let statusColDef = colDefs.find(c => c.key === 'status');
   let noteMaxWidth = noteColDef ? (noteColDef.actualWidth - 20) : 230;
   let absMaxWidth = absColDef ? (absColDef.actualWidth - 16) : 110;
+  let statusMaxWidth = statusColDef ? (statusColDef.actualWidth - 16) : 88;
 
   filtered.forEach(r => {
     let d = parseCalendarDate(r.date), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
@@ -8208,9 +8224,13 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     let statusText = r.status === 'present' ? 'حاضر' : (r.status === 'absent' ? 'غائب' : (r.status || 'حاضر'));
     let absenceTypeText = r.status === 'absent' && r.absenceType ? r.absenceType : (r.status === 'إجازة من الإضافي' ? 'إجازة تعويض إضافي' : '');
 
+    measureCtx.font = '800 13.5px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+    let statusLinesArr = statusColDef ? wrapCanvasText(measureCtx, statusText, statusMaxWidth) : [statusText];
+
+    measureCtx.font = '700 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     let noteLinesArr = wrapCanvasText(measureCtx, pdfNote, noteMaxWidth);
     let absLinesArr = wrapCanvasText(measureCtx, absenceTypeText, absMaxWidth);
-    let maxVisualLines = Math.max(1, noteLinesArr.length, absLinesArr.length);
+    let maxVisualLines = Math.max(1, noteLinesArr.length, absLinesArr.length, statusLinesArr.length);
     let rowH = Math.max(42, 16 + maxVisualLines * 20);
 
     rowDataList.push({
@@ -8219,6 +8239,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       checkIn: r.checkIn ? fmt12(r.checkIn) : '-',
       checkOut: r.checkOut ? fmt12(r.checkOut) : '-',
       status: statusText,
+      statusLinesArr,
       late: lateDec,
       early: earlyDec,
       overtime: extra > 0 ? '+' + formatMin(extra) : '-',
@@ -8304,7 +8325,8 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     let r = rowDataList[j];
     let noteLines = r.noteLinesArr || [];
     let absLines = r.absLinesArr || [];
-    let totalLines = Math.max(noteLines.length, absLines.length);
+    let statusLines = r.statusLinesArr || [];
+    let totalLines = Math.max(noteLines.length, absLines.length, statusLines.length);
 
     if (totalLines <= maxSingleRowLines) {
       splitRowDataList.push(r);
@@ -8314,7 +8336,8 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       while (offset < totalLines) {
         let chunkNote = noteLines.slice(offset, offset + maxSingleRowLines);
         let chunkAbs = absLines.slice(offset, offset + maxSingleRowLines);
-        let chunkVisual = Math.max(1, chunkNote.length, chunkAbs.length);
+        let chunkStatus = statusLines.slice(offset, offset + maxSingleRowLines);
+        let chunkVisual = Math.max(1, chunkNote.length, chunkAbs.length, chunkStatus.length);
         let chunkH = Math.max(42, 16 + chunkVisual * 20);
 
         splitRowDataList.push({
@@ -8324,6 +8347,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
           checkIn: partIdx === 1 ? r.checkIn : '',
           checkOut: partIdx === 1 ? r.checkOut : '',
           status: partIdx === 1 ? r.status : '',
+          statusLinesArr: partIdx === 1 ? (r.statusLinesArr || []) : [],
           late: partIdx === 1 ? r.late : '',
           early: partIdx === 1 ? r.early : '',
           overtime: partIdx === 1 ? r.overtime : '',
@@ -8377,7 +8401,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.direction = 'rtl';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#1B3D6D';
-        ctx.font = 'bold 22px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+        ctx.font = 'bold 22px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
         customHeaderLines.forEach(line => {
           ctx.fillText(line, 600, startY + 18);
           startY += 30;
@@ -8393,21 +8417,21 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#1B3D6D';
-    ctx.font = '900 34px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '900 34px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerTitleAr, 1160, startY + 33);
 
     ctx.fillStyle = '#475569';
-    ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '700 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerSubAr, 1160, startY + 59);
 
     ctx.direction = 'ltr';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#1B3D6D';
-    ctx.font = '900 24px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '900 24px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerTitleEn, 40, startY + 33);
 
     ctx.fillStyle = '#475569';
-    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '700 13px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(headerSubEn, 40, startY + 59);
 
     let lineY = startY + 77;
@@ -8421,7 +8445,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#475569';
-    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '700 13px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(`تاريخ التقرير: ${todayKey()}`, 1160, lineY + 18);
 
     ctx.direction = 'ltr';
@@ -8451,7 +8475,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
         ctx.direction = 'rtl';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#64748b';
-        ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+        ctx.font = '700 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
         customFooterLines.forEach(line => {
           ctx.fillText(line, 600, currentY + 12);
           currentY += 25;
@@ -8475,18 +8499,18 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#64748b';
-    ctx.font = '600 12px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '600 12px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(footerContactAr, 1160, 1668);
 
     ctx.direction = 'ltr';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#0f172a';
-    ctx.font = '800 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '800 13px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(`Page ${pageNum} of ${totalPgs}`, 600, 1668);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '500 11px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '500 11px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(footerContactEn, 40, 1668);
   };
 
@@ -8511,7 +8535,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
     colDefs.forEach((col, idx) => {
       ctx.fillStyle = '#ffffff';
-      ctx.font = '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+      ctx.font = '800 16px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
       if (col.align === 'center') {
         ctx.textAlign = 'center';
         ctx.fillText(col.label, (col.xRight + col.xLeft) / 2, tableY + 27);
@@ -8551,35 +8575,66 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
       colDefs.forEach(col => {
         let val = row[col.key] || '-';
+
+        // Clip to cell bounds to strictly prevent text overflow into adjacent cells
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(col.xLeft + 0.5, currentY, col.actualWidth - 1, rowH);
+        ctx.clip();
+
         ctx.fillStyle = col.key === 'status' ? row.statusColor : (col.key === 'late' ? '#d97706' : (col.key === 'early' ? '#dc2626' : (col.key === 'overtime' ? '#2563eb' : '#0f172a')));
-        ctx.font = (col.key === 'date' || col.key === 'status') ? '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif' : '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+        ctx.font = (col.key === 'date' || col.key === 'status') ? '800 16px "Tajawal", "Tajawal", "Segoe UI", sans-serif' : '700 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
 
         if (col.align === 'center') {
           ctx.textAlign = 'center';
-          ctx.fillText(String(val).substring(0, 20), (col.xRight + col.xLeft) / 2, currentY + 26);
+          ctx.fillText(String(val).substring(0, 20), (col.xRight + col.xLeft) / 2, currentY + (rowH / 2) + 5);
+        } else if (col.key === 'status') {
+          ctx.direction = 'rtl';
+          ctx.textAlign = 'right';
+          let sLines = (row.statusLinesArr && row.statusLinesArr.length > 0) ? row.statusLinesArr : [String(val)];
+          if (sLines.length > 1) {
+            ctx.font = '800 13px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+            let lineSpacing = 17;
+            let totalH = sLines.length * lineSpacing;
+            let startY = currentY + Math.max(14, (rowH - totalH) / 2 + 12);
+            sLines.forEach(sl => {
+              ctx.fillText(sl, col.xRight - 8, startY);
+              startY += lineSpacing;
+            });
+          } else {
+            ctx.font = '800 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+            let midY = currentY + (rowH / 2) + 5;
+            ctx.fillText(sLines[0], col.xRight - 8, midY);
+          }
         } else if (col.key === 'note' && row.noteLinesArr && row.noteLinesArr.length > 0) {
           ctx.direction = 'rtl';
           ctx.textAlign = 'right';
-          ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
-          let lineY = currentY + 22;
+          ctx.font = '700 14.5px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+          let lineSpacing = 18;
+          let totalH = row.noteLinesArr.length * lineSpacing;
+          let startY = currentY + Math.max(14, (rowH - totalH) / 2 + 12);
           row.noteLinesArr.forEach(nl => {
-            ctx.fillText(nl, col.xRight - 10, lineY);
-            lineY += 20;
+            ctx.fillText(nl, col.xRight - 8, startY);
+            startY += lineSpacing;
           });
         } else if (col.key === 'absenceType' && row.absLinesArr && row.absLinesArr.length > 0) {
           ctx.direction = 'rtl';
           ctx.textAlign = 'right';
-          ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
-          let lineY = currentY + 22;
+          ctx.font = '700 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+          let lineSpacing = 18;
+          let totalH = row.absLinesArr.length * lineSpacing;
+          let startY = currentY + Math.max(14, (rowH - totalH) / 2 + 12);
           row.absLinesArr.forEach(al => {
-            ctx.fillText(al, col.xRight - 10, lineY);
-            lineY += 20;
+            ctx.fillText(al, col.xRight - 8, startY);
+            startY += lineSpacing;
           });
         } else {
           ctx.direction = 'rtl';
           ctx.textAlign = 'right';
-          ctx.fillText(String(val).substring(0, 32), col.xRight - 10, currentY + 26);
+          ctx.fillText(String(val).substring(0, 32), col.xRight - 8, currentY + (rowH / 2) + 5);
         }
+
+        ctx.restore();
 
         ctx.strokeStyle = '#cbd5e1';
         ctx.lineWidth = 1;
@@ -8591,37 +8646,58 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
     // Inline Summary Box on last records page
     if (p === pageChunks.length - 1) {
-      let sumY = currentY + 20;
-      if (sumY + 58 <= maxContentY) {
-        drawCanvasRoundRect(ctx, 40, sumY, 1120, 58, 12, '#f8fafc', '#cbd5e1', 2, [6, 4]);
+      let sumH = 82;
+      let sumY = currentY + 16;
+      if (sumY + sumH <= maxContentY) {
+        drawCanvasRoundRect(ctx, 40, sumY, 1120, sumH, 12, '#f8fafc', '#cbd5e1', 2, [6, 4]);
 
+        // Subtle divider line between Row 1 and Row 2
+        ctx.save();
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(55, sumY + 42);
+        ctx.lineTo(1145, sumY + 42);
+        ctx.stroke();
+        ctx.restore();
+
+        // --- ROW 1: Period Label + Attendance & Absence ---
         ctx.direction = 'rtl';
         ctx.textAlign = 'right';
         ctx.fillStyle = '#334155';
-        ctx.font = '800 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
-        ctx.fillText(`${periodLabel} (إجمالي):`, 1160 - 15, sumY + 35);
+        ctx.font = '800 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+        ctx.fillText(`${periodLabel} (إجمالي):`, 1160 - 20, sumY + 27);
 
         ctx.textAlign = 'center';
         ctx.fillStyle = themePri;
-        ctx.fillText(`حضور: ${repSummary.p}`, 930, sumY + 35);
+        ctx.fillText(`حضور: ${repSummary.p}`, 520, sumY + 27);
 
         ctx.fillStyle = '#dc2626';
-        ctx.fillText(`غياب: ${repSummary.a}`, 810, sumY + 35);
+        ctx.fillText(`غياب: ${repSummary.a}`, 260, sumY + 27);
 
+        // --- ROW 2: Hours & Accounting (5 Items distributed across width) ---
+        ctx.font = '800 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
+
+        // 1. تأخير (Rightmost)
         ctx.fillStyle = '#d97706';
-        ctx.fillText(`تأخير: ${totalLateDec}`, 680, sumY + 35);
+        ctx.fillText(`تأخير: ${totalLateDec}`, 1030, sumY + 66);
 
+        // 2. خروج مبكر
         ctx.fillStyle = '#dc2626';
-        ctx.fillText(`مبكر: ${totalEarlyDec}`, 530, sumY + 35);
+        ctx.fillText(`مبكر: ${totalEarlyDec}`, 815, sumY + 66);
 
+        // 3. إضافي أصلي
         ctx.fillStyle = '#2563eb';
-        ctx.fillText(`إضافي أصلي: +${otAccounting.grossFormatted}`, 370, sumY + 35);
+        ctx.fillText(`إضافي أصلي: +${otAccounting.grossFormatted}`, 590, sumY + 66);
 
+        // 4. خصم
         ctx.fillStyle = '#dc2626';
-        ctx.fillText(`خصم: -${otAccounting.deductionsFormatted}`, 220, sumY + 35);
+        ctx.fillText(`خصم: -${otAccounting.deductionsFormatted}`, 365, sumY + 66);
 
+        // 5. صافي الإضافي (Leftmost)
         ctx.fillStyle = '#059669';
-        ctx.fillText(`صافي الإضافي: ${otAccounting.netFormatted}`, 90, sumY + 35);
+        ctx.fillText(`صافي الإضافي: ${otAccounting.netFormatted}`, 145, sumY + 66);
       }
     }
 
@@ -8648,14 +8724,14 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
   ctx.direction = 'rtl';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#1B3D6D';
-  ctx.font = '900 28px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+  ctx.font = '900 28px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
   ctx.fillText('ملخص الإحصائيات والاعتماد النهائي', 600, cardTopY + 48);
 
   let cleanRepTitle = repTitle ? repTitle.replace(/^تقرير\s*/, '') : '';
   let displayRepType = cleanRepTitle || repTitle;
 
   ctx.fillStyle = '#475569';
-  ctx.font = '700 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+  ctx.font = '700 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
   ctx.fillText(`الموظف: ${settings.name || '-'}   |   نوع التقرير: ${displayRepType}   |   الفترة: ${periodLabel}`, 600, cardTopY + 80);
 
   // 8 Statistics Cards Grid (4x2 Grid) - LEVEL 3, LEVEL 6, & HIGH-CONTRAST BIG NUMBERS
@@ -8685,15 +8761,15 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = c.titleColor;
-    ctx.font = '800 15px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '800 15px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(c.title, cx + cardW / 2, cy + 32);
 
     ctx.fillStyle = c.countColor;
-    ctx.font = '900 32px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '900 32px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(c.count, cx + cardW / 2, cy + 82);
 
     ctx.fillStyle = c.subColor;
-    ctx.font = '700 13px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+    ctx.font = '700 13px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
     ctx.fillText(c.sub, cx + cardW / 2, cy + 120);
   });
 
@@ -8760,14 +8836,14 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       ctx.direction = 'rtl';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#1B3D6D';
-      ctx.font = '800 16px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+      ctx.font = '800 16px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillText(cTitle, scx + sigColW / 2, sigsY + 34);
 
       ctx.textAlign = 'right';
       let rX = scx + sigColW - 32;
       
       // Label 1: Name
-      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+      ctx.font = '700 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
       ctx.fillText(cLabel1, rX, sigsY + 92);
       let l1W = ctx.measureText(cLabel1).width;
@@ -8775,7 +8851,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       ctx.fillText(resolvedVal, rX - l1W - 8, sigsY + 92);
 
       // Label 2: Signature
-      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+      ctx.font = '700 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
       ctx.fillText(cLabel2, rX, sigsY + 145);
       
@@ -8788,7 +8864,7 @@ async function generateDirectRealReportPDF(jspdfLib, options) {
       }
 
       // Label 3: Date
-      ctx.font = '700 14px "Cairo", "Tajawal", "Segoe UI", sans-serif';
+      ctx.font = '700 14px "Tajawal", "Tajawal", "Segoe UI", sans-serif';
       ctx.fillStyle = '#475569';
       ctx.fillText(cLabel3, rX, sigsY + 195);
       let l3W = ctx.measureText(cLabel3).width;
@@ -9380,7 +9456,7 @@ window.exeExpExcel=async function(mode){
   </xml>
   <![endif]-->
   <style>
-    body { font-family: 'Cairo', 'Segoe UI', Arial, sans-serif; direction: rtl; }
+    body { font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; direction: rtl; }
     .report-title { font-size: 18pt; font-weight: bold; color: #1B3D6D; text-align: center; }
     .report-sub { font-size: 11pt; color: #475569; text-align: center; }
     .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
