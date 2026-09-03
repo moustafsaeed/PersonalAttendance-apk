@@ -98,7 +98,7 @@ function toSlashDateString(input) {
   const y = cd.getFullYear();
   const m = String(cd.getMonth() + 1).padStart(2, "0");
   const d = String(cd.getDate()).padStart(2, "0");
-  return `${d}/${m}/${y}`;
+  return `${y}/${m}/${d}`;
 }
 
 function getCalendarDayName(input) {
@@ -626,10 +626,7 @@ function makeDateKey(y,m,d){
 }
 function fmt12(t){if(!t||typeof t!==`string`||t===`---`||!t.includes(`:`))return t||`---`;let[h,m]=t.split(`:`).map(Number),p=h>=12?`مساءً`:`صباحاً`,hh=h%12||12;return`${String(hh).padStart(2,`0`)}:${String(m).padStart(2,`0`)} ${p}`}
 function nowHHMM(){let d=new Date;return`${String(d.getHours()).padStart(2,`0`)}:${String(d.getMinutes()).padStart(2,`0`)}`}
-function isPresent(s){
-  if(!s || typeof s !== 'string') return false;
-  return s!==`absent` && s!==`إجازة رسمية` && s!==`إجازة` && s!==`عطلة` && s!==`إجازة أسبوعية` && s!==`إجازة من الإضافي`;
-}
+function isPresent(s){return s!==`absent` && s!==`إجازة رسمية` && s!==`إجازة` && s!==`إجازة من الإضافي`}
 function isTravel(s){return s===`تكليف سفر`}
 function isOTLeave(s){return s===`إجازة من الإضافي`}
 function formatMin(v){
@@ -695,19 +692,15 @@ function earlyMin(co,e){
 }
 
 function hasOvertime(r) {
-  if(!r || !r.date || !r.checkOut) return false;
-  let d = parseCalendarDate(r.date);
-  if(isNaN(d.getTime())) return false;
-  let isHol = isHoliday(d) || !isWorkDay(d) || r.status === 'إجازة رسمية' || r.status === 'إجازة' || r.status === 'إجازة أسبوعية' || r.status === 'عطلة';
-  if(!isPresent(r.status) && !isHol) return false;
+  if(!r || !r.status || !isPresent(r.status) || !r.checkOut || !r.date) return false;
+  let d = parseCalendarDate(r.date), sch = getSchedule(d.getFullYear(), d.getMonth(), d);
+  let isHol = isHoliday(d) || !isWorkDay(d);
   if (isHol && r.checkIn && r.checkOut) {
-    let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number);
-    let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
+    let [sh, sm] = (r.checkIn && r.checkIn.includes(":") ? r.checkIn : "00:00").split(":").map(Number); let [eh, em] = (r.checkOut && r.checkOut.includes(":") ? r.checkOut : "00:00").split(":").map(Number);
     let extra = (eh*60+em) - (sh*60+sm);
     if (extra < 0) extra += 1440;
     return extra > 0;
   }
-  let sch = getSchedule(d.getFullYear(), d.getMonth(), d);
   return extraMin(r.checkOut, sch.overtimeStart) > 0;
 }
 function extraMin(co,e){
